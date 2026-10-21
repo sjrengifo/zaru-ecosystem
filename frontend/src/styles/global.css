@@ -1,0 +1,140 @@
+/* =========================================================
+   Estilos globales de Zaru
+   🎨 Equipo DMI: los colores y medidas de la marca están en
+   las variables de abajo. Cambien aquí y se aplica en todo.
+   (HU-13: el branding de cada sede reemplazará --color-primario)
+   ========================================================= */
+:root {
+  --color-primario: #2563eb;
+  --color-primario-hover: #1d4ed8;
+  --color-fondo: #f5f7fb;
+  --color-superficie: #ffffff;
+  --color-texto: #111827;
+  --color-texto-suave: #6b7280;
+  --color-borde: #e5e7eb;
+  --color-error: #dc2626;
+
+  --radio: 10px;
+  --espacio: 16px;
+  --fuente: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--fuente);
+  background: var(--color-fondo);
+  color: var(--color-texto);
+}
+
+h1, h2, h3 { margin: 0 0 var(--espacio); }
+
+input {
+  width: 100%;
+  padding: 10px 12px;
+  margin: 6px 0 var(--espacio);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  font: inherit;
+}
+
+label { display: block; font-size: 14px; }
+
+/* ---------- Utilidades ---------- */
+.texto-suave { color: var(--color-texto-suave); font-size: 14px; }
+.error { color: var(--color-error); font-size: 14px; }
+.centrado { text-align: center; margin-top: 40vh; }
+
+.tarjeta {
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  padding: var(--espacio);
+}
+
+.boton {
+  background: var(--color-primario);
+  color: #fff;
+  border: none;
+  border-radius: var(--radio);
+  padding: 10px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+.boton:hover { background: var(--color-primario-hover); }
+.boton:disabled { opacity: 0.6; cursor: wait; }
+.boton.secundario {
+  background: transparent;
+  color: var(--color-texto-suave);
+  border: 1px solid var(--color-borde);
+}
+
+/* ---------- Layout con menú lateral ---------- */
+.layout { display: flex; min-height: 100vh; }
+
+.menu {
+  width: 220px;
+  background: var(--color-superficie);
+  border-right: 1px solid var(--color-borde);
+  padding: var(--espacio);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio);
+}
+.menu nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.menu-item {
+  padding: 8px 12px;
+  border-radius: var(--radio);
+  color: var(--color-texto);
+  text-decoration: none;
+}
+.menu-item.active { background: var(--color-primario); color: #fff; }
+
+.logo { color: var(--color-primario); font-size: 28px; }
+
+.contenido { flex: 1; padding: calc(var(--espacio) * 2); }
+
+.encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--espacio);
+}
+
+/* ---------- Login ---------- */
+.login { min-height: 100vh; display: grid; place-items: center; padding: var(--espacio); }
+.login-form { width: 100%; max-width: 360px; }
+.login-form .boton { width: 100%; }
+
+/* ---------- Dashboard ---------- */
+.tablero {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: var(--espacio);
+  overflow-x: auto;
+}
+.columna { display: flex; flex-direction: column; gap: 8px; }
+.tarjeta-vehiculo { display: flex; justify-content: space-between; }
+
+/* ---------- Tablas ---------- */
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-superficie);
+  border-radius: var(--radio);
+  overflow: hidden;
+}
+.tabla th, .tabla td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid var(--color-borde);
+}
+.tabla th { font-size: 13px; color: var(--color-texto-suave); }
+
+/* ---------- Celular ---------- */
+@media (max-width: 768px) {
+  .layout { flex-direction: column; }
+  .menu { width: 100%; }
+  .contenido { padding: var(--espacio); }
+}
