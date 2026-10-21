@@ -47,8 +47,8 @@ El proyecto tiene **3 partes**. Todo se escribe en **JavaScript**.
 - Los tres servicios tienen **plan gratuito**.
 
 **Sugerencia de reparto:**
-- 🎨 **Equipo DMI:** diseño en Figma, componentes y páginas en `frontend/`.
-- 🛠️ **Equipo Sistemas:** `backend/`, `database/`, conexión entre partes y despliegue.
+- 🎨 **Equipo DMI** (María José, Nikol, Silvana, Yeliani y Vanessa): diseño en Figma, componentes y páginas en `frontend/`.
+- 🛠️ **Equipo SIS** (Samuel y Adri): `backend/`, `database/`, conexión entre partes, revisión de código y despliegue.
 
 ---
 
@@ -307,14 +307,14 @@ Se hace al final de cada sprint. Los tres servicios son **gratuitos** y se conec
 
 ## 👥 Equipo
 
-| Integrante | Rol (TSP) |
-|---|---|
-| María José Rosas Cuellar | Team Leader |
-| Samuel Rengifo Morales | Development Manager |
-| Nikol Salamanca Chantre | Planning Manager |
-| Adri Jhoanny Martínez Murillo | Support Manager |
-| Silvana Cuartas Silva | Quality Manager |
-| Yeliani Barbosa Guzmán | Test Manager |
-| Vanessa Nuñez Torres | Configuration Manager |
+| Integrante | Carrera | Rol (TSP) |
+|---|---|---|
+| María José Rosas Cuellar | 🎨 DMI | Team Leader |
+| Nikol Salamanca Chantre | 🎨 DMI | Planning Manager |
+| Silvana Cuartas Silva | 🎨 DMI | Quality Manager |
+| Yeliani Barbosa Guzmán | 🎨 DMI | Test Manager |
+| Vanessa Nuñez Torres | 🎨 DMI | Configuration Manager |
+| Samuel Rengifo Morales | 🛠️ SIS | Development Manager |
+| Adri Jhoanny Martínez Murillo | 🛠️ SIS | Support Manager |
 
-> Agreguen aquí a los integrantes de DMI.
+> **DMI:** Diseño de Medios Interactivos · **SIS:** Ingeniería de Sistemas
