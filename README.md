@@ -122,21 +122,30 @@ git -v     # debe mostrar una versión
 ### Paso 1 — Descargar el proyecto
 
 ```bash
-git clone https://github.com/<usuario-o-organizacion>/zaru-ecosystem.git
+git clone https://github.com/sjrengifo/zaru-ecosystem.git
 cd zaru-ecosystem
 ```
 
-### Paso 2 — Base de datos en Supabase (lo hace **una sola persona** del equipo)
+### Paso 2 — Base de datos (✅ ya está creada)
 
-1. Crear una cuenta en https://supabase.com y un proyecto nuevo llamado `zaru`.
-2. Ir a **SQL Editor**, pegar el contenido de `database/schema.sql` y darle **Run**.
-3. Hacer lo mismo con `database/seed.sql` para tener datos de prueba.
-4. **Crear el usuario administrador** para poder entrar al panel: sigue las instrucciones del final de `seed.sql` (se crea en **Authentication → Users** y luego se conecta con su car wash).
-5. Ir a **Project Settings → API** y copiar:
-   - `Project URL`
-   - `anon public key`
-   - `service_role key` ⚠️ **secreta**, solo va en el backend.
-6. Compartir estas claves con el equipo **por un canal privado** (nunca en GitHub).
+La base de datos **ya existe en la nube**, no tienes que crear nada. Todos usamos la misma.
+
+| Dato | Valor |
+|---|---|
+| Proyecto | `zaru` (organización **zaru** en Supabase, plan gratuito) |
+| Región | `us-east-1` (Estados Unidos, la más cercana a Colombia) |
+| URL | `https://djutvsulfduzuylvaten.supabase.co` |
+| Panel | https://supabase.com/dashboard/project/djutvsulfduzuylvaten |
+
+**¿Qué tiene adentro?**
+- Las tablas de la Épica 1: establecimientos, perfiles, clientes, vehículos, servicios, promociones y órdenes.
+- Seguridad multi-tenant: cada car wash solo ve sus propios datos.
+- Tiempo real activado en `ordenes` (para el dashboard).
+- Datos de prueba: el car wash **"Car Wash Demo Cali"**, 4 servicios, un cliente y el vehículo de placa **ABC123**.
+
+**¿Necesitas entrar al panel de Supabase?** Pídele a Samuel que te invite a la organización **zaru**.
+
+> ⚠️ **¿Vas a cambiar la base de datos?** No edites tablas a mano desde el panel. Avisa al equipo SIS: cada cambio se guarda también en `database/schema.sql` para que el repositorio y la base siempre coincidan.
 
 ### Paso 3 — Backend
 
@@ -146,7 +155,10 @@ npm install                 # instala las librerías (solo la primera vez)
 cp .env.example .env        # crea tu archivo de claves
 ```
 
-Abre `backend/.env` y pega las claves de Supabase. Luego:
+Abre `backend/.env`. La URL de Supabase ya viene puesta; solo falta la **`SUPABASE_SERVICE_ROLE_KEY`**.
+Pídesela a alguien del equipo SIS por un **canal privado** (o cópiala en Supabase → **Project Settings → API Keys** si tienes acceso). ⚠️ Es secreta: nunca va en el frontend ni en GitHub.
+
+Luego:
 
 ```bash
 npm run dev
@@ -163,13 +175,17 @@ npm install
 cp .env.example .env
 ```
 
-Abre `frontend/.env`, pega la URL y la `anon key` de Supabase. Luego:
+¡Listo! El `.env` del frontend ya trae la URL y la clave pública de Supabase, no hay que llenar nada. Luego:
 
 ```bash
 npm run dev
 ```
 
 ✅ Abre http://localhost:5173 y verás la pantalla de inicio de sesión.
+
+**¿Con qué usuario entro?** Cada integrante necesita su propio usuario:
+1. Pídele a alguien con acceso a Supabase que te cree un usuario en **Authentication → Users → Add user** (marcando *Auto Confirm User*).
+2. Ese usuario se conecta al car wash de prueba con su rol (`admin` u `operario`), siguiendo las instrucciones del final de `database/seed.sql`.
 
 > 💡 **Recuerda:** backend y frontend corren **al mismo tiempo**, cada uno en su terminal.
 
@@ -251,7 +267,7 @@ Se hace al final de cada sprint. Los tres servicios son **gratuitos** y se conec
 
 | Qué | Dónde | Resultado |
 |---|---|---|
-| Base de datos | Supabase | Ya está en la nube desde el paso 2 |
+| Base de datos | Supabase | ✅ Ya está publicada: `https://djutvsulfduzuylvaten.supabase.co` |
 | Backend | Render | `https://zaru-api.onrender.com` |
 | Frontend | Vercel | `https://zaru.vercel.app` |
 

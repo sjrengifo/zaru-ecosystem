@@ -123,21 +123,43 @@ create table historial_estados (
 create index on clientes  (establecimiento_id);
 create index on vehiculos (establecimiento_id, cliente_id);
 create index on ordenes   (establecimiento_id, estado);
+-- Índices de llaves foráneas (recomendados por el asesor de Supabase)
+create index on historial_estados   (orden_id);
+create index on historial_estados   (usuario_id);
+create index on orden_servicios     (servicio_id);
+create index on ordenes             (creada_por);
+create index on ordenes             (vehiculo_id);
+create index on perfiles            (establecimiento_id);
+create index on promocion_servicios (servicio_id);
+create index on promociones         (establecimiento_id);
+create index on servicios           (establecimiento_id);
+create index on vehiculos           (cliente_id);
 
 -- =====================================================================
 --  SEGURIDAD MULTI-TENANT (Row Level Security)
 -- =====================================================================
 
+-- Las funciones de seguridad viven en un esquema "privado" que NO se expone
+-- en la API (así nadie puede llamarlas desde internet).
+create schema if not exists privado;
+revoke all on schema privado from public, anon;
+grant usage on schema privado to authenticated, service_role;
+
 -- Devuelve el establecimiento del usuario que hace la consulta.
-create or replace function mi_establecimiento()
+create or replace function privado.mi_establecimiento()
 returns uuid language sql stable security definer set search_path = public as $$
   select establecimiento_id from perfiles where id = auth.uid() and activo
 $$;
 
-create or replace function soy_admin()
+create or replace function privado.soy_admin()
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from perfiles where id = auth.uid() and rol = 'admin' and activo)
 $$;
+
+revoke execute on function privado.mi_establecimiento() from public, anon;
+revoke execute on function privado.soy_admin()          from public, anon;
+grant  execute on function privado.mi_establecimiento() to authenticated, service_role;
+grant  execute on function privado.soy_admin()          to authenticated, service_role;
 
 alter table establecimientos    enable row level security;
 alter table perfiles            enable row level security;
@@ -151,19 +173,19 @@ alter table orden_servicios     enable row level security;
 alter table historial_estados   enable row level security;
 
 -- Lectura: cada usuario solo ve lo de su establecimiento.
-create policy "ver mi establecimiento" on establecimientos for select using (id = mi_establecimiento());
-create policy "ver perfiles"           on perfiles     for select using (establecimiento_id = mi_establecimiento());
-create policy "ver clientes"           on clientes     for select using (establecimiento_id = mi_establecimiento());
-create policy "ver vehiculos"          on vehiculos    for select using (establecimiento_id = mi_establecimiento());
-create policy "ver servicios"          on servicios    for select using (establecimiento_id = mi_establecimiento());
-create policy "ver promociones"        on promociones  for select using (establecimiento_id = mi_establecimiento());
-create policy "ver ordenes"            on ordenes      for select using (establecimiento_id = mi_establecimiento());
+create policy "ver mi establecimiento" on establecimientos for select using (id = privado.mi_establecimiento());
+create policy "ver perfiles"           on perfiles     for select using (establecimiento_id = privado.mi_establecimiento());
+create policy "ver clientes"           on clientes     for select using (establecimiento_id = privado.mi_establecimiento());
+create policy "ver vehiculos"          on vehiculos    for select using (establecimiento_id = privado.mi_establecimiento());
+create policy "ver servicios"          on servicios    for select using (establecimiento_id = privado.mi_establecimiento());
+create policy "ver promociones"        on promociones  for select using (establecimiento_id = privado.mi_establecimiento());
+create policy "ver ordenes"            on ordenes      for select using (establecimiento_id = privado.mi_establecimiento());
 create policy "ver promo-servicios"    on promocion_servicios for select
-  using (exists (select 1 from promociones p where p.id = promocion_id and p.establecimiento_id = mi_establecimiento()));
+  using (exists (select 1 from promociones p where p.id = promocion_id and p.establecimiento_id = privado.mi_establecimiento()));
 create policy "ver orden-servicios"    on orden_servicios for select
-  using (exists (select 1 from ordenes o where o.id = orden_id and o.establecimiento_id = mi_establecimiento()));
+  using (exists (select 1 from ordenes o where o.id = orden_id and o.establecimiento_id = privado.mi_establecimiento()));
 create policy "ver historial"          on historial_estados for select
-  using (exists (select 1 from ordenes o where o.id = orden_id and o.establecimiento_id = mi_establecimiento()));
+  using (exists (select 1 from ordenes o where o.id = orden_id and o.establecimiento_id = privado.mi_establecimiento()));
 
 -- Escritura: la hace el BACKEND con la "service_role key", que salta RLS.
 -- El backend es quien valida roles (admin/operario) y el establecimiento.
