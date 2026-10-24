@@ -1,336 +1,311 @@
-# ZARU Ecosystem 🚗💧
+# ZARU Ecosystem
 
-Plataforma web (SaaS) para que los car wash gestionen clientes, vehículos, servicios y el estado de cada lavado en tiempo real.
+Plataforma SaaS multi-tenant para la gestión operativa de establecimientos de lavado de vehículos (car wash). Permite a cada establecimiento afiliado administrar clientes, vehículos, servicios y promociones, y hacer seguimiento en tiempo real del estado de cada servicio. El cliente final consulta el avance de su vehículo desde una interfaz web móvil.
 
-> Proyecto del curso **Gerencia de Proyectos de TI** — Universidad Icesi, 2026-2.
-> Backlog en Jira: espacio **Zaru** (Épica `ZARU-1`).
-
----
-
-## 📌 Índice
-
-1. [¿Cómo está armado el proyecto?](#1-cómo-está-armado-el-proyecto)
-2. [Estructura de carpetas](#2-estructura-de-carpetas)
-3. [Lo que necesitas instalar](#3-lo-que-necesitas-instalar)
-4. [Poner el proyecto a correr (paso a paso)](#4-poner-el-proyecto-a-correr-paso-a-paso)
-5. [Cómo trabajamos con Git](#5-cómo-trabajamos-con-git)
-6. [¿Dónde va cada historia de usuario?](#6-dónde-va-cada-historia-de-usuario)
-7. [Despliegue (publicar en internet)](#7-despliegue-publicar-en-internet)
-8. [Problemas comunes](#8-problemas-comunes)
-9. [Glosario rápido](#9-glosario-rápido)
+Proyecto desarrollado en el curso **Gerencia de Proyectos de TI** — Universidad Icesi, 2026-2, bajo metodología **Scrum**. El product backlog se gestiona en Jira (espacio **Zaru**).
 
 ---
 
-## 1. ¿Cómo está armado el proyecto?
+## Contenido
 
-El proyecto tiene **3 partes**. Todo se escribe en **JavaScript**.
+1. [Alcance](#1-alcance)
+2. [Arquitectura](#2-arquitectura)
+3. [Stack tecnológico](#3-stack-tecnológico)
+4. [Modelo de datos y seguridad](#4-modelo-de-datos-y-seguridad)
+5. [Estructura del repositorio](#5-estructura-del-repositorio)
+6. [Configuración del entorno local](#6-configuración-del-entorno-local)
+7. [API](#7-api)
+8. [Trazabilidad con el backlog](#8-trazabilidad-con-el-backlog)
+9. [Flujo de trabajo](#9-flujo-de-trabajo)
+10. [Despliegue](#10-despliegue)
+11. [Equipo](#11-equipo)
+
+---
+
+## 1. Alcance
+
+El producto se organiza en cuatro épicas:
+
+| Épica | Jira | Descripción |
+|---|---|---|
+| Épica 1 | `ZARU-1` | Panel administrativo web por establecimiento: gestión de clientes y vehículos, dashboard operativo en tiempo real, promociones y branding por sede. |
+| Épica 2 | `ZARU-30` | Interfaz web móvil para el cliente final: acceso sin registro, seguimiento del servicio en tiempo real e historial. |
+| Épica 3 | `ZARU-15` | Sistema de notificaciones y comunicación con el cliente. |
+| Épica 4 | `ZARU-48` | Arquitectura y backend. |
+
+Este repositorio contiene actualmente la base de la Épica 1 y la infraestructura compartida (autenticación, modelo de datos, API y despliegue).
+
+---
+
+## 2. Arquitectura
 
 ```
-  ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
-  │   FRONTEND   │ ─────▶ │   BACKEND    │ ─────▶ │ BASE DE DATOS│
-  │ React + Vite │ ◀───── │ Node+Express │ ◀───── │   Supabase   │
-  └──────────────┘        └──────────────┘        └──────────────┘
-   Lo que ve el            La lógica y las          Donde se guardan
-   usuario (pantallas)     reglas del negocio       los datos
+┌────────────────────┐      HTTPS / JSON      ┌────────────────────┐      SQL      ┌────────────────────┐
+│      Frontend      │ ─────────────────────▶ │    Backend (API)   │ ────────────▶ │   Supabase         │
+│   React + Vite     │                        │  Node.js + Express │               │   PostgreSQL       │
+│   (Vercel)         │ ◀───────────────────── │   (Render)         │ ◀──────────── │   Auth · Realtime  │
+└─────────┬──────────┘                        └────────────────────┘               └─────────┬──────────┘
+          │                    Autenticación y suscripciones en tiempo real                   │
+          └───────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Parte | ¿Qué es? | Tecnología | ¿Dónde se publica? |
-|---|---|---|---|
-| **Frontend** | Las pantallas del panel: login, dashboard, clientes, etc. | React + Vite | Vercel |
-| **Backend** | Una API que recibe peticiones del frontend y aplica las reglas del negocio | Node.js + Express | Render |
-| **Base de datos** | Guarda establecimientos, clientes, vehículos, órdenes… También maneja el login y el tiempo real | Supabase (PostgreSQL) | Supabase |
-
-**¿Por qué así?**
-- **Un solo lenguaje (JavaScript):** todo el equipo puede leer y ayudar en cualquier parte.
-- **React trabaja con componentes**, igual que en Figma: un botón, una tarjeta, una tabla.
-- **Supabase** ya trae login y tiempo real, así no hay que construirlos desde cero.
-- Los tres servicios tienen **plan gratuito**.
-
-**Sugerencia de reparto:**
-- 🎨 **Equipo DMI** (María José, Nikol, Silvana, Yeliani y Vanessa): diseño en Figma, componentes y páginas en `frontend/`.
-- 🛠️ **Equipo SIS** (Samuel y Adri): `backend/`, `database/`, conexión entre partes, revisión de código y despliegue.
+- **Frontend:** SPA que consume la API REST para operaciones de negocio y se conecta directamente a Supabase para autenticación (Supabase Auth) y para recibir cambios en tiempo real (Supabase Realtime).
+- **Backend:** API REST que valida la sesión del usuario, resuelve su establecimiento y rol, y aplica las reglas de negocio. Es el único componente con permisos de escritura sobre la base de datos (`service_role`).
+- **Base de datos:** PostgreSQL gestionado por Supabase, con Row Level Security (RLS) que garantiza el aislamiento entre establecimientos para cualquier acceso directo desde el cliente.
 
 ---
 
-## 2. Estructura de carpetas
+## 3. Stack tecnológico
+
+| Capa | Tecnología | Versión |
+|---|---|---|
+| Frontend | React, React Router, Vite | React 18 · Vite 5 |
+| Backend | Node.js, Express | Node ≥ 20 · Express 4 |
+| Base de datos | PostgreSQL (Supabase) | — |
+| Autenticación | Supabase Auth (JWT) | — |
+| Tiempo real | Supabase Realtime (`postgres_changes`) | — |
+| Cliente de datos | `@supabase/supabase-js` | 2.x |
+| CI | GitHub Actions | — |
+| Hosting | Vercel (frontend) · Render (backend) · Supabase (BD) | Planes gratuitos |
+
+---
+
+## 4. Modelo de datos y seguridad
+
+### Instancia
+
+| Atributo | Valor |
+|---|---|
+| Proyecto Supabase | `zaru` (organización `zaru`) |
+| Región | `us-east-1` |
+| URL | `https://djutvsulfduzuylvaten.supabase.co` |
+| Esquema versionado | [`database/schema.sql`](database/schema.sql) |
+| Datos de prueba | [`database/seed.sql`](database/seed.sql) |
+
+### Entidades
+
+| Tabla | Descripción | HU |
+|---|---|---|
+| `establecimientos` | Car wash afiliado (tenant), con logo y colores de marca | HU-13 |
+| `perfiles` | Usuario del panel vinculado a `auth.users`, con rol `admin` u `operario` | HU-01, HU-02 |
+| `clientes` | Cliente final con autorización de tratamiento de datos (Ley 1581 de 2012) | HU-03, HU-04 |
+| `vehiculos` | Vehículos por cliente; placa única por establecimiento | HU-05 |
+| `servicios` | Catálogo de servicios con precio y duración estimada | HU-07 |
+| `promociones`, `promocion_servicios` | Promociones con vigencia y servicios aplicables | HU-12 |
+| `ordenes` | Orden de servicio y su estado (`recibido` → `en_lavado` → `listo` → `entregado`) | HU-08, HU-10 |
+| `orden_servicios` | Servicios de cada orden con el precio y la duración vigentes al momento de crearla | HU-07, HU-08 |
+| `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
+
+### Seguridad multi-tenant
+
+- Todas las tablas de negocio incluyen `establecimiento_id`.
+- RLS está habilitado en todas las tablas. Las políticas de lectura restringen las filas al establecimiento del usuario autenticado mediante la función `privado.mi_establecimiento()`.
+- Las funciones de seguridad residen en el esquema `privado`, que no se expone en la API REST de Supabase.
+- Las escrituras se realizan exclusivamente desde el backend con la clave `service_role`, filtrando siempre por el establecimiento del usuario (`req.usuario.establecimientoId`).
+- La tabla `ordenes` está publicada en `supabase_realtime` para el dashboard operativo.
+
+### Gestión de cambios
+
+Todo cambio de esquema debe aplicarse como migración en Supabase y reflejarse en `database/schema.sql` dentro del mismo Pull Request, de forma que el repositorio sea siempre la fuente de verdad del modelo de datos.
+
+---
+
+## 5. Estructura del repositorio
 
 ```
 zaru-ecosystem/
-├── frontend/                 ← 🎨 Pantallas (React)
+├── frontend/                     Aplicación web (React + Vite)
 │   ├── src/
-│   │   ├── pages/            ← Una página por pantalla (Login, Dashboard, Clientes…)
-│   │   ├── components/       ← Piezas reutilizables (botones, tarjetas, menú…)
-│   │   ├── services/         ← Funciones que hablan con el backend
-│   │   ├── lib/              ← Conexión con Supabase
-│   │   ├── hooks/            ← Lógica reutilizable de React (ej: usuario actual)
-│   │   ├── styles/           ← Estilos globales y colores de la marca
-│   │   ├── App.jsx           ← Define las rutas (qué página va en qué URL)
-│   │   └── main.jsx          ← Punto de entrada (no hace falta tocarlo)
-│   ├── .env.example          ← Plantilla de variables de entorno
-│   ├── vercel.json           ← Configuración para publicar en Vercel
-│   └── package.json
+│   │   ├── pages/                Vistas por módulo (Login, Dashboard, Clientes, …)
+│   │   ├── components/           Componentes compartidos (Layout, RutaProtegida, …)
+│   │   ├── services/api.js       Cliente HTTP hacia la API (adjunta el JWT de sesión)
+│   │   ├── lib/supabase.js       Cliente de Supabase (Auth y Realtime)
+│   │   ├── hooks/                Hooks de React (useSesion)
+│   │   ├── styles/global.css     Estilos globales y tokens de diseño
+│   │   ├── App.jsx               Definición de rutas
+│   │   └── main.jsx              Punto de entrada
+│   ├── vercel.json               Reescrituras para SPA en Vercel
+│   └── .env.example
 │
-├── backend/                  ← 🛠️ API (Node + Express)
+├── backend/                      API REST (Node.js + Express)
 │   ├── src/
-│   │   ├── routes/           ← Las URLs de la API (ej: /api/clientes)
-│   │   ├── controllers/      ← Qué hace cada URL
-│   │   ├── middlewares/      ← Filtros: login obligatorio, roles, errores
-│   │   ├── config/           ← Conexión con Supabase
-│   │   ├── app.js            ← Arma la API
-│   │   └── index.js          ← Enciende el servidor
-│   ├── .env.example
-│   └── package.json
+│   │   ├── routes/               Definición de endpoints por recurso
+│   │   ├── controllers/          Lógica de negocio por recurso
+│   │   ├── middlewares/          Autenticación, autorización por rol y manejo de errores
+│   │   ├── config/supabase.js    Cliente de Supabase con service_role
+│   │   ├── app.js                Configuración de Express
+│   │   └── index.js              Arranque del servidor
+│   └── .env.example
 │
-├── database/                 ← 🗄️ Base de datos
-│   ├── schema.sql            ← Crea todas las tablas y reglas de seguridad
-│   └── seed.sql              ← Datos de prueba
+├── database/
+│   ├── schema.sql                Esquema, índices, RLS y Realtime
+│   └── seed.sql                  Datos de prueba
 │
-├── docs/                     ← 📄 Documentación extra
-│   └── CONTRIBUIR.md         ← Reglas para trabajar en equipo
-│
-├── .github/                  ← Revisión automática (CI) y plantilla de Pull Request
-│
-├── render.yaml               ← Configuración para publicar el backend
-└── README.md                 ← Este archivo
+├── docs/CONTRIBUIR.md            Convenciones de ramas, commits y Pull Requests
+├── .github/                      Workflow de CI y plantilla de Pull Request
+└── render.yaml                   Blueprint de despliegue del backend en Render
 ```
 
 ---
 
-## 3. Lo que necesitas instalar
+## 6. Configuración del entorno local
 
-Solo una vez, en tu computador:
+### Requisitos
 
-| Programa | Para qué | Descarga |
-|---|---|---|
-| **Node.js 20 o superior** (versión LTS) | Ejecutar el proyecto | https://nodejs.org |
-| **Git** | Guardar y compartir cambios | https://git-scm.com |
-| **VS Code** | Editar el código | https://code.visualstudio.com |
+- Node.js 20 o superior
+- Git
+- Acceso a las credenciales del proyecto Supabase
 
-Para comprobar que quedó bien, abre una terminal y escribe:
-
-```bash
-node -v    # debe mostrar v20.x o mayor
-git -v     # debe mostrar una versión
-```
-
-**Extensiones recomendadas en VS Code:** ES7+ React snippets, Prettier, ESLint.
-
----
-
-## 4. Poner el proyecto a correr (paso a paso)
-
-### Paso 1 — Descargar el proyecto
+### Instalación
 
 ```bash
 git clone https://github.com/sjrengifo/zaru-ecosystem.git
 cd zaru-ecosystem
-```
 
-### Paso 2 — Base de datos (✅ ya está creada)
-
-La base de datos **ya existe en la nube**, no tienes que crear nada. Todos usamos la misma.
-
-| Dato | Valor |
-|---|---|
-| Proyecto | `zaru` (organización **zaru** en Supabase, plan gratuito) |
-| Región | `us-east-1` (Estados Unidos, la más cercana a Colombia) |
-| URL | `https://djutvsulfduzuylvaten.supabase.co` |
-| Panel | https://supabase.com/dashboard/project/djutvsulfduzuylvaten |
-
-**¿Qué tiene adentro?**
-- Las tablas de la Épica 1: establecimientos, perfiles, clientes, vehículos, servicios, promociones y órdenes.
-- Seguridad multi-tenant: cada car wash solo ve sus propios datos.
-- Tiempo real activado en `ordenes` (para el dashboard).
-- Datos de prueba: el car wash **"Car Wash Demo Cali"**, 4 servicios, un cliente y el vehículo de placa **ABC123**.
-
-**¿Necesitas entrar al panel de Supabase?** Pídele a Samuel que te invite a la organización **zaru**.
-
-> ⚠️ **¿Vas a cambiar la base de datos?** No edites tablas a mano desde el panel. Avisa al equipo SIS: cada cambio se guarda también en `database/schema.sql` para que el repositorio y la base siempre coincidan.
-
-### Paso 3 — Backend
-
-```bash
+# Backend
 cd backend
-npm install                 # instala las librerías (solo la primera vez)
-cp .env.example .env        # crea tu archivo de claves
-```
+npm install
+cp .env.example .env
 
-Abre `backend/.env`. La URL de Supabase ya viene puesta; solo falta la **`SUPABASE_SERVICE_ROLE_KEY`**.
-Pídesela a alguien del equipo SIS por un **canal privado** (o cópiala en Supabase → **Project Settings → API Keys** si tienes acceso). ⚠️ Es secreta: nunca va en el frontend ni en GitHub.
-
-Luego:
-
-```bash
-npm run dev
-```
-
-✅ Si ves `API de Zaru corriendo en http://localhost:4000`, funciona.
-Pruébalo abriendo http://localhost:4000/api/health en el navegador.
-
-### Paso 4 — Frontend (en **otra** terminal)
-
-```bash
-cd frontend
+# Frontend
+cd ../frontend
 npm install
 cp .env.example .env
 ```
 
-¡Listo! El `.env` del frontend ya trae la URL y la clave pública de Supabase, no hay que llenar nada. Luego:
+### Variables de entorno
 
-```bash
-npm run dev
-```
+**`backend/.env`**
 
-✅ Abre http://localhost:5173 y verás la pantalla de inicio de sesión.
-
-**¿Con qué usuario entro?** Cada integrante necesita su propio usuario:
-1. Pídele a alguien con acceso a Supabase que te cree un usuario en **Authentication → Users → Add user** (marcando *Auto Confirm User*).
-2. Ese usuario se conecta al car wash de prueba con su rol (`admin` u `operario`), siguiendo las instrucciones del final de `database/seed.sql`.
-
-> 💡 **Recuerda:** backend y frontend corren **al mismo tiempo**, cada uno en su terminal.
-
-> 📘 **¿Por dónde empiezo a programar?** Mira `frontend/src/pages/Clientes.jsx` y `backend/src/controllers/clientes.controller.js`. Son los **ejemplos de referencia**: copien ese mismo patrón para los demás módulos. Las páginas que dicen 🚧 están pendientes y muestran qué historia de Jira les corresponde.
-
-### Comandos útiles
-
-| Comando | Dónde | Qué hace |
-|---|---|---|
-| `npm run dev` | frontend / backend | Corre el proyecto en modo desarrollo (se recarga solo al guardar) |
-| `npm run build` | frontend | Genera la versión final para publicar |
-| `npm start` | backend | Corre el backend en modo producción |
-
----
-
-## 5. Cómo trabajamos con Git
-
-**Regla de oro:** nadie trabaja directo en `main`. Cada historia de usuario va en su propia rama.
-
-```
-main      ← versión estable (lo que se publica)
- └── develop   ← donde se junta el trabajo del sprint
-      ├── feature/ZARU-2-login
-      ├── feature/ZARU-10-dashboard
-      └── ...
-```
-
-**El ciclo de cada tarea:**
-
-```bash
-# 1. Actualizarte antes de empezar
-git checkout develop
-git pull
-
-# 2. Crear tu rama con la clave de Jira
-git checkout -b feature/ZARU-4-registro-clientes
-
-# 3. Trabajar y guardar cambios
-git add .
-git commit -m "ZARU-4: formulario de registro de clientes"
-
-# 4. Subir tu rama
-git push -u origin feature/ZARU-4-registro-clientes
-```
-
-5. En GitHub, abrir un **Pull Request** hacia `develop`.
-6. Otra persona lo revisa y lo aprueba → se une (*merge*).
-7. Al final del sprint, `develop` se une a `main` y se publica.
-
-📖 Más detalles en [`docs/CONTRIBUIR.md`](docs/CONTRIBUIR.md).
-
----
-
-## 6. ¿Dónde va cada historia de usuario?
-
-Épica 1 — Panel administrativo web (`ZARU-1`):
-
-| Jira | Historia | Frontend (`src/pages/`) | Backend (`src/routes/`) |
-|---|---|---|---|
-| ZARU-2 | HU-01 Iniciar sesión | `Login.jsx` | `auth` (vía Supabase) |
-| ZARU-3 | HU-02 Usuarios operarios | `Usuarios.jsx` | `usuarios.routes.js` |
-| ZARU-4 | HU-03 Registrar cliente | `Clientes.jsx` | `clientes.routes.js` |
-| ZARU-5 | HU-04 Consultar/editar clientes | `Clientes.jsx` | `clientes.routes.js` |
-| ZARU-6 | HU-05 Registrar vehículo | `Vehiculos.jsx` | `vehiculos.routes.js` |
-| ZARU-7 | HU-06 Historial de servicios | `Vehiculos.jsx` | `vehiculos.routes.js` |
-| ZARU-8 | HU-07 Catálogo de servicios | `Servicios.jsx` | `servicios.routes.js` |
-| ZARU-9 | HU-08 Orden de servicio | `Dashboard.jsx` | `ordenes.routes.js` |
-| ZARU-10 | HU-09 Dashboard en tiempo real | `Dashboard.jsx` | Supabase Realtime |
-| ZARU-11 | HU-10 Actualizar estado | `Dashboard.jsx` | `ordenes.routes.js` |
-| ZARU-12 | HU-11 Alertas sin actualizar | `Dashboard.jsx` | — (se calcula en pantalla) |
-| ZARU-13 | HU-12 Promociones | `Promociones.jsx` | `promociones.routes.js` |
-| ZARU-14 | HU-13 Branding | `Branding.jsx` | `establecimiento.routes.js` |
-
----
-
-## 7. Despliegue (publicar en internet)
-
-Se hace al final de cada sprint. Los tres servicios son **gratuitos** y se conectan a GitHub, así que cada vez que se actualiza `main` se publica solo.
-
-| Qué | Dónde | Resultado |
-|---|---|---|
-| Base de datos | Supabase | ✅ Ya está publicada: `https://djutvsulfduzuylvaten.supabase.co` |
-| Backend | Render | `https://zaru-api.onrender.com` |
-| Frontend | Vercel | `https://zaru.vercel.app` |
-
-### 7.1 Backend en Render
-
-1. Entrar a https://render.com con la cuenta de GitHub.
-2. **New → Blueprint** → elegir el repositorio. Render lee `render.yaml` solo.
-3. Llenar las variables que pida (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FRONTEND_URL`).
-4. Copiar la URL que entrega Render (la usaremos en Vercel).
-
-### 7.2 Frontend en Vercel
-
-1. Entrar a https://vercel.com con la cuenta de GitHub.
-2. **Add New → Project** → elegir el repositorio.
-3. En **Root Directory** escribir `frontend`.
-4. En **Environment Variables** agregar:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_API_URL` → la URL de Render + `/api`
-5. **Deploy**. ✅
-
-> ⚠️ Volver a Render y poner en `FRONTEND_URL` la URL de Vercel para que el backend acepte las peticiones.
-> ℹ️ En el plan gratuito de Render, el backend "se duerme" tras 15 min sin uso; la primera petición puede tardar ~30 s.
-
----
-
-## 8. Problemas comunes
-
-| Síntoma | Solución |
+| Variable | Descripción |
 |---|---|
-| `npm: command not found` | Instalar Node.js y reiniciar la terminal |
-| La página carga en blanco | Revisar que `frontend/.env` tenga las claves y reiniciar `npm run dev` |
-| Error **CORS** en la consola del navegador | Revisar `FRONTEND_URL` en `backend/.env` |
-| `Cannot find module` | Correr `npm install` en esa carpeta |
-| Cambié el `.env` y no pasa nada | Detener (`Ctrl + C`) y volver a correr `npm run dev` |
-| Conflicto al hacer `git pull` | No borrar nada; pedir ayuda a alguien de Sistemas |
+| `PORT` | Puerto de la API (por defecto `4000`) |
+| `SUPABASE_URL` | URL del proyecto Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clave `service_role`. **Confidencial**: no debe incluirse en el frontend ni en el repositorio |
+| `FRONTEND_URL` | Origen permitido por CORS |
 
----
+**`frontend/.env`**
 
-## 9. Glosario rápido
+| Variable | Descripción |
+|---|---|
+| `VITE_SUPABASE_URL` | URL del proyecto Supabase |
+| `VITE_SUPABASE_ANON_KEY` | Clave pública (`anon`); el acceso a los datos está protegido por RLS |
+| `VITE_API_URL` | URL base de la API (por defecto `http://localhost:4000/api`) |
 
-- **Frontend:** lo que el usuario ve y toca.
-- **Backend / API:** el "cerebro" que recibe pedidos del frontend y responde con datos.
-- **Componente:** una pieza de interfaz reutilizable (como un componente de Figma).
-- **Ruta:** la dirección de una página (`/clientes`) o de la API (`/api/clientes`).
-- **Variable de entorno (`.env`):** archivo con claves secretas. **Nunca se sube a GitHub.**
-- **Multi-tenant:** cada car wash solo ve sus propios datos, aunque todos usen la misma plataforma.
-- **Rama (branch):** una copia del proyecto para trabajar sin dañar la versión principal.
-- **Pull Request (PR):** solicitud para unir tu rama a la principal, con revisión de un compañero.
-- **Deploy:** publicar el proyecto en internet.
+Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. La clave `service_role` se distribuye por un canal privado.
 
----
+### Ejecución
 
-## 👥 Equipo
-
-| Integrante | Carrera | Rol (TSP) |
+| Comando | Directorio | Descripción |
 |---|---|---|
-| María José Rosas Cuellar | 🎨 DMI | Team Leader |
-| Nikol Salamanca Chantre | 🎨 DMI | Planning Manager |
-| Silvana Cuartas Silva | 🎨 DMI | Quality Manager |
-| Yeliani Barbosa Guzmán | 🎨 DMI | Test Manager |
-| Vanessa Nuñez Torres | 🎨 DMI | Configuration Manager |
-| Samuel Rengifo Morales | 🛠️ SIS | Development Manager |
-| Adri Jhoanny Martínez Murillo | 🛠️ SIS | Support Manager |
+| `npm run dev` | `backend/` | API en modo desarrollo con recarga automática — `http://localhost:4000` |
+| `npm start` | `backend/` | API en modo producción |
+| `npm run dev` | `frontend/` | Servidor de desarrollo de Vite — `http://localhost:5173` |
+| `npm run build` | `frontend/` | Build de producción en `frontend/dist/` |
 
-> **DMI:** Diseño de Medios Interactivos · **SIS:** Ingeniería de Sistemas
+Verificación de la API: `GET http://localhost:4000/api/health`.
+
+### Usuarios de prueba
+
+El acceso al panel requiere un usuario en Supabase Auth con un registro asociado en `perfiles` (establecimiento y rol). El procedimiento está documentado al final de [`database/seed.sql`](database/seed.sql).
+
+---
+
+## 7. API
+
+Base: `/api`. Todos los endpoints, salvo `/health`, requieren el encabezado `Authorization: Bearer <JWT de Supabase>`. Las respuestas de error tienen la forma `{ "error": "mensaje" }`.
+
+| Método | Endpoint | Rol | Descripción | Estado |
+|---|---|---|---|---|
+| GET | `/health` | Público | Estado del servicio | Implementado |
+| GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes | Implementado |
+| GET | `/clientes/:id` | Admin, Operario | Detalle de cliente con sus vehículos | Implementado |
+| POST | `/clientes` | Admin, Operario | Registrar cliente | Implementado |
+| PUT | `/clientes/:id` | Admin, Operario | Actualizar cliente | Implementado |
+| GET | `/vehiculos?placa=` | Admin, Operario | Listar o buscar vehículos | Pendiente |
+| POST | `/vehiculos` | Admin, Operario | Registrar vehículo | Pendiente |
+| GET | `/vehiculos/:id/historial` | Admin, Operario | Historial de servicios | Pendiente |
+| GET | `/servicios` | Admin, Operario | Catálogo de servicios | Implementado |
+| POST / PUT | `/servicios`, `/servicios/:id` | Admin | Crear, editar o desactivar servicio | Pendiente |
+| GET | `/ordenes/activas` | Admin, Operario | Órdenes en curso para el dashboard | Pendiente |
+| POST | `/ordenes` | Admin, Operario | Crear orden de servicio | Pendiente |
+| PATCH | `/ordenes/:id/estado` | Admin, Operario | Avanzar estado de la orden | Pendiente |
+| GET | `/promociones` | Admin, Operario | Listar promociones | Pendiente |
+| POST / PUT | `/promociones`, `/promociones/:id` | Admin | Crear o editar promoción | Pendiente |
+| GET / POST / PUT | `/usuarios`, `/usuarios/:id` | Admin | Gestión de operarios | Pendiente |
+| GET | `/establecimiento` | Admin, Operario | Datos y branding del establecimiento | Implementado |
+| PUT | `/establecimiento/branding` | Admin | Actualizar logo y colores | Pendiente |
+
+Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle la historia correspondiente.
+
+---
+
+## 8. Trazabilidad con el backlog
+
+Épica 1 — Panel administrativo web (`ZARU-1`). Total estimado: **55 story points**.
+
+| Jira | Historia | Puntos | MoSCoW | Frontend | Backend |
+|---|---|---|---|---|---|
+| ZARU-2 | HU-01 Iniciar sesión | 5 | Must | `Login.jsx` | Supabase Auth · `middlewares/auth.js` |
+| ZARU-3 | HU-02 Gestionar usuarios operarios | 5 | Must | `Usuarios.jsx` | `usuarios.routes.js` |
+| ZARU-4 | HU-03 Registrar cliente | 3 | Must | `Clientes.jsx` | `clientes.routes.js` |
+| ZARU-5 | HU-04 Consultar y editar clientes | 2 | Should | `Clientes.jsx` | `clientes.routes.js` |
+| ZARU-6 | HU-05 Registrar vehículo | 3 | Must | `Vehiculos.jsx` | `vehiculos.routes.js` |
+| ZARU-7 | HU-06 Historial de servicios | 3 | Should | `Vehiculos.jsx` | `vehiculos.routes.js` |
+| ZARU-8 | HU-07 Catálogo de servicios | 3 | Must | `Servicios.jsx` | `servicios.routes.js` |
+| ZARU-9 | HU-08 Orden de servicio | 5 | Must | `Dashboard.jsx` | `ordenes.routes.js` |
+| ZARU-10 | HU-09 Dashboard en tiempo real | 8 | Must | `Dashboard.jsx` | Supabase Realtime |
+| ZARU-11 | HU-10 Actualizar estado operativo | 5 | Must | `Dashboard.jsx` | `ordenes.routes.js` |
+| ZARU-12 | HU-11 Alertas de vehículos sin actualizar | 3 | Could | `Dashboard.jsx` | — |
+| ZARU-13 | HU-12 Promociones | 5 | Should | `Promociones.jsx` | `promociones.routes.js` |
+| ZARU-14 | HU-13 Branding de la sede | 5 | Should | `Branding.jsx` | `establecimiento.routes.js` |
+
+---
+
+## 9. Flujo de trabajo
+
+- **Ramas:** `main` (versión desplegada), `develop` (integración del sprint) y `feature/ZARU-<n>-<descripcion>` por historia de usuario.
+- **Commits:** prefijados con la clave de Jira, por ejemplo `ZARU-4: registro de clientes`.
+- **Pull Requests:** hacia `develop`, con al menos una aprobación y verificación de los criterios de aceptación. Al cierre de cada sprint, `develop` se integra en `main`.
+- **Integración continua:** GitHub Actions compila el frontend y valida el backend en cada Pull Request hacia `main` o `develop`.
+
+Las convenciones completas están en [`docs/CONTRIBUIR.md`](docs/CONTRIBUIR.md).
+
+---
+
+## 10. Despliegue
+
+| Componente | Plataforma | Configuración |
+|---|---|---|
+| Base de datos | Supabase | Desplegada (`us-east-1`) |
+| Backend | Render | `render.yaml` (Blueprint), raíz `backend/`, health check `/api/health` |
+| Frontend | Vercel | Raíz `frontend/`, build `npm run build`, salida `dist/` |
+
+El despliegue es continuo desde la rama `main`.
+
+### Backend (Render)
+
+1. Crear un servicio desde **New → Blueprint** seleccionando este repositorio.
+2. Definir `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y `FRONTEND_URL`.
+
+### Frontend (Vercel)
+
+1. Importar el repositorio con **Root Directory** `frontend`.
+2. Definir `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `VITE_API_URL` (URL de Render seguida de `/api`).
+3. Actualizar `FRONTEND_URL` en Render con el dominio asignado por Vercel.
+
+En el plan gratuito de Render el servicio se suspende tras 15 minutos de inactividad; la primera petición posterior puede tardar alrededor de 30 segundos.
+
+---
+
+## 11. Equipo
+
+| Integrante | Programa | Rol TSP |
+|---|---|---|
+| María José Rosas Cuellar | Diseño de Medios Interactivos | Team Leader |
+| Nikol Salamanca Chantre | Diseño de Medios Interactivos | Planning Manager |
+| Silvana Cuartas Silva | Diseño de Medios Interactivos | Quality Manager |
+| Yeliani Barbosa Guzmán | Diseño de Medios Interactivos | Test Manager |
+| Vanessa Nuñez Torres | Diseño de Medios Interactivos | Configuration Manager |
+| Samuel Rengifo Morales | Ingeniería de Sistemas | Development Manager |
+| Adri Jhoanny Martínez Murillo | Ingeniería de Sistemas | Support Manager |
