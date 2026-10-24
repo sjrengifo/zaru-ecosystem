@@ -141,6 +141,7 @@ zaru-ecosystem/
 │   ├── schema.sql                Esquema, índices, RLS y Realtime
 │   └── seed.sql                  Datos de prueba
 │
+├── specs/backend/                Plan de desarrollo del backend (Spec Driven Development)
 ├── docs/CONTRIBUIR.md            Convenciones de ramas, commits y Pull Requests
 ├── .github/                      Workflow de CI y plantilla de Pull Request
 └── render.yaml                   Blueprint de despliegue del backend en Render
@@ -270,6 +271,10 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 - **Integración continua:** GitHub Actions compila el frontend y valida el backend en cada Pull Request hacia `main` o `develop`.
 
 Las convenciones completas están en [`docs/CONTRIBUIR.md`](docs/CONTRIBUIR.md).
+
+### Plan de desarrollo del backend
+
+El backend se desarrolla con **Spec Driven Development**. El roadmap por fases, la especificación, el plan técnico, las tareas y las compuertas de validación de cada fase están en [`specs/backend/`](specs/backend/README.md).
 
 ---
 
