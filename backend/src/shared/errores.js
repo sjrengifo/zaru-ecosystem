@@ -1,5 +1,7 @@
-// Errores de la API con un código estable que el frontend y las pruebas pueden reconocer.
-// El formato completo del contrato (04-contrato-api.md) se termina en HU-43.
+// HU-43 CA2 — Errores de la API con formato y códigos estándar (specs/backend/04-contrato-api.md).
+//
+// Formato de toda respuesta de error:
+//   { "error": { "codigo": "VALIDACION", "mensaje": "…", "detalles": [{ "campo": "nombre", "mensaje": "…" }], "requestId": "…" } }
 
 export const CODIGOS = {
   VALIDACION: 400,
@@ -7,11 +9,19 @@ export const CODIGOS = {
   SIN_PERMISO: 403,
   NO_ENCONTRADO: 404,
   CONFLICTO: 409,
+  CARGA_DEMASIADO_GRANDE: 413,
+  IDEMPOTENCIA_CONFLICTO: 422,
+  LIMITE_EXCEDIDO: 429,
   ERROR_INTERNO: 500,
   NO_IMPLEMENTADO: 501,
 };
 
 export class AppError extends Error {
+  /**
+   * @param {keyof CODIGOS} codigo
+   * @param {string} mensaje mensaje para el usuario, sin detalles internos
+   * @param {Array<{campo?: string, mensaje: string}>} [detalles] qué corregir
+   */
   constructor(codigo, mensaje, detalles) {
     super(mensaje);
     this.codigo = codigo;

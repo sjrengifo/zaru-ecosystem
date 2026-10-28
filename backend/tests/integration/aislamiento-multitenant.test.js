@@ -125,17 +125,19 @@ describe.skipIf(!hayEntornoIntegracion)(`Aislamiento multi-tenant${hayEntornoInt
         get('/api/clientes/no-es-un-id', 'A'),
       ]);
       expect(ajeno.status).toBe(404);
-      expect(ajeno.body).toEqual({ error: 'Cliente no encontrado', codigo: 'NO_ENCONTRADO' });
+      // Idénticas salvo el requestId, que es propio de cada petición.
+      const sinRequestId = ({ error: { requestId, ...resto } }) => resto;
+      expect(sinRequestId(ajeno.body)).toEqual({ codigo: 'NO_ENCONTRADO', mensaje: 'Cliente no encontrado' });
       expect(inexistente.status).toBe(404);
-      expect(inexistente.body).toEqual(ajeno.body);
+      expect(sinRequestId(inexistente.body)).toEqual(sinRequestId(ajeno.body));
       expect(invalido.status).toBe(404);
-      expect(invalido.body).toEqual(ajeno.body);
+      expect(sinRequestId(invalido.body)).toEqual(sinRequestId(ajeno.body));
     });
 
     it('PUT de un cliente de B responde 404 y no lo modifica', async () => {
       const res = await put(`/api/clientes/${CLIENTE_B}`, 'A', { nombre: 'Modificado por A' });
       expect(res.status).toBe(404);
-      expect(res.body.codigo).toBe('NO_ENCONTRADO');
+      expect(res.body.error.codigo).toBe('NO_ENCONTRADO');
       const { data } = await admin.from('clientes').select('nombre').eq('id', CLIENTE_B).single();
       expect(data.nombre).toBe('Cliente solo de B');
     });
@@ -175,7 +177,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Aislamiento multi-tenant${hayEntornoInt
     it('sin token responde 401', async () => {
       const res = await request(app).get('/api/clientes');
       expect(res.status).toBe(401);
-      expect(res.body.codigo).toBe('NO_AUTENTICADO');
+      expect(res.body.error.codigo).toBe('NO_AUTENTICADO');
     });
   });
 });

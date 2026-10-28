@@ -1,5 +1,6 @@
 // HU-03 y HU-04 — Lógica de clientes.
-// Multi-tenant (HU-41): todo acceso a datos pasa por req.tenant, que filtra por el establecimiento de la sesión.
+// - Multi-tenant (HU-41): todo acceso a datos pasa por req.tenant.
+// - Validación (HU-43): las rutas validan con schemas/clientes.schemas.js antes de llegar aquí.
 import { AppError } from '../shared/errores.js';
 
 /** Quita los caracteres que alteran la sintaxis de filtros de PostgREST (coma, paréntesis, comodines). */
@@ -33,16 +34,10 @@ export async function obtener(req, res, next) {
   }
 }
 
-/** HU-03: registrar cliente con autorización de datos (Ley 1581). */
+/** HU-03: registrar cliente con autorización de datos (Ley 1581). CA2 lo garantiza el esquema. */
 export async function crear(req, res, next) {
   try {
-    const { nombre, telefono, correo, autorizacionDatos } = req.body;
-
-    if (!nombre || !telefono) throw new AppError('VALIDACION', 'Nombre y teléfono son obligatorios');
-    // CA2: sin autorización no se registra.
-    if (autorizacionDatos !== true) {
-      throw new AppError('VALIDACION', 'La autorización de tratamiento de datos es obligatoria');
-    }
+    const { nombre, telefono, correo } = req.body;
 
     // CA3: teléfono repetido en el mismo establecimiento.
     const { data: existente } = await req.tenant
@@ -50,14 +45,15 @@ export async function crear(req, res, next) {
       .eq('telefono', telefono)
       .maybeSingle();
     if (existente) {
-      return res.status(409).json({ error: 'Ya existe un cliente con ese teléfono', codigo: 'CONFLICTO', cliente: existente });
+      throw new AppError('CONFLICTO', 'Ya existe un cliente con ese teléfono', [
+        { campo: 'telefono', mensaje: `El teléfono ya está registrado a nombre de ${existente.nombre}`, clienteId: existente.id },
+      ]);
     }
 
-    // CA1: se guarda con la fecha de autorización.
     const cliente = await req.tenant.crear('clientes', {
       nombre,
       telefono,
-      correo,
+      correo: correo ?? null,
       autorizacion_datos: true,
       fecha_autorizacion: new Date().toISOString(),
     });

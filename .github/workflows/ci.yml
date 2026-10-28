@@ -33,5 +33,7 @@ jobs:
           node-version: 20
       - run: npm install
       - run: node --check src/index.js
+      # El contrato OpenAPI debe ser válido (HU-43).
+      - run: npm run lint:openapi
       # Unitarias siempre; las de integración se omiten si no hay credenciales de Supabase.
       - run: npm test
