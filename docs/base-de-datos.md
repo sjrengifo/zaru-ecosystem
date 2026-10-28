@@ -34,6 +34,7 @@ establecimientos ◀── perfiles (auth.users)
 | Promociones | `promociones`, `promocion_servicios` | `establecimiento_id`; servicios del mismo establecimiento |
 | Órdenes de servicio | `ordenes`, `orden_servicios`, `historial_estados` | `establecimiento_id`; vehículo, servicios y usuarios del mismo establecimiento |
 | Notificaciones | `notificaciones` | `establecimiento_id`; cliente y orden del mismo establecimiento |
+| Política de datos y autorizaciones | `politicas_datos` (versiones inmutables), `consentimientos` (solo inserción) | `consentimientos.establecimiento_id` + cliente del mismo establecimiento; la política es global |
 | Auditoría | `auditoria` (solo inserción) | `establecimiento_id` sin llave foránea, para conservar el registro aunque se elimine el establecimiento |
 
 ### Integridad entre establecimientos
@@ -58,6 +59,7 @@ La tabla `notificaciones` sigue el patrón *outbox* (ADR-03). La lógica de env�
 | `20261028052257` | `hu41_quitar_llaves_simples_redundantes` | Quita las llaves simples duplicadas por las compuestas (ambigüedad PGRST201 al anidar recursos) |
 | `20261028132235` | `hu44_auditoria_y_claims_de_sesion` | Tabla `auditoria` inmutable y hook que agrega rol y establecimiento al token |
 | `20261028132259` | `hu44_search_path_auditoria` | Fija el `search_path` de la función de la auditoría (asesor de seguridad) |
+| `20261028135510` | `hu51_politica_y_consentimientos` | Política de datos versionada, evidencia inmutable de autorizaciones y registro atómico de cliente + autorización |
 
 **Reglas:**
 
@@ -131,6 +133,7 @@ psql -d zaru_prueba -f database/pruebas/01_integridad.sql               # CA1
 psql -d zaru_prueba -f database/pruebas/02_carga_81_establecimientos.sql  # unos 3 minutos
 psql -d zaru_prueba -f database/pruebas/03_rendimiento.sql              # CA3
 psql -d zaru_prueba -f database/pruebas/04_seguridad.sql                # HU-44: auditoría, contraseñas y claims
+psql -d zaru_prueba -f database/pruebas/05_consentimientos.sql          # HU-51: política y evidencia de autorización
 ```
 
 Los scripts 02 y 03 son solo para bases locales o de pruebas. Nunca se ejecutan contra producción.

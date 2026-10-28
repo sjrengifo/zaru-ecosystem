@@ -38,6 +38,8 @@ tags:
     description: Estado del servicio
   - name: Sesión
     description: HU-01, HU-44
+  - name: Datos personales
+    description: HU-51 (Ley 1581 de 2012)
   - name: Clientes
     description: HU-03, HU-04
   - name: Vehículos
@@ -71,6 +73,25 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Salud' }
               example: { ok: true, servicio: zaru-api, version: 1.0.0, fecha: '2026-10-28T13:00:00.000Z' }
+
+  /politicas-datos/vigente:
+    get:
+      tags: [Datos personales]
+      operationId: obtenerPoliticaVigente
+      summary: Política de tratamiento de datos vigente
+      description: |
+        Texto y versión de la política que se muestra al titular antes de registrar sus datos (HU-51 CA1).
+        Es pública: la usan el panel y la app del cliente final. Al registrar un cliente se envía la
+        `version` recibida en `politicaVersion`.
+      security: []
+      responses:
+        '200':
+          description: Política vigente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Politica' }
+              example: { version: '1.0', titulo: Política de tratamiento de datos personales, contenido: '# Política de tratamiento de datos personales · versión 1.0 …', vigenteDesde: '2026-10-28T14:00:00Z' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /me:
     get:
@@ -120,7 +141,11 @@ paths:
       operationId: crearCliente
       summary: Registrar un cliente
       description: |
-        Exige la autorización de tratamiento de datos (Ley 1581 de 2012, HU-03 CA2).
+        Exige la autorización de tratamiento de datos (Ley 1581 de 2012, HU-03 CA2) y la versión de la política
+        aceptada (HU-51). El cliente y la evidencia de la autorización (fecha, hora, versión, canal, IP y usuario)
+        se guardan en una sola transacción: si la autorización falta o la versión no es la vigente, no se guarda
+        ningún dato personal (HU-51 CA3). Si la política cambió mientras se llenaba el formulario, responde `409`
+        en `politicaVersion` y hay que mostrar la versión nueva.
         Si el teléfono ya existe en el establecimiento responde `409` con el cliente existente en `detalles` (HU-03 CA3).
         El establecimiento se toma de la sesión; un `establecimiento_id` en el cuerpo se ignora.
       requestBody:
@@ -128,7 +153,7 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/ClienteNuevo' }
-            example: { nombre: Ana Gómez, telefono: '3001234567', correo: ana@correo.com, autorizacionDatos: true }
+            example: { nombre: Ana Gómez, telefono: '3001234567', correo: ana@correo.com, autorizacionDatos: true, politicaVersion: '1.0' }
       responses:
         '201':
           description: Cliente registrado.
@@ -150,7 +175,7 @@ paths:
                   requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '409':
-          description: Ya existe un cliente con ese teléfono en el establecimiento.
+          description: Ya existe un cliente con ese teléfono en el establecimiento, o la versión de la política aceptada ya no es la vigente.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -197,6 +222,28 @@ paths:
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '409': { $ref: '#/components/responses/Conflicto' }
+
+  /clientes/{id}/consentimientos:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Datos personales]
+      operationId: listarConsentimientosCliente
+      summary: Evidencia de autorización del cliente (solo administrador)
+      description: Historial de autorizaciones y revocaciones del titular, de la más reciente a la más antigua (HU-51).
+      responses:
+        '200':
+          description: Historial de autorizaciones.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Consentimiento' }
+              example:
+                - { tipo: tratamiento_datos, otorgado: true, canal: panel, politicaVersion: '1.0', fecha: '2026-10-28T14:05:12Z' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /vehiculos:
     get:
@@ -500,12 +547,30 @@ components:
 
     ClienteNuevo:
       type: object
-      required: [nombre, telefono, autorizacionDatos]
+      required: [nombre, telefono, autorizacionDatos, politicaVersion]
       properties:
         nombre: { type: string, minLength: 1, maxLength: 120 }
         telefono: { type: string, pattern: '^3\d{9}$', description: Celular colombiano de 10 dígitos. }
         correo: { type: [string, 'null'], format: email }
         autorizacionDatos: { type: boolean, const: true, description: Autorización de tratamiento de datos (Ley 1581 de 2012). }
+        politicaVersion: { type: string, pattern: '^\d+\.\d+$', description: Versión de la política aceptada (de GET /politicas-datos/vigente). }
+
+    Politica:
+      type: object
+      properties:
+        version: { type: string }
+        titulo: { type: string }
+        contenido: { type: string, description: Texto de la política en Markdown. }
+        vigenteDesde: { type: string, format: date-time }
+
+    Consentimiento:
+      type: object
+      properties:
+        tipo: { type: string, enum: [tratamiento_datos, notificaciones_servicio, comerciales] }
+        otorgado: { type: boolean, description: true si autorizó; false si revocó. }
+        canal: { type: string, enum: [panel, app, enlace_baja, migracion] }
+        politicaVersion: { type: [string, 'null'], description: Nulo solo en autorizaciones anteriores al versionado (canal migracion). }
+        fecha: { type: string, format: date-time }
 
     ClienteCambios:
       type: object

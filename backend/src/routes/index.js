@@ -11,6 +11,7 @@ import promocionesRoutes from './promociones.routes.js';
 import usuariosRoutes from './usuarios.routes.js';
 import establecimientoRoutes from './establecimiento.routes.js';
 import * as me from '../controllers/me.controller.js';
+import * as politicas from '../controllers/politicas.controller.js';
 
 export const VERSION_API = '1.0.0';
 
@@ -31,6 +32,9 @@ const router = Router();
 router.get('/health', (req, res) => {
   res.json({ ok: true, servicio: 'zaru-api', version: VERSION_API, fecha: new Date().toISOString() });
 });
+
+// HU-51 CA1: la política de tratamiento de datos es pública (la consulta también el cliente final).
+router.get('/politicas-datos/vigente', politicas.vigente);
 
 // De aquí en adelante, todo exige sesión iniciada.
 router.use(requiereSesion);

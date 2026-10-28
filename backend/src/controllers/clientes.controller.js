@@ -34,7 +34,7 @@ export async function obtener(req, res, next) {
   }
 }
 
-/** HU-03: registrar cliente con autorización de datos (Ley 1581). CA2 lo garantiza el esquema. */
+/** HU-03 y HU-51: registrar cliente con autorización de datos (Ley 1581). */
 export async function crear(req, res, next) {
   try {
     const { nombre, telefono, correo } = req.body;
@@ -50,12 +50,17 @@ export async function crear(req, res, next) {
       ]);
     }
 
-    const cliente = await req.tenant.crear('clientes', {
-      nombre,
-      telefono,
-      correo: correo ?? null,
-      autorizacion_datos: true,
-      fecha_autorizacion: new Date().toISOString(),
+    // HU-51: cliente y evidencia de autorización en una sola transacción. Si la versión aceptada no es
+    // la vigente, la base rechaza todo y no queda ningún dato personal guardado (CA3).
+    const [cliente] = await req.tenant.rpc('crear_cliente_con_consentimiento', {
+      p_nombre: nombre,
+      p_telefono: telefono,
+      p_correo: correo ?? null,
+      p_autoriza: req.body.autorizacionDatos,
+      p_politica_version: req.body.politicaVersion,
+      p_canal: 'panel',
+      p_ip: req.ip ?? null,
+      p_registrado_por: req.ctx.usuarioId,
     });
     res.status(201).json(cliente);
   } catch (err) {
@@ -68,6 +73,21 @@ export async function actualizar(req, res, next) {
   try {
     const { nombre, telefono, correo } = req.body;
     res.json(await req.tenant.actualizar('clientes', req.params.id, { nombre, telefono, correo }, '*', 'Cliente'));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** HU-51: consultar la evidencia de autorización de un cliente (de la más reciente a la más antigua). */
+export async function consentimientos(req, res, next) {
+  try {
+    await req.tenant.obtener('clientes', req.params.id, 'id', 'Cliente');
+    const { data, error } = await req.tenant
+      .listar('consentimientos', 'tipo, otorgado, canal, politica_version, created_at')
+      .eq('cliente_id', req.params.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(data.map((c) => ({ tipo: c.tipo, otorgado: c.otorgado, canal: c.canal, politicaVersion: c.politica_version, fecha: c.created_at })));
   } catch (err) {
     next(err);
   }

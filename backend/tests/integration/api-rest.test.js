@@ -32,7 +32,7 @@ describe.skipIf(!hayEntornoIntegracion)(`API REST${hayEntornoIntegracion ? '' : 
       const res = await request(app).post('/api/v1/clientes').use(conSesion).send({});
       expect(res.status).toBe(400);
       expect(res.body.error.codigo).toBe('VALIDACION');
-      expect(res.body.error.detalles.map((d) => d.campo)).toEqual(['nombre', 'telefono', 'autorizacionDatos']);
+      expect(res.body.error.detalles.map((d) => d.campo)).toEqual(['nombre', 'telefono', 'autorizacionDatos', 'politicaVersion']);
       const despues = await admin.from('clientes').select('id', { count: 'exact', head: true });
       expect(despues.count).toBe(antes.count);
     });
@@ -41,7 +41,7 @@ describe.skipIf(!hayEntornoIntegracion)(`API REST${hayEntornoIntegracion ? '' : 
       const res = await request(app)
         .post('/api/v1/clientes')
         .use(conSesion)
-        .send({ nombre: 'Duplicado', telefono: '3000000058', autorizacionDatos: true });
+        .send({ nombre: 'Duplicado', telefono: '3000000058', autorizacionDatos: true, politicaVersion: '1.0' });
       expect(res.status).toBe(409);
       expect(res.body.error.codigo).toBe('CONFLICTO');
       expect(res.body.error.detalles[0]).toMatchObject({ campo: 'telefono', clienteId: CLIENTE_A });
@@ -51,7 +51,7 @@ describe.skipIf(!hayEntornoIntegracion)(`API REST${hayEntornoIntegracion ? '' : 
       const res = await request(app)
         .post('/api/v1/clientes')
         .use(conSesion)
-        .send({ nombre: '  [Prueba HU-43] Ana  ', telefono: '3004343434', correo: '', autorizacionDatos: true });
+        .send({ nombre: '  [Prueba HU-43] Ana  ', telefono: '3004343434', correo: '', autorizacionDatos: true, politicaVersion: '1.0' });
       expect(res.status).toBe(201);
       creados.push(res.body.id);
       expect(res.body).toMatchObject({ nombre: '[Prueba HU-43] Ana', telefono: '3004343434', correo: null, autorizacion_datos: true });
