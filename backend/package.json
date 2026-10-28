@@ -15,7 +15,7 @@
     "cifrar:correos": "node --env-file=.env scripts/cifrar-correos.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
