@@ -111,6 +111,10 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 - La base impide relacionar datos de establecimientos distintos mediante llaves foráneas compuestas `(id, establecimiento_id)` y triggers en las tablas puente.
 - La tabla `ordenes` está publicada en `supabase_realtime` para el dashboard operativo.
 
+### Cifrado y secretos
+
+Todo el tráfico usa HTTPS: la API rechaza HTTP en producción y Supabase exige TLS 1.2 o superior. Los datos están cifrados en reposo (AES-256) y el correo de los clientes se cifra además a nivel de campo. Los secretos viven solo en el gestor de cada ambiente y en `.env` (ignorado por git), y CI escanea el historial con gitleaks. Detalle en [`docs/seguridad/cifrado-y-secretos.md`](docs/seguridad/cifrado-y-secretos.md) (HU-50).
+
 ### Gestión de cambios
 
 Todo cambio de esquema se escribe como un archivo nuevo en `supabase/migrations/` (`AAAAMMDDHHMMSS_descripcion.sql`) y se aplica igual en cualquier ambiente. Una migración aplicada nunca se edita. En el mismo Pull Request se regenera `database/schema.sql` y se ejecutan las pruebas de `database/pruebas/` (ver [`docs/base-de-datos.md`](docs/base-de-datos.md)).
@@ -193,6 +197,7 @@ cp .env.example .env
 | `PORT` | Puerto de la API (por defecto `4000`) |
 | `SUPABASE_URL` | URL del proyecto Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave `service_role`. **Confidencial**: no debe incluirse en el frontend ni en el repositorio |
+| `ZARU_CLAVE_CIFRADO` | Clave de 32 bytes para cifrar datos personales a nivel de campo (`openssl rand -base64 32`). **Confidencial**: una por ambiente; si se pierde, los correos cifrados no se recuperan |
 | `FRONTEND_URL` | Origen permitido por CORS |
 
 **`frontend/.env`**
@@ -212,6 +217,7 @@ Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. 
 | `npm run dev` | `backend/` | API en modo desarrollo con recarga automática — `http://localhost:4000` |
 | `npm start` | `backend/` | API en modo producción |
 | `npm run lint:openapi` | `backend/` | Valida el contrato OpenAPI |
+| `npm run cifrar:correos` | `backend/` | Cifra los correos de clientes que aún estén en texto plano (HU-50) |
 | `npm test` | `backend/` | Pruebas unitarias y de integración (Vitest). Las de integración requieren `.env` y `.env.spike.local`; sin ellos se omiten |
 | `npm run dev` | `frontend/` | Servidor de desarrollo de Vite — `http://localhost:5173` |
 | `npm run build` | `frontend/` | Build de producción en `frontend/dist/` |
@@ -287,7 +293,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 - **Ramas:** `main` (versión desplegada), `develop` (integración del sprint) y `feature/ZARU-<n>-<descripcion>` por historia de usuario.
 - **Commits:** prefijados con la clave de Jira, por ejemplo `ZARU-4: registro de clientes`.
 - **Pull Requests:** hacia `develop`, con al menos una aprobación y verificación de los criterios de aceptación. Al cierre de cada sprint, `develop` se integra en `main`.
-- **Integración continua:** GitHub Actions compila el frontend, valida el backend y ejecuta sus pruebas en cada Pull Request hacia `main` o `develop`.
+- **Integración continua:** GitHub Actions compila el frontend, valida el backend, ejecuta sus pruebas y escanea secretos con gitleaks en cada Pull Request hacia `main` o `develop`.
 
 Las convenciones completas están en [`docs/CONTRIBUIR.md`](docs/CONTRIBUIR.md).
 
@@ -310,7 +316,7 @@ El despliegue es continuo desde la rama `main`.
 ### Backend (Render)
 
 1. Crear un servicio desde **New → Blueprint** seleccionando este repositorio.
-2. Definir `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y `FRONTEND_URL`.
+2. Definir `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ZARU_CLAVE_CIFRADO`, `FRONTEND_URL` (con `https://`) y `NODE_ENV=production`.
 
 ### Frontend (Vercel)
 

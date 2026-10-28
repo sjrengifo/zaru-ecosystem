@@ -6,6 +6,7 @@ import rutasV1 from './routes/index.js';
 import { documentacion } from './docs.js';
 import { manejarErrores, rutaNoEncontrada } from './middlewares/errorHandler.js';
 import { requestId } from './middlewares/requestId.js';
+import { exigirHttps } from './middlewares/https.js';
 
 const app = express();
 
@@ -14,10 +15,14 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(requestId);
 
+// HU-50 CA1: en producción se rechazan las conexiones sin cifrar.
+app.use(exigirHttps());
+
 // HU-43 CA1: documentación OpenAPI en /api/docs (Swagger UI) y /api/openapi.json.
 app.use('/api', documentacion);
 
-app.use(helmet());
+// HSTS: los navegadores recuerdan por un año que solo deben usar HTTPS con este dominio.
+app.use(helmet({ strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true } }));
 app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', exposedHeaders: ['X-Request-Id', 'Deprecation', 'Link'] }));
 app.use(express.json({ limit: '1mb' }));
 

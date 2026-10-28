@@ -1,10 +1,10 @@
 # Dependencias
 node_modules/
 
-# Variables de entorno (¡nunca subir claves!)
+# Variables de entorno (¡nunca subir claves!) · HU-50 CA3
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Builds
 dist/

@@ -1,0 +1,10 @@
+# Escaneo de secretos en CI (HU-50 CA3). Usa las reglas por defecto de gitleaks.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valores públicos por diseño"
+paths = [
+  # Clave anon (pública) de Supabase: se publica en el frontend; los datos los protege RLS.
+  '''frontend/\.env\.example''',
+]

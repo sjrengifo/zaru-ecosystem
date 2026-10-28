@@ -16,5 +16,8 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      # HU-50: clave de cifrado de campos (openssl rand -base64 32). Se define en el panel de Render, nunca aquí.
+      - key: ZARU_CLAVE_CIFRADO
+        sync: false
       - key: FRONTEND_URL
         sync: false
