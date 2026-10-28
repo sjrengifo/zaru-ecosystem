@@ -5,7 +5,7 @@
 
 
 
-\restrict dnWcWXjVvIv0CXdwmXoCWcK34xu48vCO9vow6edLdHHSyE89Uz2xnvfVYdTf4NT
+\restrict hLKh1JC2xMXqPQGcx528nWceu3Iqhq4uFSMCwbsvlkjA5H0xoPatBxbYrKE0xpU
 
 -- Name: privado; Type: SCHEMA; Schema: -; Owner: -
 
@@ -45,6 +45,30 @@ begin
   raise exception 'La auditoría no se puede modificar ni eliminar' using errcode = '42501';
 end $$;
 
+-- Name: impedir_modificacion_consentimiento(); Type: FUNCTION; Schema: privado; Owner: -
+
+CREATE FUNCTION privado.impedir_modificacion_consentimiento() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO ''
+    AS $$
+begin
+  if tg_op = 'DELETE' and pg_trigger_depth() > 1 then
+    return old; -- borrado en cascada desde clientes
+  end if;
+  raise exception 'La evidencia de autorización no se puede modificar ni eliminar' using errcode = '42501';
+end $$;
+
+-- Name: impedir_modificacion_politica(); Type: FUNCTION; Schema: privado; Owner: -
+
+CREATE FUNCTION privado.impedir_modificacion_politica() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO ''
+    AS $$
+begin
+  raise exception 'Una versión publicada de la política no se puede modificar ni eliminar; publique una versión nueva'
+    using errcode = '42501';
+end $$;
+
 -- Name: mi_establecimiento(); Type: FUNCTION; Schema: privado; Owner: -
 
 CREATE FUNCTION privado.mi_establecimiento() RETURNS uuid
@@ -52,6 +76,15 @@ CREATE FUNCTION privado.mi_establecimiento() RETURNS uuid
     SET search_path TO 'public'
     AS $$
   select establecimiento_id from perfiles where id = auth.uid() and activo
+$$;
+
+-- Name: politica_vigente(); Type: FUNCTION; Schema: privado; Owner: -
+
+CREATE FUNCTION privado.politica_vigente() RETURNS text
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  select version from public.politicas_datos where vigente_desde <= now() order by vigente_desde desc limit 1
 $$;
 
 -- Name: soy_admin(); Type: FUNCTION; Schema: privado; Owner: -
@@ -114,6 +147,49 @@ begin
   return new;
 end $$;
 
+-- Name: clientes; Type: TABLE; Schema: public; Owner: -
+
+CREATE TABLE public.clientes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    establecimiento_id uuid NOT NULL,
+    nombre text NOT NULL,
+    telefono text NOT NULL,
+    correo text,
+    autorizacion_datos boolean NOT NULL,
+    fecha_autorizacion timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT clientes_autorizacion_datos_check CHECK ((autorizacion_datos = true))
+);
+
+-- Name: crear_cliente_con_consentimiento(uuid, text, text, text, boolean, text, text, inet, uuid); Type: FUNCTION; Schema: public; Owner: -
+
+CREATE FUNCTION public.crear_cliente_con_consentimiento(p_establecimiento_id uuid, p_nombre text, p_telefono text, p_correo text, p_autoriza boolean, p_politica_version text, p_canal text, p_ip inet, p_registrado_por uuid) RETURNS SETOF public.clientes
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_vigente text := privado.politica_vigente();
+  v_cliente clientes;
+begin
+  if p_autoriza is distinct from true then
+    raise exception 'La autorización de tratamiento de datos es obligatoria para registrar al cliente'
+      using errcode = '23514', hint = 'autorizacionDatos';
+  end if;
+  if p_politica_version is distinct from v_vigente then
+    raise exception 'La versión de la política aceptada (%) no es la vigente (%)', p_politica_version, v_vigente
+      using errcode = '23514', hint = 'politica';
+  end if;
+
+  insert into clientes (establecimiento_id, nombre, telefono, correo, autorizacion_datos, fecha_autorizacion)
+  values (p_establecimiento_id, p_nombre, p_telefono, p_correo, true, now())
+  returning * into v_cliente;
+
+  insert into consentimientos (establecimiento_id, cliente_id, tipo, otorgado, canal, politica_version, ip, registrado_por)
+  values (p_establecimiento_id, v_cliente.id, 'tratamiento_datos', true, p_canal, p_politica_version, p_ip, p_registrado_por);
+
+  return next v_cliente;
+end $$;
+
 -- Name: custom_access_token_hook(jsonb); Type: FUNCTION; Schema: public; Owner: -
 
 CREATE FUNCTION public.custom_access_token_hook(event jsonb) RETURNS jsonb
@@ -168,18 +244,33 @@ ALTER TABLE public.auditoria ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     CACHE 1
 );
 
--- Name: clientes; Type: TABLE; Schema: public; Owner: -
+-- Name: consentimientos; Type: TABLE; Schema: public; Owner: -
 
-CREATE TABLE public.clientes (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+CREATE TABLE public.consentimientos (
+    id bigint NOT NULL,
     establecimiento_id uuid NOT NULL,
-    nombre text NOT NULL,
-    telefono text NOT NULL,
-    correo text,
-    autorizacion_datos boolean NOT NULL,
-    fecha_autorizacion timestamp with time zone DEFAULT now() NOT NULL,
-    created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT clientes_autorizacion_datos_check CHECK ((autorizacion_datos = true))
+    cliente_id uuid NOT NULL,
+    tipo text DEFAULT 'tratamiento_datos'::text NOT NULL,
+    otorgado boolean NOT NULL,
+    canal text NOT NULL,
+    politica_version text,
+    ip inet,
+    registrado_por uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT consentimientos_canal_check CHECK ((canal = ANY (ARRAY['panel'::text, 'app'::text, 'enlace_baja'::text, 'migracion'::text]))),
+    CONSTRAINT consentimientos_check CHECK (((politica_version IS NOT NULL) OR (canal = 'migracion'::text))),
+    CONSTRAINT consentimientos_tipo_check CHECK ((tipo = ANY (ARRAY['tratamiento_datos'::text, 'notificaciones_servicio'::text, 'comerciales'::text])))
+);
+
+-- Name: consentimientos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+
+ALTER TABLE public.consentimientos ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.consentimientos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
 );
 
 -- Name: establecimientos; Type: TABLE; Schema: public; Owner: -
@@ -277,6 +368,17 @@ CREATE TABLE public.perfiles (
     created_at timestamp with time zone DEFAULT now()
 );
 
+-- Name: politicas_datos; Type: TABLE; Schema: public; Owner: -
+
+CREATE TABLE public.politicas_datos (
+    version text NOT NULL,
+    titulo text NOT NULL,
+    contenido text NOT NULL,
+    vigente_desde timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT politicas_datos_version_check CHECK ((version ~ '^\d+\.\d+$'::text))
+);
+
 -- Name: promocion_servicios; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.promocion_servicios (
@@ -345,6 +447,11 @@ ALTER TABLE ONLY public.clientes
 ALTER TABLE ONLY public.clientes
     ADD CONSTRAINT clientes_pkey PRIMARY KEY (id);
 
+-- Name: consentimientos consentimientos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.consentimientos
+    ADD CONSTRAINT consentimientos_pkey PRIMARY KEY (id);
+
 -- Name: establecimientos establecimientos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 
 ALTER TABLE ONLY public.establecimientos
@@ -389,6 +496,11 @@ ALTER TABLE ONLY public.perfiles
 
 ALTER TABLE ONLY public.perfiles
     ADD CONSTRAINT perfiles_pkey PRIMARY KEY (id);
+
+-- Name: politicas_datos politicas_datos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.politicas_datos
+    ADD CONSTRAINT politicas_datos_pkey PRIMARY KEY (version);
 
 -- Name: promocion_servicios promocion_servicios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 
@@ -441,6 +553,18 @@ CREATE INDEX auditoria_usuario_fecha_idx ON public.auditoria USING btree (usuari
 -- Name: clientes_establecimiento_id_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX clientes_establecimiento_id_idx ON public.clientes USING btree (establecimiento_id);
+
+-- Name: consentimientos_cliente_tipo_fecha_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX consentimientos_cliente_tipo_fecha_idx ON public.consentimientos USING btree (cliente_id, tipo, created_at DESC);
+
+-- Name: consentimientos_establecimiento_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX consentimientos_establecimiento_idx ON public.consentimientos USING btree (establecimiento_id, cliente_id);
+
+-- Name: consentimientos_politica_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX consentimientos_politica_idx ON public.consentimientos USING btree (politica_version);
 
 -- Name: historial_estados_orden_fecha_idx; Type: INDEX; Schema: public; Owner: -
 
@@ -530,6 +654,10 @@ CREATE TRIGGER auditoria_inmutable BEFORE DELETE OR UPDATE ON public.auditoria F
 
 CREATE TRIGGER auditoria_sin_truncate BEFORE TRUNCATE ON public.auditoria FOR EACH STATEMENT EXECUTE FUNCTION privado.impedir_modificacion_auditoria();
 
+-- Name: consentimientos consentimientos_inmutables; Type: TRIGGER; Schema: public; Owner: -
+
+CREATE TRIGGER consentimientos_inmutables BEFORE DELETE OR UPDATE ON public.consentimientos FOR EACH ROW EXECUTE FUNCTION privado.impedir_modificacion_consentimiento();
+
 -- Name: historial_estados historial_estados_mismo_establecimiento; Type: TRIGGER; Schema: public; Owner: -
 
 CREATE TRIGGER historial_estados_mismo_establecimiento BEFORE INSERT OR UPDATE ON public.historial_estados FOR EACH ROW EXECUTE FUNCTION privado.validar_historial_estado();
@@ -537,6 +665,10 @@ CREATE TRIGGER historial_estados_mismo_establecimiento BEFORE INSERT OR UPDATE O
 -- Name: orden_servicios orden_servicios_mismo_establecimiento; Type: TRIGGER; Schema: public; Owner: -
 
 CREATE TRIGGER orden_servicios_mismo_establecimiento BEFORE INSERT OR UPDATE ON public.orden_servicios FOR EACH ROW EXECUTE FUNCTION privado.validar_orden_servicio();
+
+-- Name: politicas_datos politicas_datos_inmutables; Type: TRIGGER; Schema: public; Owner: -
+
+CREATE TRIGGER politicas_datos_inmutables BEFORE DELETE OR UPDATE ON public.politicas_datos FOR EACH ROW EXECUTE FUNCTION privado.impedir_modificacion_politica();
 
 -- Name: promocion_servicios promocion_servicios_mismo_establecimiento; Type: TRIGGER; Schema: public; Owner: -
 
@@ -546,6 +678,16 @@ CREATE TRIGGER promocion_servicios_mismo_establecimiento BEFORE INSERT OR UPDATE
 
 ALTER TABLE ONLY public.clientes
     ADD CONSTRAINT clientes_establecimiento_id_fkey FOREIGN KEY (establecimiento_id) REFERENCES public.establecimientos(id) ON DELETE CASCADE;
+
+-- Name: consentimientos consentimientos_cliente_id_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.consentimientos
+    ADD CONSTRAINT consentimientos_cliente_id_establecimiento_id_fkey FOREIGN KEY (cliente_id, establecimiento_id) REFERENCES public.clientes(id, establecimiento_id) ON DELETE CASCADE;
+
+-- Name: consentimientos consentimientos_politica_version_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.consentimientos
+    ADD CONSTRAINT consentimientos_politica_version_fkey FOREIGN KEY (politica_version) REFERENCES public.politicas_datos(version);
 
 -- Name: historial_estados historial_estados_orden_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 
@@ -654,6 +796,10 @@ ALTER TABLE public.auditoria ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.clientes ENABLE ROW LEVEL SECURITY;
 
+-- Name: consentimientos; Type: ROW SECURITY; Schema: public; Owner: -
+
+ALTER TABLE public.consentimientos ENABLE ROW LEVEL SECURITY;
+
 -- Name: establecimientos; Type: ROW SECURITY; Schema: public; Owner: -
 
 ALTER TABLE public.establecimientos ENABLE ROW LEVEL SECURITY;
@@ -678,6 +824,14 @@ ALTER TABLE public.ordenes ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.perfiles ENABLE ROW LEVEL SECURITY;
 
+-- Name: politicas_datos politicas visibles para todos; Type: POLICY; Schema: public; Owner: -
+
+CREATE POLICY "politicas visibles para todos" ON public.politicas_datos FOR SELECT USING (true);
+
+-- Name: politicas_datos; Type: ROW SECURITY; Schema: public; Owner: -
+
+ALTER TABLE public.politicas_datos ENABLE ROW LEVEL SECURITY;
+
 -- Name: promocion_servicios; Type: ROW SECURITY; Schema: public; Owner: -
 
 ALTER TABLE public.promocion_servicios ENABLE ROW LEVEL SECURITY;
@@ -697,6 +851,10 @@ ALTER TABLE public.vehiculos ENABLE ROW LEVEL SECURITY;
 -- Name: clientes ver clientes; Type: POLICY; Schema: public; Owner: -
 
 CREATE POLICY "ver clientes" ON public.clientes FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
+
+-- Name: consentimientos ver consentimientos; Type: POLICY; Schema: public; Owner: -
+
+CREATE POLICY "ver consentimientos" ON public.consentimientos FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
 
 -- Name: historial_estados ver historial; Type: POLICY; Schema: public; Owner: -
 
@@ -744,5 +902,5 @@ CREATE POLICY "ver servicios" ON public.servicios FOR SELECT USING ((establecimi
 
 CREATE POLICY "ver vehiculos" ON public.vehiculos FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
 
-\unrestrict dnWcWXjVvIv0CXdwmXoCWcK34xu48vCO9vow6edLdHHSyE89Uz2xnvfVYdTf4NT
+\unrestrict hLKh1JC2xMXqPQGcx528nWceu3Iqhq4uFSMCwbsvlkjA5H0xoPatBxbYrKE0xpU
 

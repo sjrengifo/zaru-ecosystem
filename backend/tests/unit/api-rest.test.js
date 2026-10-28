@@ -100,20 +100,21 @@ describe('CA2: errores estándar', () => {
       { campo: 'nombre', mensaje: 'El nombre es obligatorio' },
       { campo: 'telefono', mensaje: 'El teléfono debe ser un celular colombiano de 10 dígitos que empiece por 3' },
       { campo: 'autorizacionDatos', mensaje: 'La autorización de tratamiento de datos es obligatoria (Ley 1581 de 2012)' },
+      { campo: 'politicaVersion', mensaje: 'Indica la versión de la política de datos aceptada' },
     ]);
   });
 
   it('un correo inválido indica el campo y el formato esperado', async () => {
-    const res = await request(prueba).post('/clientes').send({ nombre: 'Ana', telefono: '3001234567', correo: 'ana@', autorizacionDatos: true });
+    const res = await request(prueba).post('/clientes').send({ nombre: 'Ana', telefono: '3001234567', correo: 'ana@', autorizacionDatos: true, politicaVersion: '1.0' });
     expect(res.body.error.detalles).toEqual([{ campo: 'correo', mensaje: 'El correo no tiene un formato válido' }]);
   });
 
   it('los datos válidos pasan limpios: sin espacios sobrantes ni campos desconocidos', async () => {
     const res = await request(prueba)
       .post('/clientes')
-      .send({ nombre: '  Ana Gómez ', telefono: '3001234567', autorizacionDatos: true, establecimiento_id: 'otro' });
+      .send({ nombre: '  Ana Gómez ', telefono: '3001234567', autorizacionDatos: true, politicaVersion: '1.0', establecimiento_id: 'otro' });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ nombre: 'Ana Gómez', telefono: '3001234567', autorizacionDatos: true });
+    expect(res.body).toEqual({ nombre: 'Ana Gómez', telefono: '3001234567', autorizacionDatos: true, politicaVersion: '1.0' });
   });
 
   it('una edición sin datos responde 400 con un mensaje claro', async () => {

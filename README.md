@@ -99,6 +99,8 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
 | `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
 | `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
+| `politicas_datos` | Versiones de la política de tratamiento de datos; una versión publicada no se modifica ([texto v1.0](docs/legal/politica-tratamiento-datos-v1.0.md)) | HU-51 |
+| `consentimientos` | Evidencia inmutable de cada autorización o revocación: fecha, hora, versión de la política, canal, IP y usuario | HU-51, HU-30 |
 
 ### Seguridad multi-tenant
 
@@ -234,10 +236,12 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, requieren el encabezado `
 |---|---|---|---|---|
 | GET | `/health` | Público | Estado del servicio | Implementado |
 | GET | `/me` | Admin, Operario | Usuario, rol, establecimiento y vencimiento de la sesión | Implementado |
+| GET | `/politicas-datos/vigente` | Público | Política de tratamiento de datos vigente (versión y texto) | Implementado |
 | GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes | Implementado |
 | GET | `/clientes/:id` | Admin, Operario | Detalle de cliente con sus vehículos | Implementado |
-| POST | `/clientes` | Admin, Operario | Registrar cliente | Implementado |
+| POST | `/clientes` | Admin, Operario | Registrar cliente con autorización de datos y versión de la política (`politicaVersion`) | Implementado |
 | PUT | `/clientes/:id` | Admin, Operario | Actualizar cliente | Implementado |
+| GET | `/clientes/:id/consentimientos` | Admin | Evidencia de autorización de tratamiento de datos | Implementado |
 | GET | `/vehiculos?placa=` | Admin, Operario | Listar o buscar vehículos | Pendiente |
 | POST | `/vehiculos` | Admin, Operario | Registrar vehículo | Pendiente |
 | GET | `/vehiculos/:id/historial` | Admin, Operario | Historial de servicios | Pendiente |

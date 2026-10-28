@@ -29,6 +29,10 @@ export const clienteNuevo = z.object({
   autorizacionDatos: z.literal(true, {
     errorMap: () => ({ message: 'La autorización de tratamiento de datos es obligatoria (Ley 1581 de 2012)' }),
   }),
+  // HU-51 CA2: versión de la política que el titular vio y aceptó (GET /politicas-datos/vigente).
+  politicaVersion: z
+    .string({ required_error: 'Indica la versión de la política de datos aceptada', invalid_type_error: 'La versión de la política debe ser texto' })
+    .regex(/^\d+\.\d+$/, 'La versión de la política debe tener el formato 1.0'),
 });
 
 export const clienteCambios = z

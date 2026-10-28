@@ -109,6 +109,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Aislamiento multi-tenant${hayEntornoInt
         nombre: `${ETIQUETA} Intento de cruce`,
         telefono: '3100004141',
         autorizacionDatos: true,
+        politicaVersion: '1.0',
         establecimiento_id: EST_B,
       });
       expect(res.status).toBe(201);

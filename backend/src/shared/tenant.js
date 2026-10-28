@@ -40,6 +40,11 @@ function lanzarSiError(error) {
   if (error.code === '23505') throw new AppError('CONFLICTO', 'El registro ya existe', { restriccion: error.details });
   if (error.code === '23503') throw new AppError('CONFLICTO', 'El registro está relacionado con datos que no existen o no le pertenecen');
   if (error.code === '22P02') throw new AppError('VALIDACION', 'Un dato tiene un formato inválido');
+  // Reglas de negocio validadas en la base (check o raise con errcode 23514): el mensaje ya es para el usuario.
+  if (error.code === '23514') {
+    if (error.hint === 'politica') throw new AppError('CONFLICTO', error.message, [{ campo: 'politicaVersion', mensaje: error.message }]);
+    throw new AppError('VALIDACION', error.message, error.hint ? [{ campo: error.hint, mensaje: error.message }] : undefined);
+  }
   throw error;
 }
 
@@ -102,6 +107,16 @@ export function crearAccesoTenant(db, ctx) {
         .maybeSingle();
       lanzarSiError(error);
       if (!data) throw noEncontrado(recurso);
+      return data;
+    },
+
+    /**
+     * Ejecuta una función de la base de datos pasando el establecimiento de la sesión como
+     * p_establecimiento_id (cualquier valor enviado por el cliente se reemplaza).
+     */
+    async rpc(funcion, argumentos = {}) {
+      const { data, error } = await db.rpc(funcion, { ...argumentos, p_establecimiento_id: establecimientoId });
+      lanzarSiError(error);
       return data;
     },
 
