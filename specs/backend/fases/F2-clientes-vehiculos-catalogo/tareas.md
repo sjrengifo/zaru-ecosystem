@@ -80,4 +80,4 @@ Rama sugerida: `feature/ZARU-4-clientes-y-datos-personales` (y una rama por bloq
 
 ### Cierre
 - [ ] Estado de `spec.md` cambiado a `Validada`
-- [ ] HU-03 a HU-07 y HU-53 movidas a "Listo" en Jira (backend); HU-16 y HU-54 actualizadas con su avance parcial
+- [ ] HU-03 a HU-07 y HU-51 movidas a "Listo" en Jira (backend); HU-30 y HU-52 actualizadas con su avance parcial

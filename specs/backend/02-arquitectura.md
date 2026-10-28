@@ -91,7 +91,7 @@ supabase/
 - **Contexto de petición:** el middleware de autenticación deja `req.ctx = { usuarioId, rol, establecimientoId, requestId }`. Los servicios reciben `ctx` como primer argumento.
 - **Errores:** los servicios lanzan `AppError(codigo, mensaje, detalles?)`; el `errorHandler` traduce el código a estado HTTP.
 - **Tiempo:** toda lógica dependiente de la hora usa `clock.now()` para poder probarla.
-- **Zona horaria:** se almacena en UTC (`timestamptz`); las reglas de negocio con horario (HU-21 CA4) usan `America/Bogota`.
+- **Zona horaria:** se almacena en UTC (`timestamptz`); las reglas de negocio con horario (HU-35 CA4) usan `America/Bogota`.
 
 ---
 
@@ -102,28 +102,28 @@ supabase/
 **Motivo:** Centraliza reglas de negocio, auditoría e idempotencia. RLS se mantiene como segunda barrera.
 
 ### ADR-02 — Migraciones con Supabase CLI
-**Decisión:** Se adopta `supabase/migrations/` como fuente de verdad del esquema (HU-44 CA2). `database/schema.sql` pasa a generarse con `supabase db dump` y se conserva solo como referencia legible.
+**Decisión:** Se adopta `supabase/migrations/` como fuente de verdad del esquema (HU-42 CA2). `database/schema.sql` pasa a generarse con `supabase db dump` y se conserva solo como referencia legible.
 **Motivo:** Migraciones reproducibles en local, CI y producción.
 
 ### ADR-03 — Cola de notificaciones en PostgreSQL (patrón outbox)
-**Decisión:** Las notificaciones se insertan en la tabla `notificaciones` dentro de la misma operación que el cambio de estado; un worker las procesa en orden de creación con `FOR UPDATE SKIP LOCKED` (HU-48 CA3).
+**Decisión:** Las notificaciones se insertan en la tabla `notificaciones` dentro de la misma operación que el cambio de estado; un worker las procesa en orden de creación con `FOR UPDATE SKIP LOCKED` (HU-46 CA3).
 **Motivo:** Garantiza que no se pierdan eventos sin agregar infraestructura (Art. 8). Se reevalúa si el volumen supera lo que un worker puede procesar.
 
 ### ADR-04 — Tiempo real del cliente final por Server-Sent Events
-**Decisión:** El panel administrativo usa Supabase Realtime con RLS (ya implementado). El cliente final, que no tiene usuario de Supabase, recibe los cambios por un endpoint SSE del backend (`/publico/seguimiento/{codigo}/eventos`), que solo emite eventos de su orden (HU-47 CA3) y permite reconexión con `Last-Event-ID` (HU-47 CA2).
+**Decisión:** El panel administrativo usa Supabase Realtime con RLS (ya implementado). El cliente final, que no tiene usuario de Supabase, recibe los cambios por un endpoint SSE del backend (`/publico/seguimiento/{codigo}/eventos`), que solo emite eventos de su orden (HU-45 CA3) y permite reconexión con `Last-Event-ID` (HU-45 CA2).
 **Alternativa descartada:** canales públicos de Supabase Realtime, porque no permiten restringir el acceso sin un usuario de Supabase.
 
 ### ADR-05 — Acceso del cliente final sin contraseña
 **Decisión:** Dos niveles de acceso:
 1. **Seguimiento:** con el código de la orden (enlace o QR) o con la placa dentro del enlace de la sede. Solo expone datos operativos no personales (estado, servicios, total, branding).
 2. **Sesión de cliente:** código OTP de 6 dígitos enviado al celular registrado. Habilita historial, preferencias, centro de notificaciones y derechos del titular. El backend emite un JWT de corta duración con rol `cliente`.
-**Motivo:** HU-29 y HU-34 piden acceso por placa sin fricción, pero el historial y los datos personales requieren verificar la identidad del titular (Ley 1581). Ver decisión abierta DA-03.
+**Motivo:** HU-17 y HU-17 piden acceso por placa sin fricción, pero el historial y los datos personales requieren verificar la identidad del titular (Ley 1581). Ver decisión abierta DA-03.
 
 ### ADR-06 — Ventana de gracia antes de enviar notificaciones de estado
-**Decisión:** Las notificaciones de cambio de estado se programan con 20 segundos de retraso. Si el estado se revierte en ese lapso, se cancelan; si ya se enviaron, se envía una corrección (HU-14 CA3). Se mantiene el límite de 30 segundos de HU-14 CA1.
+**Decisión:** Las notificaciones de cambio de estado se programan con 20 segundos de retraso. Si el estado se revierte en ese lapso, se cancelan; si ya se enviaron, se envía una corrección (HU-28 CA3). Se mantiene el límite de 30 segundos de HU-28 CA1.
 
 ### ADR-07 — Plataforma de despliegue
-**Decisión:** Durante el proyecto académico el backend se despliega en Render y la base en Supabase (planes gratuitos). HU-49 (balanceo de carga y autoescalado en AWS o Google Cloud) se aborda en F8 documentando la arquitectura objetivo y validándola con pruebas de carga; su implementación real depende de presupuesto. Ver decisión abierta DA-06.
+**Decisión:** Durante el proyecto académico el backend se despliega en Render y la base en Supabase (planes gratuitos). HU-47 (balanceo de carga y autoescalado en AWS o Google Cloud) se aborda en F8 documentando la arquitectura objetivo y validándola con pruebas de carga; su implementación real depende de presupuesto. Ver decisión abierta DA-06.
 
 ### ADR-08 — Worker dentro del proceso de la API
 **Decisión:** El worker de notificaciones corre en el mismo proceso que la API, activado por `WORKER_ENABLED=true`.

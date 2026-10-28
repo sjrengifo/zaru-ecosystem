@@ -84,4 +84,4 @@ Rama sugerida: `feature/ZARU-53-motor-notificaciones`. **Prerrequisitos:** DA-04
 
 ### Cierre
 - [ ] Estado de `spec.md` cambiado a `Validada`
-- [ ] HU-14, HU-15, HU-17, HU-19, HU-20, HU-24 y HU-48 movidas a "Listo" en Jira (backend); HU-16 completada
+- [ ] HU-28, HU-29, HU-31, HU-33, HU-34, HU-38 y HU-46 movidas a "Listo" en Jira (backend); HU-30 completada

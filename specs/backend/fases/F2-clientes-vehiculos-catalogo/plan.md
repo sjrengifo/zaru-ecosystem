@@ -13,7 +13,7 @@ Migración `<ts>_clientes_y_datos_personales.sql`:
 | Datos existentes | Por cada cliente actual se inserta un consentimiento `tratamiento_datos` con su `fecha_autorizacion` y versión `1.0` | RF-F2-04 |
 | `clientes` | Se renombra `telefono` → `celular` (y su restricción única); se eliminan `autorizacion_datos` y `fecha_autorizacion`; se agregan `celular_verificado_at`, `anonimizado_at` | RF-F2-01, RF-F2-09 |
 | `vehiculos` | `recordatorios_activos bool default true` | (F7) |
-| `servicios` | `incluye_rain_insure bool default false`, `rain_insure_dias int check (rain_insure_dias > 0)` | RF-F2-16 |
+| `servicios` | `incluye_rain_insure bool default false`, `rain_insure_horas int check (rain_insure_horas > 0)`; `orden_servicios.rain_insure_hasta timestamptz` (HU-15) | RF-F2-16 |
 | `solicitudes_titular` | Nueva | RF-F2-09 |
 | Extensión `pg_trgm` + `unaccent` | Índice `gin` sobre `unaccent(lower(nombre))` | RF-F2-07 |
 | Vista `consentimientos_vigentes` | Último registro por (`cliente_id`, `tipo`) | RF-F2-05 |

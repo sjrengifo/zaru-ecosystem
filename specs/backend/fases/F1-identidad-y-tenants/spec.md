@@ -4,9 +4,9 @@
 |---|---|
 | Estado | Borrador |
 | Épicas | ZARU-1, ZARU-48 |
-| Historias | HU-01 (ZARU-2), HU-02 (ZARU-3), HU-43 (ZARU-47), HU-46 (ZARU-51), HU-52 CA1 y CA3 (ZARU-57), HU-55 CA1 (ZARU-60) |
+| Historias | HU-01 (ZARU-2), HU-02 (ZARU-3), HU-14 (ZARU-66), HU-57 (ZARU-63), HU-41 (ZARU-47), HU-44 (ZARU-51), HU-50 CA1 y CA3 (ZARU-57), HU-53 CA1 (ZARU-60) |
 | Depende de | F0 |
-| Puntos estimados | 21 |
+| Puntos | 30 (Jira) · Sprint 1 |
 
 ## 1. Objetivo
 Garantizar que cada petición al backend esté asociada a un usuario autenticado, a un rol y a un único establecimiento, que nadie pueda ver ni modificar datos de otro afiliado, que el administrador gestione a sus operarios y que la plataforma pueda dar de alta nuevos establecimientos sin tocar el código. Toda acción sensible y todo intento denegado queda auditado.
@@ -15,17 +15,19 @@ Garantizar que cada petición al backend esté asociada a un usuario autenticado
 
 | ID | Requisito | Origen |
 |---|---|---|
-| RF-F1-01 | El backend valida el JWT de Supabase Auth en cada petición privada y rechaza tokens ausentes, inválidos o vencidos con `401`. | HU-46 CA1, CA3 |
-| RF-F1-02 | El backend resuelve rol (`admin`, `operario`, `plataforma`) y establecimiento del usuario desde la base de datos; nunca desde la petición. | HU-43 CA1, HU-46 CA1 |
+| RF-F1-01 | El backend valida el JWT de Supabase Auth en cada petición privada y rechaza tokens ausentes, inválidos o vencidos con `401`. | HU-44 CA1, CA3 |
+| RF-F1-02 | El backend resuelve rol (`admin`, `operario`, `plataforma`) y establecimiento del usuario desde la base de datos; nunca desde la petición. | HU-41 CA1, HU-44 CA1 |
 | RF-F1-03 | Un usuario desactivado o de un establecimiento inactivo recibe `403` aunque su token sea válido. | HU-02 CA3 |
 | RF-F1-04 | `GET /me` devuelve id, nombre, rol y establecimiento (id, nombre, slug, branding) del usuario. | HU-01 CA1 |
-| RF-F1-05 | Un operario que invoca una función exclusiva del administrador recibe `403` y el intento se registra en auditoría. | HU-02 CA2, HU-46 CA2 |
-| RF-F1-06 | Todo recurso consultado o modificado se filtra por el establecimiento del usuario; un id de otro establecimiento responde `404`. | HU-43 CA1, CA2, HU-01 CA3 |
+| RF-F1-05 | Un operario que invoca una función exclusiva del administrador recibe `403` y el intento se registra en auditoría. | HU-02 CA2, HU-44 CA2 |
+| RF-F1-06 | Todo recurso consultado o modificado se filtra por el establecimiento del usuario; un id de otro establecimiento responde `404`. | HU-41 CA1, CA2, HU-01 CA3 |
 | RF-F1-07 | El administrador lista, crea, edita y desactiva operarios de su establecimiento. Al crearlo, el sistema envía una invitación por correo. | HU-02 CA1, CA3 |
 | RF-F1-08 | Un administrador no puede desactivarse a sí mismo ni dejar el establecimiento sin administradores activos. | HU-02 (regla derivada) |
-| RF-F1-09 | Un administrador de plataforma da de alta un establecimiento con su primer administrador; el nuevo tenant queda operativo y aislado sin cambios de código. | HU-43 CA3 |
-| RF-F1-10 | Las acciones de creación, modificación, desactivación, consulta de datos personales y los accesos denegados se registran en `auditoria` con usuario, fecha, acción, recurso, resultado, IP y `requestId`. | HU-55 CA1, HU-46 CA2 |
-| RF-F1-11 | El administrador consulta la auditoría de su establecimiento con filtros por usuario, acción y fechas. | HU-55 CA1 |
+| RF-F1-09 | Un administrador de plataforma da de alta un establecimiento con su primer administrador; el nuevo tenant queda operativo y aislado sin cambios de código. | HU-41 CA3 |
+| RF-F1-10 | Las acciones de creación, modificación, desactivación, consulta de datos personales y los accesos denegados se registran en `auditoria` con usuario, fecha, acción, recurso, resultado, IP y `requestId`. | HU-53 CA1, HU-44 CA2 |
+| RF-F1-11 | El administrador consulta la auditoría de su establecimiento con filtros por usuario, acción y fechas. | HU-53 CA1 |
+| RF-F1-12 | La recuperación de contraseña usa el flujo de Supabase Auth: enlace con vigencia limitada, mismo mensaje exista o no el correo y rechazo de enlaces vencidos o usados. El backend solo configura la URL de redirección y la plantilla del correo. | HU-14 CA1, CA2, CA3 |
+| RF-F1-13 | Un establecimiento tiene estado `prueba` (14 a 30 días), `activo`, `pendiente_activacion` o `suspendido`. Al vencer la prueba pasa a `pendiente_activacion`; los usuarios de un establecimiento suspendido reciben `403` sin que se borren sus datos. | HU-57 CA2, CA3 |
 
 ## 3. Requisitos no funcionales
 
@@ -44,17 +46,17 @@ Garantizar que cada petición al backend esté asociada a un usuario autenticado
 - **Cuando** llama a `GET /me` con su token
 - **Entonces** recibe `200` con su rol `admin` y los datos de su establecimiento.
 
-**ESC-F1-02 — Token vencido** (RF-F1-01 · HU-46 CA3)
+**ESC-F1-02 — Token vencido** (RF-F1-01 · HU-44 CA3)
 - **Dado** un token vencido
 - **Cuando** llama a cualquier endpoint privado
 - **Entonces** recibe `401` con código `NO_AUTENTICADO`.
 
-**ESC-F1-03 — Operario en función de administrador** (RF-F1-05 · HU-02 CA2, HU-46 CA2)
+**ESC-F1-03 — Operario en función de administrador** (RF-F1-05 · HU-02 CA2, HU-44 CA2)
 - **Dado** un usuario con rol `operario`
 - **Cuando** llama a `POST /servicios`
 - **Entonces** recibe `403` y existe un registro en `auditoria` con `resultado = denegado`.
 
-**ESC-F1-04 — Recurso de otro establecimiento** (RF-F1-06 · HU-43 CA2)
+**ESC-F1-04 — Recurso de otro establecimiento** (RF-F1-06 · HU-41 CA2)
 - **Dado** un cliente que pertenece al establecimiento B
 - **Cuando** un administrador del establecimiento A consulta `GET /clientes/{id}` de ese cliente
 - **Entonces** recibe `404`, idéntico al de un id inexistente.
@@ -69,7 +71,7 @@ Garantizar que cada petición al backend esté asociada a un usuario autenticado
 - **Cuando** usa un token emitido antes de la desactivación
 - **Entonces** recibe `403`.
 
-**ESC-F1-07 — Alta de establecimiento** (RF-F1-09 · HU-43 CA3)
+**ESC-F1-07 — Alta de establecimiento** (RF-F1-09 · HU-41 CA3)
 - **Dado** un administrador de plataforma
 - **Cuando** crea el establecimiento "Lavadero Norte" con su administrador
 - **Entonces** el nuevo administrador puede iniciar sesión y solo ve los datos de "Lavadero Norte".

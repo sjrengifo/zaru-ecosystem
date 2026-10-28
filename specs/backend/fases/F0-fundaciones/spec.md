@@ -4,9 +4,9 @@
 |---|---|
 | Estado | Aprobada |
 | Épicas | ZARU-48 (Arquitectura y Backend) |
-| Historias | HU-44 CA2 (ZARU-49), HU-45 (ZARU-50), HU-50 CA3 (ZARU-55), HU-57 CA1–CA2 (ZARU-62) |
+| Historias | HU-58 Spike (ZARU-64), HU-42 CA2 (ZARU-49), HU-43 (ZARU-50), HU-48 CA3 (ZARU-55), HU-56 CA1–CA2 (ZARU-62) |
 | Depende de | Estructura inicial del repositorio |
-| Puntos estimados | 13 |
+| Puntos | 21 (Jira) · Sprint 1 |
 
 ## 1. Objetivo
 Dejar el backend listo para construir funcionalidades de forma segura y verificable: arquitectura en capas, contrato OpenAPI como fuente de verdad, validación y errores estandarizados, logs estructurados, pruebas automatizadas contra una base de datos local y migraciones versionadas ejecutadas en CI.
@@ -15,14 +15,15 @@ Dejar el backend listo para construir funcionalidades de forma segura y verifica
 
 | ID | Requisito | Origen |
 |---|---|---|
-| RF-F0-01 | La API se expone bajo el prefijo versionado `/api/v1`. | HU-45 CA3 |
-| RF-F0-02 | La documentación de todos los endpoints está disponible en `/api/docs` generada desde `openapi.yaml`. | HU-45 CA1 |
-| RF-F0-03 | Una petición con datos inválidos recibe `400` con código `VALIDACION` y la lista de campos a corregir. | HU-45 CA2 |
-| RF-F0-04 | Todas las respuestas de error siguen el formato único de `04-contrato-api.md`. | HU-45 CA2 |
-| RF-F0-05 | Cada error del servidor queda registrado con fecha, hora, `requestId`, ruta y detalle técnico. | HU-50 CA3 |
-| RF-F0-06 | `GET /health` responde el estado del servicio y `GET /health/ready` verifica la conexión con la base de datos. | HU-50 |
-| RF-F0-07 | Los cambios de esquema se aplican mediante migraciones versionadas reproducibles en cualquier ambiente. | HU-44 CA2 |
-| RF-F0-08 | Cada integración al repositorio ejecuta lint, pruebas y validación del contrato; si fallan, el PR no puede integrarse. | HU-57 CA1, CA2 |
+| RF-F0-01 | La API se expone bajo el prefijo versionado `/api/v1`. | HU-43 CA3 |
+| RF-F0-02 | La documentación de todos los endpoints está disponible en `/api/docs` generada desde `openapi.yaml`. | HU-43 CA1 |
+| RF-F0-03 | Una petición con datos inválidos recibe `400` con código `VALIDACION` y la lista de campos a corregir. | HU-43 CA2 |
+| RF-F0-04 | Todas las respuestas de error siguen el formato único de `04-contrato-api.md`. | HU-43 CA2 |
+| RF-F0-05 | Cada error del servidor queda registrado con fecha, hora, `requestId`, ruta y detalle técnico. | HU-48 CA3 |
+| RF-F0-06 | `GET /health` responde el estado del servicio y `GET /health/ready` verifica la conexión con la base de datos. | HU-48 |
+| RF-F0-07 | Los cambios de esquema se aplican mediante migraciones versionadas reproducibles en cualquier ambiente. | HU-42 CA2 |
+| RF-F0-08 | Cada integración al repositorio ejecuta lint, pruebas y validación del contrato; si fallan, el PR no puede integrarse. | HU-56 CA1, CA2 |
+| RF-F0-09 | Spike con time-box de 2 días: documento con la arquitectura elegida y las alternativas descartadas (Supabase, AWS, Google Cloud), prototipo con dos establecimientos que demuestre aislamiento y propagación en tiempo real, y comparación de costos para 81 establecimientos frente a $800.000 mensuales. | HU-58 CA1, CA2, CA3 |
 
 ## 3. Requisitos no funcionales
 

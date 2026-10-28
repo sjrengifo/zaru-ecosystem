@@ -75,5 +75,5 @@ Rama sugerida: `feature/ZARU-9-ordenes`. **Prerrequisito:** DA-02 confirmada por
 
 ### Cierre
 - [ ] Estado de `spec.md` cambiado a `Validada`
-- [ ] HU-08 a HU-11 movidas a "Listo" en Jira (backend); HU-47 y HU-56 actualizadas con su avance
+- [ ] HU-08 a HU-11 movidas a "Listo" en Jira (backend); HU-45 y HU-54 actualizadas con su avance
 - [ ] **Hito H1 (Panel operativo) alcanzado**

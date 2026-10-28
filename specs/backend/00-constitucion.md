@@ -9,13 +9,13 @@ Principios no negociables. Toda especificación, plan, revisión de código y co
 1. Toda tabla de negocio tiene `establecimiento_id NOT NULL` con llave foránea a `establecimientos`.
 2. El establecimiento se obtiene **siempre** de la sesión autenticada (`req.ctx.establecimientoId`), nunca del cuerpo, la URL ni los parámetros de la petición.
 3. Toda consulta del repositorio filtra por `establecimiento_id`. Un repositorio que no recibe el tenant no compila la consulta.
-4. Un recurso de otro establecimiento responde `404 Not Found`, nunca `403`, para no revelar su existencia (HU-43 CA2).
+4. Un recurso de otro establecimiento responde `404 Not Found`, nunca `403`, para no revelar su existencia (HU-41 CA2).
 5. RLS permanece habilitado en todas las tablas del esquema `public`, aunque el backend use `service_role`.
 
 ## Art. 2 — Contrato primero
 
 1. Ningún endpoint se implementa sin estar definido en `backend/openapi/openapi.yaml`.
-2. La API se versiona en la ruta (`/api/v1`). Un cambio incompatible exige una nueva versión; la anterior se mantiene mientras existan clientes que la usen (HU-45 CA3).
+2. La API se versiona en la ruta (`/api/v1`). Un cambio incompatible exige una nueva versión; la anterior se mantiene mientras existan clientes que la usen (HU-43 CA3).
 3. Las respuestas de error siguen un único formato (ver `04-contrato-api.md`).
 
 ## Art. 3 — Pruebas como especificación
@@ -34,9 +34,9 @@ Principios no negociables. Toda especificación, plan, revisión de código y co
 
 1. Los secretos viven en variables de entorno validadas al arranque; nunca en el código ni en el repositorio.
 2. La clave `service_role` solo existe en el backend.
-3. Los datos personales (nombre, teléfono, correo, placa) no se escriben en logs. Teléfonos y correos se enmascaran en respuestas de consulta masiva (HU-20 CA3).
+3. Los datos personales (nombre, teléfono, correo, placa) no se escriben en logs. Teléfonos y correos se enmascaran en respuestas de consulta masiva (HU-34 CA3).
 4. Ningún dato personal se almacena sin autorización registrada con fecha, hora y versión de la política (Ley 1581 de 2012).
-5. Toda acción sobre información sensible queda en la tabla de auditoría (HU-55 CA1).
+5. Toda acción sobre información sensible queda en la tabla de auditoría (HU-53 CA1).
 6. Toda entrada se valida con un esquema `zod` antes de llegar al servicio.
 
 ## Art. 6 — Capas con responsabilidades únicas
@@ -45,8 +45,8 @@ Principios no negociables. Toda especificación, plan, revisión de código y co
 
 ## Art. 7 — Operaciones confiables
 
-1. Las operaciones que el cliente puede reintentar (cambio de estado, creación de orden, envío de notificación) son **idempotentes** mediante el encabezado `Idempotency-Key` (HU-56 CA3).
-2. Los efectos secundarios lentos o que pueden fallar (envío de notificaciones) se desacoplan con una cola persistente (patrón *outbox*); nunca bloquean la petición del operario (HU-48 CA2).
+1. Las operaciones que el cliente puede reintentar (cambio de estado, creación de orden, envío de notificación) son **idempotentes** mediante el encabezado `Idempotency-Key` (HU-54 CA1).
+2. Los efectos secundarios lentos o que pueden fallar (envío de notificaciones) se desacoplan con una cola persistente (patrón *outbox*); nunca bloquean la petición del operario (HU-46 CA2).
 3. Cada petición tiene un `requestId` que aparece en logs y en las respuestas de error.
 
 ## Art. 8 — Simplicidad

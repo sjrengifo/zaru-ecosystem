@@ -90,9 +90,9 @@ Rama sugerida: `feature/ZARU-51-identidad-tenants`.
 - [ ] Con el token del admin de A, `GET /api/v1/clientes/{id-de-B}` devuelve `404`.
 - [ ] Un operario desactivado recibe `403` sin necesidad de cerrar sesión.
 - [ ] Un establecimiento creado desde `/plataforma/establecimientos` funciona sin modificar código.
-- [ ] `select` en `information_schema.columns` no encuentra columnas de contraseña en `public` (HU-46 CA4).
+- [ ] `select` en `information_schema.columns` no encuentra columnas de contraseña en `public` (HU-44 CA4).
 - [ ] Un `update` o `delete` sobre `auditoria` es rechazado por la base de datos.
 
 ### Cierre
 - [ ] Estado de `spec.md` cambiado a `Validada`
-- [ ] HU-01, HU-02, HU-43 y HU-46 movidas a "Listo" en Jira (backend)
+- [ ] HU-01, HU-02, HU-41 y HU-44 movidas a "Listo" en Jira (backend)

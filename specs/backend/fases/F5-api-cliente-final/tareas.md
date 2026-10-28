@@ -1,6 +1,6 @@
 # F5 — API del cliente final: Tareas y validación
 
-Rama sugerida: `feature/ZARU-34-api-cliente-final`. **Prerrequisitos:** DA-01 y DA-03 confirmadas; HUs duplicadas cerradas en Jira.
+Rama sugerida: `feature/ZARU-34-api-cliente-final`. **Prerrequisitos:** DA-01 y DA-03 ya resueltas en Jira.
 
 ## Tareas
 
@@ -71,10 +71,10 @@ Rama sugerida: `feature/ZARU-34-api-cliente-final`. **Prerrequisitos:** DA-01 y 
 - [ ] Con el seguimiento abierto, el operario cambia el estado y el celular se actualiza en menos de 5 segundos.
 - [ ] Apagar el wifi del celular, cambiar el estado dos veces, volver a conectarse: se muestra el estado correcto.
 - [ ] `curl` a `/publico/seguimiento/{codigo}` no devuelve nombre, celular ni correo.
-- [ ] 11 búsquedas en un minuto desde la misma IP devuelven `429`.
+- [ ] 6 búsquedas fallidas en 10 minutos desde la misma IP devuelven `429` (HU-59 CA1).
 - [ ] El código de una orden entregada hace más de 24 h devuelve `404`.
 
 ### Cierre
 - [ ] Estado de `spec.md` cambiado a `Validada`
-- [ ] HUs de la Épica 2 movidas a "Listo" en Jira (backend); HU-47 y HU-54 actualizadas
+- [ ] HUs de la Épica 2 movidas a "Listo" en Jira (backend); HU-45 y HU-52 actualizadas
 - [ ] **Hito H2 (Experiencia del cliente final) alcanzado** (si F4 está validada)

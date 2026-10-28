@@ -55,9 +55,9 @@ establecimientos ◀── perfiles (auth.users) ── admins_plataforma
 
 | Cambio | Detalle |
 |---|---|
-| `establecimientos` + columnas | `slug text unique not null`, `direccion`, `telefono`, `plan_id → planes`, `activo bool default true` |
+| `establecimientos` + columnas | `slug text unique not null`, `direccion`, `telefono`, `plan_id → planes`, `estado` (`prueba`, `activo`, `pendiente_activacion`, `suspendido`), `prueba_hasta date` (HU-57) |
 | `planes` (nueva) | `nombre` (`basico`, `intermedio`, `empresarial`), `cupo_sms_mes int`, `cupo_correo_mes int` |
-| `admins_plataforma` (nueva) | `usuario_id → auth.users`: administradores de ZARU (HU-25, alta de establecimientos) |
+| `admins_plataforma` (nueva) | `usuario_id → auth.users`: administradores de ZARU (HU-39, alta de establecimientos) |
 | `auditoria` (nueva) | `establecimiento_id`, `usuario_id`, `actor_tipo` (`usuario`/`cliente`/`sistema`), `accion`, `recurso`, `recurso_id`, `resultado` (`permitido`/`denegado`), `detalle jsonb`, `ip`, `request_id`. Solo inserción. |
 
 ### F2 — Clientes y datos personales
@@ -65,19 +65,19 @@ establecimientos ◀── perfiles (auth.users) ── admins_plataforma
 | Cambio | Detalle |
 |---|---|
 | `politicas_datos` (nueva) | `version text unique`, `url`, `vigente_desde`. Solo una vigente. |
-| `consentimientos` (nueva) | `cliente_id`, `tipo` (`tratamiento_datos`, `notificaciones_servicio`, `comerciales`), `otorgado bool`, `canal` (`panel`, `app`, `enlace_baja`), `politica_version`, `ip`, `created_at`. **Solo inserción**: el estado vigente es el último registro por tipo (HU-16 CA4, HU-53 CA2). |
+| `consentimientos` (nueva) | `cliente_id`, `tipo` (`tratamiento_datos`, `notificaciones_servicio`, `comerciales`), `otorgado bool`, `canal` (`panel`, `app`, `enlace_baja`), `politica_version`, `ip`, `created_at`. **Solo inserción**: el estado vigente es el último registro por tipo (HU-30 CA4, HU-51 CA2). |
 | `clientes` | Se eliminan `autorizacion_datos` y `fecha_autorizacion` (migran a `consentimientos`); se agregan `celular_verificado_at`, `anonimizado_at` |
 | `vehiculos` | `recordatorios_activos bool default true` |
-| `servicios` | `incluye_rain_insure bool default false`, `rain_insure_dias int` (HU-33, HU-40) |
-| `solicitudes_titular` (nueva) | `cliente_id`, `tipo` (`consulta`, `actualizacion`, `eliminacion`), `estado`, `resuelta_at`, `detalle jsonb` (HU-54) |
+| `servicios` | `incluye_rain_insure bool default false`, `rain_insure_horas int` (HU-15); `orden_servicios.rain_insure_hasta timestamptz` guarda la garantía por orden (HU-15 CA2, HU-25) |
+| `solicitudes_titular` (nueva) | `cliente_id`, `tipo` (`consulta`, `actualizacion`, `eliminacion`), `estado`, `resuelta_at`, `detalle jsonb` (HU-52) |
 
 ### F3 — Órdenes y operación
 
 | Cambio | Detalle |
 |---|---|
-| `estado_orden` | Se agrega el valor `secado` entre `en_lavado` y `listo` (HU-17 CA1). Ver DA-02. |
+| `estado_orden` | Se agrega el valor `secado` entre `en_lavado` y `listo` (HU-31 CA1). Ver DA-02. |
 | `ordenes` + columnas | `codigo_seguimiento text unique` (10 caracteres, para enlace/QR), `entrega_estimada_at`, `observaciones` |
-| `historial_estados` | `estado_anterior`, `revertido bool default false` (HU-14 CA3) |
+| `historial_estados` | `estado_anterior`, `revertido bool default false` (HU-28 CA3) |
 | `idempotencia` (nueva) | `clave`, `usuario_id`, `ruta`, `hash_cuerpo`, `respuesta jsonb`, `status int`, `created_at`. Única por (`clave`, `usuario_id`). Expira a las 24 h. |
 | `eventos` (nueva, outbox de dominio) | `establecimiento_id`, `tipo` (`orden.creada`, `orden.estado_cambiado`, `orden.estado_revertido`, `orden.entregada`), `orden_id`, `payload jsonb`, `procesado_at`. Se inserta en la misma transacción que el cambio; F6 la consume. |
 
@@ -85,7 +85,7 @@ establecimientos ◀── perfiles (auth.users) ── admins_plataforma
 
 | Cambio | Detalle |
 |---|---|
-| `promociones` + columnas | `descripcion`, `condiciones`, `activa bool default true` (HU-42) |
+| `promociones` + columnas | `descripcion`, `condiciones`, `activa bool default true` (HU-27) |
 | `ordenes` + columnas | `promocion_id → promociones` (promoción aplicada) |
 | Storage | Bucket `logos` (público, PNG/JPG, ≤ 2 MB) |
 
@@ -101,7 +101,7 @@ establecimientos ◀── perfiles (auth.users) ── admins_plataforma
 |---|---|
 | `preferencias_notificacion` (nueva) | `cliente_id`, `canal` (`push`, `sms`, `correo`), `activo bool`. Única por (`cliente_id`, `canal`). |
 | `suscripciones_push` (nueva) | `cliente_id`, `endpoint`, `claves jsonb` |
-| `config_notificaciones` (nueva) | `establecimiento_id`, `estado estado_orden`, `activo bool`. `listo` siempre activo (HU-17 CA2). |
+| `config_notificaciones` (nueva) | `establecimiento_id`, `estado estado_orden`, `activo bool`. `listo` siempre activo (HU-31 CA2). |
 | `notificaciones` (nueva, outbox) | `cliente_id`, `orden_id`, `tipo` (`operativa`, `comercial`, `recordatorio`, `novedad`, `correccion`, `sistema`), `evento`, `canal`, `destino`, `contenido jsonb`, `estado` (`programada`, `pendiente`, `enviando`, `enviada`, `entregada`, `fallida`, `cancelada`), `intentos`, `programada_para`, `proximo_intento_at`, `error`, `clave_dedupe text unique`, `notificacion_origen_id` (canal alterno), `leida_at` |
 
 ### F7 — Comunicación avanzada
@@ -129,9 +129,9 @@ establecimientos ◀── perfiles (auth.users) ── admins_plataforma
 | Consentimientos inmutables | Sin políticas ni permisos de `update`/`delete`; revocar es insertar `otorgado = false` |
 | Auditoría inmutable | Solo `insert`; `revoke update, delete` incluso para `service_role` mediante trigger que lo impide |
 | Sin datos personales sin autorización | El servicio de clientes exige un consentimiento `tratamiento_datos` otorgado en la misma transacción (función SQL `crear_cliente_con_consentimiento`) |
-| Anonimización | `anonimizar_cliente(id)` reemplaza nombre, teléfono y correo por valores irreversibles y conserva órdenes para estadísticas (HU-54 CA3) |
+| Anonimización | `anonimizar_cliente(id)` reemplaza nombre, teléfono y correo por valores irreversibles y conserva órdenes para estadísticas (HU-52 CA3) |
 
-## 4. Índices para consultas frecuentes (HU-44 CA3)
+## 4. Índices para consultas frecuentes (HU-42 CA3)
 
 | Consulta | Índice |
 |---|---|

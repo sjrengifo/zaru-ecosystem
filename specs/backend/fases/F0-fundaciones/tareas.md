@@ -4,6 +4,14 @@ Rama sugerida: `feature/ZARU-49-fundaciones-backend`.
 
 ## Tareas
 
+### T0.0 — Spike de arquitectura (HU-58)
+**Cubre:** RF-F0-09
+1. Partir de `02-arquitectura.md` (ADR-01 a ADR-08) y escribir `docs/arquitectura/spike-hu58.md` con la decisión y las alternativas descartadas.
+2. Prototipo en Supabase: crear un segundo establecimiento con su usuario, comprobar que cada uno solo ve sus filas (RLS) y que un cambio en `ordenes` llega por Realtime solo al establecimiento correcto.
+3. Tabla de costos: Supabase, Render y Vercel (planes gratuitos y siguiente nivel) para 81 establecimientos frente a los $800.000 mensuales del caso de negocio.
+
+**Hecho cuando:** el documento está en el repositorio y el prototipo se demuestra al equipo.
+
 ### T0.1 — Supabase CLI y migraciones versionadas
 **Cubre:** RF-F0-07
 1. Instalar Docker y Supabase CLI; en la raíz ejecutar `supabase init`.

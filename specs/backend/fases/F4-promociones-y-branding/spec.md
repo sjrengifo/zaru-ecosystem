@@ -6,7 +6,7 @@
 | Épicas | ZARU-1 |
 | Historias | HU-12 (ZARU-13), HU-13 (ZARU-14) |
 | Depende de | F3 |
-| Puntos estimados | 13 |
+| Puntos | 10 (Jira) · Sprint 1 |
 
 ## 1. Objetivo
 Permitir que cada establecimiento cree promociones con vigencia que se apliquen automáticamente al total de las órdenes, y que configure su logo y colores para que su identidad se muestre en todos los canales hacia el cliente final.
@@ -17,7 +17,7 @@ Permitir que cada establecimiento cree promociones con vigencia que se apliquen 
 
 | ID | Requisito | Origen |
 |---|---|---|
-| RF-F4-01 | El administrador crea promociones con nombre, descripción, condiciones, porcentaje de descuento (1–100), fecha de inicio, fecha de fin y servicios aplicables (al menos uno). | HU-12 CA1, HU-42 |
+| RF-F4-01 | El administrador crea promociones con nombre, descripción, condiciones, porcentaje de descuento (1–100), fecha de inicio, fecha de fin y servicios aplicables (al menos uno). | HU-12 CA1, HU-27 |
 | RF-F4-02 | Una promoción está **vigente** si está activa y la fecha actual (zona Bogotá) está entre su inicio y su fin, ambos incluidos. Al pasar la fecha de fin deja de estar vigente sin intervención manual. | HU-12 CA2 |
 | RF-F4-03 | El administrador puede editar o desactivar una promoción; los cambios no alteran órdenes ya creadas. | HU-12 |
 | RF-F4-04 | Al crear una orden, si hay una promoción vigente que aplica a alguno de sus servicios, el descuento se aplica a esos servicios y la orden guarda la promoción aplicada. | HU-12 CA3 |
@@ -30,7 +30,7 @@ Permitir que cada establecimiento cree promociones con vigencia que se apliquen 
 |---|---|---|
 | RF-F4-07 | El administrador sube un logo PNG o JPG de máximo 2 MB; cualquier otro formato o tamaño se rechaza indicando los requisitos. | HU-13 CA1, CA3 |
 | RF-F4-08 | El administrador define color primario y secundario en formato hexadecimal `#RRGGBB`. | HU-13 CA1 |
-| RF-F4-09 | El branding guardado (logo, colores, nombre) queda disponible para el panel y para los canales del cliente final. | HU-13 CA2, HU-37 |
+| RF-F4-09 | El branding guardado (logo, colores, nombre) queda disponible para el panel y para los canales del cliente final. | HU-13 CA2, HU-22 |
 
 ## 3. Requisitos no funcionales
 

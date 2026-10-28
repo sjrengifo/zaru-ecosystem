@@ -65,5 +65,5 @@ Rama sugerida: `feature/ZARU-21-comunicacion-avanzada` (o una rama por HU). **Pr
 
 ### Cierre
 - [ ] Estado de `spec.md` cambiado a `Validada`
-- [ ] HU-18, HU-21, HU-22, HU-23 y HU-25 movidas a "Listo" en Jira (backend)
+- [ ] HU-32, HU-35, HU-36, HU-37 y HU-39 movidas a "Listo" en Jira (backend)
 - [ ] **Hito H3 (Comunicación) alcanzado**

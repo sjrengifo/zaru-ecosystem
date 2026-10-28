@@ -77,5 +77,5 @@ Rama sugerida: `feature/ZARU-62-produccion`. **Prerrequisitos:** DA-06, DA-07 y 
 
 ### Cierre
 - [ ] Estado de `spec.md` cambiado a `Validada`
-- [ ] HU-49 a HU-52, HU-55 y HU-57 movidas a "Listo" en Jira
+- [ ] HU-47 a HU-50, HU-53 y HU-56 movidas a "Listo" en Jira
 - [ ] **Hito H4 (Producción) alcanzado**
