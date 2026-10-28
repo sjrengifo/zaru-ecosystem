@@ -1,5 +1,5 @@
 -- =====================================================================
---  Datos de prueba. Correr DESPUÉS de schema.sql.
+--  Datos de prueba. Correr DESPUÉS de aplicar las migraciones de supabase/migrations.
 -- =====================================================================
 
 -- 1) Un car wash de ejemplo
