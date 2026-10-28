@@ -1,7 +1,9 @@
 // HU-03 y HU-04 — Lógica de clientes.
 // - Multi-tenant (HU-41): todo acceso a datos pasa por req.tenant.
 // - Validación (HU-43): las rutas validan con schemas/clientes.schemas.js antes de llegar aquí.
+// - Cifrado (HU-50): el correo se guarda cifrado (AES-256-GCM) y se descifra solo al responder.
 import { AppError } from '../shared/errores.js';
+import { cifrar, descifrarCampos } from '../shared/cifrado.js';
 
 /** Quita los caracteres que alteran la sintaxis de filtros de PostgREST (coma, paréntesis, comodines). */
 const textoBuscable = (texto) => String(texto).replace(/[,()*%\\]/g, ' ').trim();
@@ -20,7 +22,7 @@ export async function listar(req, res, next) {
 
     const { data, error } = await consulta;
     if (error) throw error;
-    res.json(data);
+    res.json(data.map((c) => descifrarCampos(c)));
   } catch (err) {
     next(err);
   }
@@ -28,7 +30,7 @@ export async function listar(req, res, next) {
 
 export async function obtener(req, res, next) {
   try {
-    res.json(await req.tenant.obtener('clientes', req.params.id, '*, vehiculos(*)', 'Cliente'));
+    res.json(descifrarCampos(await req.tenant.obtener('clientes', req.params.id, '*, vehiculos(*)', 'Cliente')));
   } catch (err) {
     next(err);
   }
@@ -55,14 +57,14 @@ export async function crear(req, res, next) {
     const [cliente] = await req.tenant.rpc('crear_cliente_con_consentimiento', {
       p_nombre: nombre,
       p_telefono: telefono,
-      p_correo: correo ?? null,
+      p_correo: cifrar(correo ?? null),
       p_autoriza: req.body.autorizacionDatos,
       p_politica_version: req.body.politicaVersion,
       p_canal: 'panel',
       p_ip: req.ip ?? null,
       p_registrado_por: req.ctx.usuarioId,
     });
-    res.status(201).json(cliente);
+    res.status(201).json(descifrarCampos(cliente));
   } catch (err) {
     next(err);
   }
@@ -72,7 +74,8 @@ export async function crear(req, res, next) {
 export async function actualizar(req, res, next) {
   try {
     const { nombre, telefono, correo } = req.body;
-    res.json(await req.tenant.actualizar('clientes', req.params.id, { nombre, telefono, correo }, '*', 'Cliente'));
+    const cambios = { nombre, telefono, correo: correo === undefined ? undefined : cifrar(correo) };
+    res.json(descifrarCampos(await req.tenant.actualizar('clientes', req.params.id, cambios, '*', 'Cliente')));
   } catch (err) {
     next(err);
   }

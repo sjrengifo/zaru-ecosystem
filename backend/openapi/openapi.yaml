@@ -21,6 +21,10 @@ info:
     `Link: </api/v1>; rel="successor-version"`. Una versión nueva se publica en `/api/v2` sin retirar las
     anteriores (HU-43).
 
+    **Seguridad.** En producción solo se acepta HTTPS (TLS 1.2 o superior); una petición por HTTP recibe
+    `426 HTTPS_REQUERIDO`. Las respuestas incluyen HSTS. El correo de los clientes se guarda cifrado
+    (AES-256-GCM) y la API lo devuelve descifrado solo a usuarios autorizados (HU-50).
+
     **Rastreo.** Cada respuesta incluye `X-Request-Id`. Al reportar un error, indique ese valor.
 
     Las rutas con respuesta `501` están definidas pero pendientes de desarrollo en la historia indicada.
@@ -503,10 +507,10 @@ components:
           properties:
             codigo:
               type: string
-              enum: [VALIDACION, NO_AUTENTICADO, SIN_PERMISO, NO_ENCONTRADO, CONFLICTO, CARGA_DEMASIADO_GRANDE, IDEMPOTENCIA_CONFLICTO, LIMITE_EXCEDIDO, ERROR_INTERNO, NO_IMPLEMENTADO]
+              enum: [VALIDACION, NO_AUTENTICADO, SIN_PERMISO, NO_ENCONTRADO, CONFLICTO, CARGA_DEMASIADO_GRANDE, HTTPS_REQUERIDO, IDEMPOTENCIA_CONFLICTO, LIMITE_EXCEDIDO, ERROR_INTERNO, NO_IMPLEMENTADO]
               description: |
                 Código estable para el frontend. Estado HTTP: VALIDACION 400, NO_AUTENTICADO 401, SIN_PERMISO 403,
-                NO_ENCONTRADO 404, CONFLICTO 409, CARGA_DEMASIADO_GRANDE 413, IDEMPOTENCIA_CONFLICTO 422,
+                NO_ENCONTRADO 404, CONFLICTO 409, CARGA_DEMASIADO_GRANDE 413, HTTPS_REQUERIDO 426, IDEMPOTENCIA_CONFLICTO 422,
                 LIMITE_EXCEDIDO 429, ERROR_INTERNO 500, NO_IMPLEMENTADO 501.
             mensaje: { type: string, description: Mensaje para el usuario. Nunca contiene detalles internos. }
             detalles:
