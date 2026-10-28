@@ -104,7 +104,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 - Todas las tablas de negocio incluyen `establecimiento_id`.
 - RLS está habilitado en todas las tablas. Las políticas de lectura restringen las filas al establecimiento del usuario autenticado mediante la función `privado.mi_establecimiento()`.
 - Las funciones de seguridad residen en el esquema `privado`, que no se expone en la API REST de Supabase.
-- Las escrituras se realizan exclusivamente desde el backend con la clave `service_role`, filtrando siempre por el establecimiento del usuario (`req.usuario.establecimientoId`).
+- Las escrituras se realizan exclusivamente desde el backend con la clave `service_role`. Los controladores acceden a los datos solo mediante `req.tenant` ([`backend/src/shared/tenant.js`](backend/src/shared/tenant.js)), que aplica automáticamente el filtro por el establecimiento de la sesión, ignora cualquier `establecimiento_id` enviado en la petición y responde `404` igual para un recurso inexistente que para uno de otro establecimiento (HU-41). Una prueba en CI impide consultar la base directamente desde un controlador.
 - La base impide relacionar datos de establecimientos distintos mediante llaves foráneas compuestas `(id, establecimiento_id)` y triggers en las tablas puente.
 - La tabla `ordenes` está publicada en `supabase_realtime` para el dashboard operativo.
 
@@ -207,6 +207,7 @@ Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. 
 |---|---|---|
 | `npm run dev` | `backend/` | API en modo desarrollo con recarga automática — `http://localhost:4000` |
 | `npm start` | `backend/` | API en modo producción |
+| `npm test` | `backend/` | Pruebas unitarias y de integración (Vitest). Las de integración requieren `.env` y `.env.spike.local`; sin ellos se omiten |
 | `npm run dev` | `frontend/` | Servidor de desarrollo de Vite — `http://localhost:5173` |
 | `npm run build` | `frontend/` | Build de producción en `frontend/dist/` |
 
@@ -274,7 +275,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 - **Ramas:** `main` (versión desplegada), `develop` (integración del sprint) y `feature/ZARU-<n>-<descripcion>` por historia de usuario.
 - **Commits:** prefijados con la clave de Jira, por ejemplo `ZARU-4: registro de clientes`.
 - **Pull Requests:** hacia `develop`, con al menos una aprobación y verificación de los criterios de aceptación. Al cierre de cada sprint, `develop` se integra en `main`.
-- **Integración continua:** GitHub Actions compila el frontend y valida el backend en cada Pull Request hacia `main` o `develop`.
+- **Integración continua:** GitHub Actions compila el frontend, valida el backend y ejecuta sus pruebas en cada Pull Request hacia `main` o `develop`.
 
 Las convenciones completas están en [`docs/CONTRIBUIR.md`](docs/CONTRIBUIR.md).
 
