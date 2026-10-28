@@ -12,6 +12,9 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # @supabase/supabase-js requiere Node 22 (WebSocket nativo).
+      - key: NODE_VERSION
+        value: "22"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY

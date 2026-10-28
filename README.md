@@ -60,7 +60,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | Capa | Tecnología | Versión |
 |---|---|---|
 | Frontend | React, React Router, Vite | React 18 · Vite 5 |
-| Backend | Node.js, Express | Node ≥ 20 · Express 4 |
+| Backend | Node.js, Express | Node ≥ 22 · Express 4 |
 | Base de datos | PostgreSQL (Supabase) | — |
 | Autenticación | Supabase Auth (JWT) | — |
 | Tiempo real | Supabase Realtime (`postgres_changes`) | — |
