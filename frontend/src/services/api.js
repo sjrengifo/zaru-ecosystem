@@ -20,7 +20,23 @@ async function peticion(metodo, ruta, cuerpo) {
   });
 
   const json = await respuesta.json().catch(() => ({}));
-  if (!respuesta.ok) throw new Error(json.error || 'Error en la petición');
+
+  // HU-44 CA3: token vencido o inválido → se cierra la sesión local y el panel vuelve al login.
+  if (respuesta.status === 401) {
+    try {
+      sessionStorage.setItem('zaru:sesion-vencida', '1');
+    } catch {
+      // sessionStorage puede no estar disponible (modo privado); el login se muestra igual.
+    }
+    await supabase.auth.signOut({ scope: 'local' });
+  }
+
+  if (!respuesta.ok) {
+    const error = new Error(json.error || 'Error en la petición');
+    error.status = respuesta.status;
+    error.codigo = json.codigo;
+    throw error;
+  }
   return json;
 }
 

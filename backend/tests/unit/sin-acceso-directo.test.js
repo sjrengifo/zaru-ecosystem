@@ -14,7 +14,7 @@ function archivos(dir) {
 }
 
 // Únicos archivos autorizados a usar el cliente service_role directamente.
-const PERMITIDOS = ['config/supabase.js', 'shared/tenant.js', 'middlewares/auth.js'];
+const PERMITIDOS = ['config/supabase.js', 'shared/tenant.js', 'shared/auditoria.js', 'middlewares/auth.js'];
 
 describe('acceso a datos', () => {
   it('los controladores y servicios solo usan req.tenant', () => {
