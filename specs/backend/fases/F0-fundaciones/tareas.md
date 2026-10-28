@@ -12,6 +12,8 @@ Rama sugerida: `feature/ZARU-49-fundaciones-backend`.
 
 **Hecho cuando:** el documento está en el repositorio y el prototipo se demuestra al equipo.
 
+**Estado:** terminada el 28 de octubre de 2026. Ver `docs/arquitectura/spike-hu58.md` (19 de 19 pruebas aprobadas).
+
 ### T0.1 — Supabase CLI y migraciones versionadas
 **Cubre:** RF-F0-07
 1. Instalar Docker y Supabase CLI; en la raíz ejecutar `supabase init`.
