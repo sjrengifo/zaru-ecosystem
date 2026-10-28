@@ -113,7 +113,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 
 ### Cifrado y secretos
 
-Todo el tráfico usa HTTPS: la API rechaza HTTP en producción y Supabase exige TLS 1.2 o superior. Los datos están cifrados en reposo (AES-256) y el correo de los clientes se cifra además a nivel de campo. Los secretos viven solo en el gestor de cada ambiente y en `.env` (ignorado por git), y CI escanea el historial con gitleaks. Detalle en [`docs/seguridad/cifrado-y-secretos.md`](docs/seguridad/cifrado-y-secretos.md) (HU-50).
+Todo el tráfico usa HTTPS: la API rechaza HTTP en producción y Supabase exige TLS 1.2 o superior. Los datos están cifrados en reposo (AES-256) y el correo de los clientes se cifra además a nivel de campo. Los secretos viven solo en el gestor de cada ambiente y en `.env` (ignorado por git), y CI escanea todo el historial con gitleaks. Detalle en [`docs/seguridad/cifrado-y-secretos.md`](docs/seguridad/cifrado-y-secretos.md) (HU-50).
 
 ### Gestión de cambios
 
