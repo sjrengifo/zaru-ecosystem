@@ -33,3 +33,5 @@ jobs:
           node-version: 20
       - run: npm install
       - run: node --check src/index.js
+      # Unitarias siempre; las de integración se omiten si no hay credenciales de Supabase.
+      - run: npm test
