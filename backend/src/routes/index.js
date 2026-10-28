@@ -9,6 +9,7 @@ import ordenesRoutes from './ordenes.routes.js';
 import promocionesRoutes from './promociones.routes.js';
 import usuariosRoutes from './usuarios.routes.js';
 import establecimientoRoutes from './establecimiento.routes.js';
+import * as me from '../controllers/me.controller.js';
 
 const router = Router();
 
@@ -19,6 +20,8 @@ router.get('/health', (req, res) => {
 
 // De aquí en adelante, todo exige sesión iniciada.
 router.use(requiereSesion);
+
+router.get('/me', me.obtener);                    // HU-44 CA1, HU-01: usuario, rol y establecimiento de la sesión
 
 router.use('/clientes', clientesRoutes);           // HU-03, HU-04
 router.use('/vehiculos', vehiculosRoutes);         // HU-05, HU-06

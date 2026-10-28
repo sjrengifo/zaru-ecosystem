@@ -5,7 +5,7 @@
 
 
 
-\restrict XtsCDo58qPBCZQbiBXmcvexYp057acw5bozbgoCZaWIpd9xmFlAZ9jt1gqqMRcT
+\restrict dnWcWXjVvIv0CXdwmXoCWcK34xu48vCO9vow6edLdHHSyE89Uz2xnvfVYdTf4NT
 
 -- Name: privado; Type: SCHEMA; Schema: -; Owner: -
 
@@ -34,6 +34,16 @@ CREATE TYPE public.rol_usuario AS ENUM (
     'admin',
     'operario'
 );
+
+-- Name: impedir_modificacion_auditoria(); Type: FUNCTION; Schema: privado; Owner: -
+
+CREATE FUNCTION privado.impedir_modificacion_auditoria() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO ''
+    AS $$
+begin
+  raise exception 'La auditoría no se puede modificar ni eliminar' using errcode = '42501';
+end $$;
 
 -- Name: mi_establecimiento(); Type: FUNCTION; Schema: privado; Owner: -
 
@@ -103,6 +113,60 @@ begin
   end if;
   return new;
 end $$;
+
+-- Name: custom_access_token_hook(jsonb); Type: FUNCTION; Schema: public; Owner: -
+
+CREATE FUNCTION public.custom_access_token_hook(event jsonb) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  perfil record;
+  claims jsonb := coalesce(event->'claims', '{}'::jsonb);
+begin
+  select rol, establecimiento_id into perfil
+  from perfiles where id = (event->>'user_id')::uuid and activo;
+
+  if found then
+    claims := claims || jsonb_build_object('app_rol', perfil.rol, 'establecimiento_id', perfil.establecimiento_id);
+  else
+    claims := claims - 'app_rol' - 'establecimiento_id';
+  end if;
+
+  return jsonb_set(event, '{claims}', claims);
+end $$;
+
+-- Name: auditoria; Type: TABLE; Schema: public; Owner: -
+
+CREATE TABLE public.auditoria (
+    id bigint NOT NULL,
+    establecimiento_id uuid,
+    usuario_id uuid,
+    actor_tipo text DEFAULT 'usuario'::text NOT NULL,
+    rol text,
+    accion text NOT NULL,
+    recurso text,
+    recurso_id text,
+    resultado text NOT NULL,
+    motivo text,
+    detalle jsonb DEFAULT '{}'::jsonb NOT NULL,
+    ip inet,
+    request_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT auditoria_actor_tipo_check CHECK ((actor_tipo = ANY (ARRAY['usuario'::text, 'cliente'::text, 'sistema'::text]))),
+    CONSTRAINT auditoria_resultado_check CHECK ((resultado = ANY (ARRAY['permitido'::text, 'denegado'::text])))
+);
+
+-- Name: auditoria_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+
+ALTER TABLE public.auditoria ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.auditoria_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 -- Name: clientes; Type: TABLE; Schema: public; Owner: -
 
@@ -261,6 +325,11 @@ CREATE TABLE public.vehiculos (
     created_at timestamp with time zone DEFAULT now()
 );
 
+-- Name: auditoria auditoria_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.auditoria
+    ADD CONSTRAINT auditoria_pkey PRIMARY KEY (id);
+
 -- Name: clientes clientes_establecimiento_id_telefono_key; Type: CONSTRAINT; Schema: public; Owner: -
 
 ALTER TABLE ONLY public.clientes
@@ -361,6 +430,14 @@ ALTER TABLE ONLY public.vehiculos
 ALTER TABLE ONLY public.vehiculos
     ADD CONSTRAINT vehiculos_pkey PRIMARY KEY (id);
 
+-- Name: auditoria_establecimiento_fecha_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX auditoria_establecimiento_fecha_idx ON public.auditoria USING btree (establecimiento_id, created_at DESC);
+
+-- Name: auditoria_usuario_fecha_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX auditoria_usuario_fecha_idx ON public.auditoria USING btree (usuario_id, created_at DESC);
+
 -- Name: clientes_establecimiento_id_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX clientes_establecimiento_id_idx ON public.clientes USING btree (establecimiento_id);
@@ -444,6 +521,14 @@ CREATE INDEX vehiculos_establecimiento_id_cliente_id_idx ON public.vehiculos USI
 -- Name: vehiculos_placa_trgm_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX vehiculos_placa_trgm_idx ON public.vehiculos USING gin (placa extensions.gin_trgm_ops);
+
+-- Name: auditoria auditoria_inmutable; Type: TRIGGER; Schema: public; Owner: -
+
+CREATE TRIGGER auditoria_inmutable BEFORE DELETE OR UPDATE ON public.auditoria FOR EACH ROW EXECUTE FUNCTION privado.impedir_modificacion_auditoria();
+
+-- Name: auditoria auditoria_sin_truncate; Type: TRIGGER; Schema: public; Owner: -
+
+CREATE TRIGGER auditoria_sin_truncate BEFORE TRUNCATE ON public.auditoria FOR EACH STATEMENT EXECUTE FUNCTION privado.impedir_modificacion_auditoria();
 
 -- Name: historial_estados historial_estados_mismo_establecimiento; Type: TRIGGER; Schema: public; Owner: -
 
@@ -557,6 +642,14 @@ ALTER TABLE ONLY public.vehiculos
 ALTER TABLE ONLY public.vehiculos
     ADD CONSTRAINT vehiculos_establecimiento_id_fkey FOREIGN KEY (establecimiento_id) REFERENCES public.establecimientos(id) ON DELETE CASCADE;
 
+-- Name: auditoria admin ve auditoria de su establecimiento; Type: POLICY; Schema: public; Owner: -
+
+CREATE POLICY "admin ve auditoria de su establecimiento" ON public.auditoria FOR SELECT USING (((establecimiento_id = privado.mi_establecimiento()) AND privado.soy_admin()));
+
+-- Name: auditoria; Type: ROW SECURITY; Schema: public; Owner: -
+
+ALTER TABLE public.auditoria ENABLE ROW LEVEL SECURITY;
+
 -- Name: clientes; Type: ROW SECURITY; Schema: public; Owner: -
 
 ALTER TABLE public.clientes ENABLE ROW LEVEL SECURITY;
@@ -651,5 +744,5 @@ CREATE POLICY "ver servicios" ON public.servicios FOR SELECT USING ((establecimi
 
 CREATE POLICY "ver vehiculos" ON public.vehiculos FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
 
-\unrestrict XtsCDo58qPBCZQbiBXmcvexYp057acw5bozbgoCZaWIpd9xmFlAZ9jt1gqqMRcT
+\unrestrict dnWcWXjVvIv0CXdwmXoCWcK34xu48vCO9vow6edLdHHSyE89Uz2xnvfVYdTf4NT
 

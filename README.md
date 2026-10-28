@@ -98,6 +98,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `orden_servicios` | Servicios de cada orden con el precio y la duración vigentes al momento de crearla | HU-07, HU-08 |
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
 | `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
+| `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
 
 ### Seguridad multi-tenant
 
