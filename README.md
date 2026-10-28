@@ -134,7 +134,8 @@ zaru-ecosystem/
 │
 ├── backend/                      API REST (Node.js + Express)
 │   ├── src/
-│   │   ├── routes/               Definición de endpoints por recurso
+│   │   ├── routes/               Definición de endpoints por recurso (versión 1)
+│   │   ├── schemas/              Validación de entradas con zod
 │   │   ├── controllers/          Lógica de negocio por recurso
 │   │   ├── middlewares/          Autenticación, autorización por rol y manejo de errores
 │   │   ├── config/supabase.js    Cliente de Supabase con service_role
@@ -198,7 +199,7 @@ cp .env.example .env
 |---|---|
 | `VITE_SUPABASE_URL` | URL del proyecto Supabase |
 | `VITE_SUPABASE_ANON_KEY` | Clave pública (`anon`); el acceso a los datos está protegido por RLS |
-| `VITE_API_URL` | URL base de la API (por defecto `http://localhost:4000/api`) |
+| `VITE_API_URL` | URL base de la API (por defecto `http://localhost:4000/api/v1`) |
 
 Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. La clave `service_role` se distribuye por un canal privado.
 
@@ -208,11 +209,12 @@ Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. 
 |---|---|---|
 | `npm run dev` | `backend/` | API en modo desarrollo con recarga automática — `http://localhost:4000` |
 | `npm start` | `backend/` | API en modo producción |
+| `npm run lint:openapi` | `backend/` | Valida el contrato OpenAPI |
 | `npm test` | `backend/` | Pruebas unitarias y de integración (Vitest). Las de integración requieren `.env` y `.env.spike.local`; sin ellos se omiten |
 | `npm run dev` | `frontend/` | Servidor de desarrollo de Vite — `http://localhost:5173` |
 | `npm run build` | `frontend/` | Build de producción en `frontend/dist/` |
 
-Verificación de la API: `GET http://localhost:4000/api/health`.
+Verificación de la API: `GET http://localhost:4000/api/v1/health`. Documentación: `http://localhost:4000/api/docs`.
 
 ### Usuarios de prueba
 
@@ -222,11 +224,16 @@ El acceso al panel requiere un usuario en Supabase Auth con un registro asociado
 
 ## 7. API
 
-Base: `/api`. Todos los endpoints, salvo `/health`, requieren el encabezado `Authorization: Bearer <JWT de Supabase>`. Las respuestas de error tienen la forma `{ "error": "mensaje" }`.
+Base: `/api/v1`. Todos los endpoints, salvo `/health`, requieren el encabezado `Authorization: Bearer <JWT de Supabase>`.
+
+- **Documentación:** `GET /api/docs` (Swagger UI) y `GET /api/openapi.json`. El contrato vive en [`backend/openapi/openapi.yaml`](backend/openapi/openapi.yaml); una prueba verifica que todas las rutas estén documentadas y CI valida el contrato con `npm run lint:openapi`.
+- **Errores:** formato único `{ "error": { "codigo", "mensaje", "detalles"?, "requestId" } }`. Los datos inválidos responden `400 VALIDACION` con un elemento en `detalles` por cada campo a corregir. Cada respuesta incluye `X-Request-Id`.
+- **Versiones:** `/api` sin versión sigue funcionando para las aplicaciones ya desplegadas y responde con `Deprecation: true` y `Link: </api/v1>; rel="successor-version"`. Una versión nueva se publica en `/api/v2` sin retirar las anteriores.
 
 | Método | Endpoint | Rol | Descripción | Estado |
 |---|---|---|---|---|
 | GET | `/health` | Público | Estado del servicio | Implementado |
+| GET | `/me` | Admin, Operario | Usuario, rol, establecimiento y vencimiento de la sesión | Implementado |
 | GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes | Implementado |
 | GET | `/clientes/:id` | Admin, Operario | Detalle de cliente con sus vehículos | Implementado |
 | POST | `/clientes` | Admin, Operario | Registrar cliente | Implementado |
@@ -291,7 +298,7 @@ El backend se desarrolla con **Spec Driven Development**. El roadmap por fases, 
 | Componente | Plataforma | Configuración |
 |---|---|---|
 | Base de datos | Supabase | Desplegada (`us-east-1`) |
-| Backend | Render | `render.yaml` (Blueprint), raíz `backend/`, health check `/api/health` |
+| Backend | Render | `render.yaml` (Blueprint), raíz `backend/`, health check `/api/v1/health` |
 | Frontend | Vercel | Raíz `frontend/`, build `npm run build`, salida `dist/` |
 
 El despliegue es continuo desde la rama `main`.
@@ -304,7 +311,7 @@ El despliegue es continuo desde la rama `main`.
 ### Frontend (Vercel)
 
 1. Importar el repositorio con **Root Directory** `frontend`.
-2. Definir `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `VITE_API_URL` (URL de Render seguida de `/api`).
+2. Definir `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `VITE_API_URL` (URL de Render seguida de `/api/v1`).
 3. Actualizar `FRONTEND_URL` en Render con el dominio asignado por Vercel.
 
 En el plan gratuito de Render el servicio se suspende tras 15 minutos de inactividad; la primera petición posterior puede tardar alrededor de 30 segundos.

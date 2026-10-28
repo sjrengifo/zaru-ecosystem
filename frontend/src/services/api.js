@@ -3,7 +3,7 @@
 //       await api.post('/clientes', { nombre: 'Ana', ... });
 import { supabase } from '../lib/supabase.js';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
 async function peticion(metodo, ruta, cuerpo) {
   // Adjunta el token de la sesión para que el backend sepa quién eres.
@@ -31,10 +31,13 @@ async function peticion(metodo, ruta, cuerpo) {
     await supabase.auth.signOut({ scope: 'local' });
   }
 
+  // HU-43: formato de error estándar { error: { codigo, mensaje, detalles?, requestId } }.
   if (!respuesta.ok) {
-    const error = new Error(json.error || 'Error en la petición');
+    const error = new Error(json.error?.mensaje || 'Error en la petición');
     error.status = respuesta.status;
-    error.codigo = json.codigo;
+    error.codigo = json.error?.codigo;
+    error.detalles = json.error?.detalles ?? [];
+    error.requestId = json.error?.requestId;
     throw error;
   }
   return json;

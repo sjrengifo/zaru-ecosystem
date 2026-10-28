@@ -71,7 +71,8 @@ describe.skipIf(!hayEntornoIntegracion)(`Autenticación y roles${hayEntornoInteg
     it('POST /api/servicios con un operario responde 403 y se registra como denegado', async () => {
       const res = await request(app).post('/api/servicios').use(con('operario')).send({ nombre: 'No permitido', precio: 1, duracion_min: 10 });
       expect(res.status).toBe(403);
-      expect(res.body).toEqual({ error: 'No tienes permiso para realizar esta acción', codigo: 'SIN_PERMISO' });
+      expect(res.body.error).toMatchObject({ codigo: 'SIN_PERMISO', mensaje: 'No tienes permiso para realizar esta acción' });
+      expect(res.body.error.requestId).toBe(res.headers['x-request-id']);
 
       const { data } = await admin.from('auditoria').select('*').eq('request_id', res.headers['x-request-id']).single();
       expect(data).toMatchObject({
@@ -116,7 +117,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Autenticación y roles${hayEntornoInteg
       const peticion = request(app).get('/api/me');
       const res = await (token ? peticion.set('Authorization', `Bearer ${token}`) : peticion);
       expect(res.status).toBe(401);
-      expect(res.body.codigo).toBe('NO_AUTENTICADO');
+      expect(res.body.error.codigo).toBe('NO_AUTENTICADO');
       expect(res.headers['www-authenticate']).toMatch(/invalid_token/);
     });
 
@@ -126,7 +127,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Autenticación y roles${hayEntornoInteg
       await cliente.auth.signOut({ scope: 'local' });
       const res = await request(app).get('/api/me').set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(401);
-      expect(res.body.error).toMatch(/Inicia sesión de nuevo/);
+      expect(res.body.error.mensaje).toMatch(/Inicia sesión de nuevo/);
     });
 
     it('un operario desactivado pierde el acceso de inmediato, aunque su token siga vigente', async () => {

@@ -1,0 +1,12 @@
+# Reglas de validación del contrato OpenAPI (npm run lint:openapi).
+extends:
+  - recommended
+rules:
+  # Las rutas pendientes (501) aún no tienen respuesta 2xx definida.
+  operation-2xx-response: off
+  # El servidor de desarrollo usa localhost a propósito.
+  no-server-example.com: off
+  # /health es público y no tiene respuestas 4xx posibles.
+  operation-4xx-response: off
+  # Proyecto académico sin licencia publicada.
+  info-license: off

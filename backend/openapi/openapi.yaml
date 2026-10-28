@@ -1,0 +1,583 @@
+openapi: 3.1.0
+info:
+  title: API de ZARU Ecosystem
+  version: 1.0.0
+  summary: Backend del panel administrativo y de la app del cliente final de ZARU.
+  description: |
+    API REST multi-tenant de ZARU Ecosystem (Grupo Azul, Universidad Icesi).
+
+    **Autenticación.** Las rutas privadas exigen `Authorization: Bearer <token>`, donde el token es el JWT
+    que entrega Supabase Auth al iniciar sesión en el panel. Dura 1 hora. Si falta, venció o es inválido,
+    la API responde `401 NO_AUTENTICADO` y el panel debe pedir iniciar sesión de nuevo (HU-44).
+
+    **Multi-tenant.** Todo se filtra por el establecimiento del usuario autenticado. Un recurso de otro
+    establecimiento responde `404 NO_ENCONTRADO`, igual que uno inexistente (HU-41).
+
+    **Errores.** Todas las respuestas de error tienen el mismo formato (`Error`). Los errores de validación
+    (`400 VALIDACION`) incluyen en `detalles` cada campo que debe corregirse (HU-43).
+
+    **Versiones.** La versión actual es `/api/v1`. La ruta sin versión `/api` sigue funcionando para las
+    aplicaciones ya desplegadas, pero responde con los encabezados `Deprecation: true` y
+    `Link: </api/v1>; rel="successor-version"`. Una versión nueva se publica en `/api/v2` sin retirar las
+    anteriores (HU-43).
+
+    **Rastreo.** Cada respuesta incluye `X-Request-Id`. Al reportar un error, indique ese valor.
+
+    Las rutas con respuesta `501` están definidas pero pendientes de desarrollo en la historia indicada.
+  contact:
+    name: Grupo Azul · Gerencia de Proyectos de TI · Universidad Icesi
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Desarrollo local (versión 1)
+  - url: /api/v1
+    description: Mismo servidor (versión 1)
+  - url: /api
+    description: Ruta sin versión (obsoleta, equivale a v1)
+tags:
+  - name: Sistema
+    description: Estado del servicio
+  - name: Sesión
+    description: HU-01, HU-44
+  - name: Clientes
+    description: HU-03, HU-04
+  - name: Vehículos
+    description: HU-05, HU-06
+  - name: Servicios
+    description: HU-07
+  - name: Órdenes
+    description: HU-08, HU-09, HU-10
+  - name: Promociones
+    description: HU-12
+  - name: Usuarios
+    description: HU-02
+  - name: Establecimiento
+    description: HU-13
+security:
+  - bearerPanel: []
+
+paths:
+  /health:
+    get:
+      tags: [Sistema]
+      operationId: obtenerSalud
+      summary: Comprobar que la API está en línea
+      security: []
+      responses:
+        '200':
+          description: La API está en línea.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Salud' }
+              example: { ok: true, servicio: zaru-api, version: 1.0.0, fecha: '2026-10-28T13:00:00.000Z' }
+
+  /me:
+    get:
+      tags: [Sesión]
+      operationId: obtenerSesion
+      summary: Datos de la sesión actual
+      description: Usuario, rol, establecimiento y vencimiento del token (HU-44 CA1).
+      responses:
+        '200':
+          description: Sesión válida.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sesion' }
+              example:
+                usuario: { id: 00000000-0000-0000-0000-0000000a0058, nombre: Admin Spike A, rol: admin }
+                establecimiento: { id: 00000000-0000-0000-0000-00000000a058, nombre: Lavadero A, logo_url: null, color_primario: '#2563EB', color_secundario: '#0EA5E9' }
+                sesion: { expiraEn: '2026-10-28T14:00:00.000Z' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /clientes:
+    get:
+      tags: [Clientes]
+      operationId: listarClientes
+      summary: Listar y buscar clientes
+      description: Clientes del establecimiento, ordenados por nombre, con las placas de sus vehículos (HU-04 CA1).
+      parameters:
+        - name: buscar
+          in: query
+          description: Texto a buscar en el nombre o el teléfono (máximo 60 caracteres).
+          schema: { type: string, maxLength: 60 }
+          example: Ana
+      responses:
+        '200':
+          description: Lista de clientes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ClienteResumen' }
+              example:
+                - { id: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10, nombre: Ana Gómez, telefono: '3001234567', correo: ana@correo.com, vehiculos: [{ placa: ABC123 }] }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    post:
+      tags: [Clientes]
+      operationId: crearCliente
+      summary: Registrar un cliente
+      description: |
+        Exige la autorización de tratamiento de datos (Ley 1581 de 2012, HU-03 CA2).
+        Si el teléfono ya existe en el establecimiento responde `409` con el cliente existente en `detalles` (HU-03 CA3).
+        El establecimiento se toma de la sesión; un `establecimiento_id` en el cuerpo se ignora.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClienteNuevo' }
+            example: { nombre: Ana Gómez, telefono: '3001234567', correo: ana@correo.com, autorizacionDatos: true }
+      responses:
+        '201':
+          description: Cliente registrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cliente' }
+        '400':
+          description: Datos inválidos o incompletos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  codigo: VALIDACION
+                  mensaje: La solicitud tiene datos inválidos
+                  detalles:
+                    - { campo: telefono, mensaje: El teléfono debe ser un celular colombiano de 10 dígitos que empiece por 3 }
+                    - { campo: autorizacionDatos, mensaje: La autorización de tratamiento de datos es obligatoria (Ley 1581 de 2012) }
+                  requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409':
+          description: Ya existe un cliente con ese teléfono en el establecimiento.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  codigo: CONFLICTO
+                  mensaje: Ya existe un cliente con ese teléfono
+                  detalles: [{ campo: telefono, mensaje: El teléfono ya está registrado a nombre de Ana Gómez, clienteId: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10 }]
+                  requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a
+
+  /clientes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Clientes]
+      operationId: obtenerCliente
+      summary: Consultar un cliente con sus vehículos
+      responses:
+        '200':
+          description: Cliente encontrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClienteDetalle' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    put:
+      tags: [Clientes]
+      operationId: actualizarCliente
+      summary: Editar los datos de contacto de un cliente
+      description: HU-04 CA2. Se envían solo los campos a cambiar (al menos uno).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClienteCambios' }
+            example: { telefono: '3109876543' }
+      responses:
+        '200':
+          description: Cliente actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cliente' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /vehiculos:
+    get:
+      tags: [Vehículos]
+      operationId: listarVehiculos
+      summary: Listar o buscar vehículos por placa (pendiente HU-05)
+      parameters:
+        - { name: placa, in: query, schema: { type: string }, example: ABC123 }
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+    post:
+      tags: [Vehículos]
+      operationId: crearVehiculo
+      summary: Registrar un vehículo asociado a un cliente (pendiente HU-05)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /vehiculos/{id}/historial:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Vehículos]
+      operationId: obtenerHistorialVehiculo
+      summary: Historial de servicios de un vehículo (pendiente HU-06)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /servicios:
+    get:
+      tags: [Servicios]
+      operationId: listarServicios
+      summary: Catálogo de servicios del establecimiento
+      responses:
+        '200':
+          description: Servicios ordenados por nombre.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Servicio' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    post:
+      tags: [Servicios]
+      operationId: crearServicio
+      summary: Crear un servicio (solo administrador; pendiente HU-07)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /servicios/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Servicios]
+      operationId: actualizarServicio
+      summary: Editar, activar o desactivar un servicio (solo administrador; pendiente HU-07)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /ordenes/activas:
+    get:
+      tags: [Órdenes]
+      operationId: listarOrdenesActivas
+      summary: Órdenes activas para el dashboard (pendiente HU-09)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /ordenes:
+    post:
+      tags: [Órdenes]
+      operationId: crearOrden
+      summary: Registrar el ingreso de un vehículo (pendiente HU-08)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /ordenes/{id}/estado:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      tags: [Órdenes]
+      operationId: cambiarEstadoOrden
+      summary: Avanzar el estado de una orden (pendiente HU-10)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /promociones:
+    get:
+      tags: [Promociones]
+      operationId: listarPromociones
+      summary: Listar promociones (pendiente HU-12)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+    post:
+      tags: [Promociones]
+      operationId: crearPromocion
+      summary: Crear una promoción (solo administrador; pendiente HU-12)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /promociones/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Promociones]
+      operationId: actualizarPromocion
+      summary: Editar una promoción (solo administrador; pendiente HU-12)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /usuarios:
+    get:
+      tags: [Usuarios]
+      operationId: listarUsuarios
+      summary: Listar operarios (solo administrador; pendiente HU-02)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+    post:
+      tags: [Usuarios]
+      operationId: crearUsuario
+      summary: Crear un operario e invitarlo por correo (solo administrador; pendiente HU-02)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /usuarios/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Usuarios]
+      operationId: actualizarUsuario
+      summary: Editar o desactivar un operario (solo administrador; pendiente HU-02)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /establecimiento:
+    get:
+      tags: [Establecimiento]
+      operationId: obtenerEstablecimiento
+      summary: Datos y branding del establecimiento de la sesión
+      responses:
+        '200':
+          description: Establecimiento.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Establecimiento' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /establecimiento/branding:
+    put:
+      tags: [Establecimiento]
+      operationId: actualizarBranding
+      summary: Personalizar logo y colores (solo administrador; pendiente HU-13)
+      responses:
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
+
+components:
+  securitySchemes:
+    bearerPanel:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de acceso de Supabase Auth del usuario del panel (dura 1 hora).
+
+  headers:
+    XRequestId:
+      description: Identificador de la petición, para rastrearla en los registros del servidor.
+      schema: { type: string }
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Identificador UUID del recurso.
+      schema: { type: string, format: uuid }
+      example: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10
+
+  responses:
+    Validacion:
+      description: Datos inválidos o incompletos. `detalles` indica qué corregir.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              codigo: VALIDACION
+              mensaje: La solicitud tiene datos inválidos
+              detalles: [{ campo: nombre, mensaje: El nombre es obligatorio }]
+              requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a
+    NoAutenticado:
+      description: Token ausente, vencido o inválido. Debe iniciar sesión de nuevo.
+      headers:
+        WWW-Authenticate:
+          schema: { type: string }
+          example: Bearer error="invalid_token"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: { codigo: NO_AUTENTICADO, mensaje: Tu sesión venció o no es válida. Inicia sesión de nuevo, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+    SinPermiso:
+      description: El rol del usuario no tiene permiso o el usuario está desactivado. El intento queda en la auditoría.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: { codigo: SIN_PERMISO, mensaje: No tienes permiso para realizar esta acción, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+    NoEncontrado:
+      description: El recurso no existe o pertenece a otro establecimiento (no se distingue).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: { codigo: NO_ENCONTRADO, mensaje: Cliente no encontrado, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+    Conflicto:
+      description: El dato ya existe (por ejemplo, teléfono o placa repetidos).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NoImplementado:
+      description: Ruta definida pero pendiente de desarrollo en la historia indicada.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: { codigo: NO_IMPLEMENTADO, mensaje: Pendiente de desarrollo (HU-05), requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [codigo, mensaje, requestId]
+          properties:
+            codigo:
+              type: string
+              enum: [VALIDACION, NO_AUTENTICADO, SIN_PERMISO, NO_ENCONTRADO, CONFLICTO, CARGA_DEMASIADO_GRANDE, IDEMPOTENCIA_CONFLICTO, LIMITE_EXCEDIDO, ERROR_INTERNO, NO_IMPLEMENTADO]
+              description: |
+                Código estable para el frontend. Estado HTTP: VALIDACION 400, NO_AUTENTICADO 401, SIN_PERMISO 403,
+                NO_ENCONTRADO 404, CONFLICTO 409, CARGA_DEMASIADO_GRANDE 413, IDEMPOTENCIA_CONFLICTO 422,
+                LIMITE_EXCEDIDO 429, ERROR_INTERNO 500, NO_IMPLEMENTADO 501.
+            mensaje: { type: string, description: Mensaje para el usuario. Nunca contiene detalles internos. }
+            detalles:
+              type: array
+              items: { $ref: '#/components/schemas/ErrorDetalle' }
+            requestId: { type: string }
+
+    ErrorDetalle:
+      type: object
+      required: [mensaje]
+      properties:
+        campo: { type: string, description: Campo que debe corregirse (por ejemplo `telefono` o `body`). }
+        mensaje: { type: string, description: Qué debe corregirse. }
+      additionalProperties: true
+
+    Salud:
+      type: object
+      properties:
+        ok: { type: boolean }
+        servicio: { type: string }
+        version: { type: string }
+        fecha: { type: string, format: date-time }
+
+    Sesion:
+      type: object
+      properties:
+        usuario:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            nombre: { type: string }
+            rol: { type: string, enum: [admin, operario] }
+        establecimiento: { $ref: '#/components/schemas/Establecimiento' }
+        sesion:
+          type: object
+          properties:
+            expiraEn: { type: [string, 'null'], format: date-time }
+
+    ClienteNuevo:
+      type: object
+      required: [nombre, telefono, autorizacionDatos]
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 120 }
+        telefono: { type: string, pattern: '^3\d{9}$', description: Celular colombiano de 10 dígitos. }
+        correo: { type: [string, 'null'], format: email }
+        autorizacionDatos: { type: boolean, const: true, description: Autorización de tratamiento de datos (Ley 1581 de 2012). }
+
+    ClienteCambios:
+      type: object
+      minProperties: 1
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 120 }
+        telefono: { type: string, pattern: '^3\d{9}$' }
+        correo: { type: [string, 'null'], format: email }
+
+    ClienteResumen:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        telefono: { type: string }
+        correo: { type: [string, 'null'] }
+        vehiculos:
+          type: array
+          items:
+            type: object
+            properties:
+              placa: { type: string }
+
+    Cliente:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        establecimiento_id: { type: string, format: uuid }
+        nombre: { type: string }
+        telefono: { type: string }
+        correo: { type: [string, 'null'] }
+        autorizacion_datos: { type: boolean }
+        fecha_autorizacion: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+
+    ClienteDetalle:
+      allOf:
+        - $ref: '#/components/schemas/Cliente'
+        - type: object
+          properties:
+            vehiculos:
+              type: array
+              items: { $ref: '#/components/schemas/Vehiculo' }
+
+    Vehiculo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        establecimiento_id: { type: string, format: uuid }
+        cliente_id: { type: string, format: uuid }
+        placa: { type: string }
+        tipo: { type: string }
+        marca: { type: [string, 'null'] }
+        color: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+
+    Servicio:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        establecimiento_id: { type: string, format: uuid }
+        nombre: { type: string }
+        precio: { type: number, minimum: 0 }
+        duracion_min: { type: integer, minimum: 1 }
+        activo: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    Establecimiento:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        logo_url: { type: [string, 'null'] }
+        color_primario: { type: [string, 'null'] }
+        color_secundario: { type: [string, 'null'] }
