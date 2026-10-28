@@ -45,6 +45,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Revisa todo el historial (no solo los commits del push) con la configuración de .gitleaks.toml.
+      - name: gitleaks sobre todo el historial
+        run: >
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.21.2
+          detect --source /repo --config /repo/.gitleaks.toml --redact --no-banner -v
