@@ -4,7 +4,8 @@
 -- ejecutar: pg_dump --schema-only --no-owner --no-privileges --schema=public --schema=privado <base>
 
 
-\restrict OdnRlpi1aWxJF4bDr9piAtjDw5GY8DQDWgyeNf3cwPV36E0c3Eg3Ncjv8ej5Frw
+
+\restrict XtsCDo58qPBCZQbiBXmcvexYp057acw5bozbgoCZaWIpd9xmFlAZ9jt1gqqMRcT
 
 -- Name: privado; Type: SCHEMA; Schema: -; Owner: -
 
@@ -501,11 +502,6 @@ ALTER TABLE ONLY public.orden_servicios
 ALTER TABLE ONLY public.orden_servicios
     ADD CONSTRAINT orden_servicios_servicio_id_fkey FOREIGN KEY (servicio_id) REFERENCES public.servicios(id);
 
--- Name: ordenes ordenes_creada_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
-
-ALTER TABLE ONLY public.ordenes
-    ADD CONSTRAINT ordenes_creada_por_fkey FOREIGN KEY (creada_por) REFERENCES public.perfiles(id);
-
 -- Name: ordenes ordenes_creador_mismo_establecimiento_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 
 ALTER TABLE ONLY public.ordenes
@@ -515,11 +511,6 @@ ALTER TABLE ONLY public.ordenes
 
 ALTER TABLE ONLY public.ordenes
     ADD CONSTRAINT ordenes_establecimiento_id_fkey FOREIGN KEY (establecimiento_id) REFERENCES public.establecimientos(id) ON DELETE CASCADE;
-
--- Name: ordenes ordenes_vehiculo_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
-
-ALTER TABLE ONLY public.ordenes
-    ADD CONSTRAINT ordenes_vehiculo_id_fkey FOREIGN KEY (vehiculo_id) REFERENCES public.vehiculos(id);
 
 -- Name: ordenes ordenes_vehiculo_mismo_establecimiento_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 
@@ -555,11 +546,6 @@ ALTER TABLE ONLY public.promociones
 
 ALTER TABLE ONLY public.servicios
     ADD CONSTRAINT servicios_establecimiento_id_fkey FOREIGN KEY (establecimiento_id) REFERENCES public.establecimientos(id) ON DELETE CASCADE;
-
--- Name: vehiculos vehiculos_cliente_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
-
-ALTER TABLE ONLY public.vehiculos
-    ADD CONSTRAINT vehiculos_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id) ON DELETE CASCADE;
 
 -- Name: vehiculos vehiculos_cliente_mismo_establecimiento_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 
@@ -665,5 +651,5 @@ CREATE POLICY "ver servicios" ON public.servicios FOR SELECT USING ((establecimi
 
 CREATE POLICY "ver vehiculos" ON public.vehiculos FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
 
-\unrestrict OdnRlpi1aWxJF4bDr9piAtjDw5GY8DQDWgyeNf3cwPV36E0c3Eg3Ncjv8ej5Frw
+\unrestrict XtsCDo58qPBCZQbiBXmcvexYp057acw5bozbgoCZaWIpd9xmFlAZ9jt1gqqMRcT
 

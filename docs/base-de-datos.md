@@ -54,6 +54,7 @@ La tabla `notificaciones` sigue el patrón *outbox* (ADR-03). La lógica de env�
 | `20261024025550` | `funciones_seguridad_esquema_privado` | Funciones de seguridad en el esquema `privado` |
 | `20261024025601` | `indices_llaves_foraneas` | Índices en todas las llaves foráneas |
 | `20261028050419` | `hu42_integridad_notificaciones_indices` | Integridad entre establecimientos, `notificaciones` e índices de consultas frecuentes |
+| `20261028052257` | `hu41_quitar_llaves_simples_redundantes` | Quita las llaves simples duplicadas por las compuestas (ambigüedad PGRST201 al anidar recursos) |
 
 **Reglas:**
 
