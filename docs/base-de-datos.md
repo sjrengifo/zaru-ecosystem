@@ -53,7 +53,7 @@ La tabla `notificaciones` sigue el patrón *outbox* (ADR-03). La lógica de env�
 | `20261024025542` | `esquema_inicial` | Tablas, enums, RLS y publicación Realtime de `ordenes` |
 | `20261024025550` | `funciones_seguridad_esquema_privado` | Funciones de seguridad en el esquema `privado` |
 | `20261024025601` | `indices_llaves_foraneas` | Índices en todas las llaves foráneas |
-| `20261028050000` | `hu42_integridad_notificaciones_indices` | Integridad entre establecimientos, `notificaciones` e índices de consultas frecuentes |
+| `20261028050419` | `hu42_integridad_notificaciones_indices` | Integridad entre establecimientos, `notificaciones` e índices de consultas frecuentes |
 
 **Reglas:**
 
@@ -70,7 +70,7 @@ PGHOST=localhost PGUSER=postgres database/pruebas/aplicar-migraciones.sh zaru_pr
 # Aplicando 20261024025542_esquema_inicial.sql
 # Aplicando 20261024025550_funciones_seguridad_esquema_privado.sql
 # Aplicando 20261024025601_indices_llaves_foraneas.sql
-# Aplicando 20261028050000_hu42_integridad_notificaciones_indices.sql
+# Aplicando 20261028050419_hu42_integridad_notificaciones_indices.sql
 # OK: 4 migraciones aplicadas en la base zaru_prueba
 psql -d zaru_prueba -f database/pruebas/01_integridad.sql
 # 23 de 23 pruebas aprobadas
