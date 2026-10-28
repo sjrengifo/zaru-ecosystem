@@ -79,7 +79,9 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | Proyecto Supabase | `zaru` (organización `zaru`) |
 | Región | `us-east-1` |
 | URL | `https://djutvsulfduzuylvaten.supabase.co` |
-| Esquema versionado | [`database/schema.sql`](database/schema.sql) |
+| Migraciones (fuente de verdad) | [`supabase/migrations/`](supabase/migrations) |
+| Esquema de referencia | [`database/schema.sql`](database/schema.sql) (generado desde las migraciones) |
+| Documentación del modelo | [`docs/base-de-datos.md`](docs/base-de-datos.md) |
 | Datos de prueba | [`database/seed.sql`](database/seed.sql) |
 
 ### Entidades
@@ -95,6 +97,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `ordenes` | Orden de servicio y su estado (`recibido` → `en_lavado` → `listo` → `entregado`) | HU-08, HU-10 |
 | `orden_servicios` | Servicios de cada orden con el precio y la duración vigentes al momento de crearla | HU-07, HU-08 |
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
+| `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
 
 ### Seguridad multi-tenant
 
@@ -102,11 +105,12 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 - RLS está habilitado en todas las tablas. Las políticas de lectura restringen las filas al establecimiento del usuario autenticado mediante la función `privado.mi_establecimiento()`.
 - Las funciones de seguridad residen en el esquema `privado`, que no se expone en la API REST de Supabase.
 - Las escrituras se realizan exclusivamente desde el backend con la clave `service_role`, filtrando siempre por el establecimiento del usuario (`req.usuario.establecimientoId`).
+- La base impide relacionar datos de establecimientos distintos mediante llaves foráneas compuestas `(id, establecimiento_id)` y triggers en las tablas puente.
 - La tabla `ordenes` está publicada en `supabase_realtime` para el dashboard operativo.
 
 ### Gestión de cambios
 
-Todo cambio de esquema debe aplicarse como migración en Supabase y reflejarse en `database/schema.sql` dentro del mismo Pull Request, de forma que el repositorio sea siempre la fuente de verdad del modelo de datos.
+Todo cambio de esquema se escribe como un archivo nuevo en `supabase/migrations/` (`AAAAMMDDHHMMSS_descripcion.sql`) y se aplica igual en cualquier ambiente. Una migración aplicada nunca se edita. En el mismo Pull Request se regenera `database/schema.sql` y se ejecutan las pruebas de `database/pruebas/` (ver [`docs/base-de-datos.md`](docs/base-de-datos.md)).
 
 ---
 
@@ -137,12 +141,14 @@ zaru-ecosystem/
 │   │   └── index.js              Arranque del servidor
 │   └── .env.example
 │
+├── supabase/migrations/          Migraciones versionadas del esquema (fuente de verdad)
 ├── database/
-│   ├── schema.sql                Esquema, índices, RLS y Realtime
-│   └── seed.sql                  Datos de prueba
+│   ├── schema.sql                Esquema de referencia generado desde las migraciones
+│   ├── seed.sql                  Datos de prueba
+│   └── pruebas/                  Aplicación de migraciones, integridad, carga y rendimiento
 │
 ├── specs/backend/                Plan de desarrollo del backend (Spec Driven Development)
-├── docs/CONTRIBUIR.md            Convenciones de ramas, commits y Pull Requests
+├── docs/                         Convenciones, base de datos y decisiones de arquitectura
 ├── .github/                      Workflow de CI y plantilla de Pull Request
 └── render.yaml                   Blueprint de despliegue del backend en Render
 ```
