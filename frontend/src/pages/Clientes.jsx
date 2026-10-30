@@ -8,6 +8,8 @@ import FormularioCliente from '../components/FormularioCliente.jsx';
 import DetalleCliente from '../components/DetalleCliente.jsx';
 import FormularioEditarCliente from '../components/FormularioEditarCliente.jsx';
 import FormularioVehiculo from '../components/FormularioVehiculo.jsx';
+import ConfirmarEliminarCliente from '../components/ConfirmarEliminarCliente.jsx';
+import { useRol } from '../hooks/useRol.js';
 
 const ESPERA_BUSQUEDA_MS = 250;
 
@@ -21,6 +23,8 @@ export default function Clientes() {
   const [clienteAbierto, setClienteAbierto] = useState(null);
   const [clienteEditando, setClienteEditando] = useState(null);
   const [clienteConVehiculoNuevo, setClienteConVehiculoNuevo] = useState(null);
+  const [clienteAEliminar, setClienteAEliminar] = useState(null);
+  const rol = useRol();
   const [confirmacion, setConfirmacion] = useState(null);
   const cerrarConfirmacion = useCallback(() => setConfirmacion(null), []);
 
@@ -67,6 +71,13 @@ export default function Clientes() {
     setRecargas((n) => n + 1);
   }
 
+  function alEliminar(cliente) {
+    setClienteAbierto(null);
+    setClienteAEliminar(null);
+    setRecargas((n) => n + 1);
+    setConfirmacion({ id: Date.now(), titulo: 'Cliente eliminado', detalle: cliente.nombre });
+  }
+
   function abrirCliente(id, titulo) {
     setConfirmacion(null);
     setClienteAbierto({ id, titulo });
@@ -105,12 +116,14 @@ export default function Clientes() {
           <DetalleCliente
             id={clienteAbierto.id}
             onEditar={setClienteEditando}
-            onCerrar={() => setClienteAbierto(null)}
             onAbrirCliente={(id) => abrirCliente(id, 'Detalle del cliente')}
             onVehiculoRegistrado={() => setRecargas((n) => n + 1)}
+            onEliminado={alEliminar}
           />
         </Modal>
       )}
+
+      {clienteAEliminar && <ConfirmarEliminarCliente cliente={clienteAEliminar} onEliminado={alEliminar} onCancelar={() => setClienteAEliminar(null)} />}
 
       {clienteConVehiculoNuevo && (
         <FormularioVehiculo
@@ -205,6 +218,25 @@ export default function Clientes() {
                       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                     </svg>
                   </button>
+                  {rol === 'admin' && (
+                    <button
+                      type="button"
+                      className="boton-fila boton-fila-peligro"
+                      title="Eliminar"
+                      aria-label={`Eliminar a ${c.nombre}`}
+                      onClick={() => {
+                        setConfirmacion(null);
+                        setClienteAEliminar(c);
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                        <path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6" />
+                        <path d="M10 11v6M14 11v6" />
+                      </svg>
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -45,7 +45,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-49 Realizar copias de seguridad diarias y restaurar la información | ZARU-56 | 5 | Should | Silvana | F8 | RF-F8-08 a 11 | ESC-F8-04 | — | Pendiente |
 | HU-50 Cifrar la información en tránsito y en reposo | ZARU-57 | 3 | Must | Samuel | F1, F8 | RNF-F1-02, 03, RF-F8-12, 13 | ESC-F8-05 | — | En desarrollo |
 | HU-51 Registrar la autorización del titular para el tratamiento de datos (Habeas Data) | ZARU-58 | 3 | Must | Samuel | F2 | RF-F2-01, 02, 04, 10 | ESC-F2-01, 02 | — | En desarrollo |
-| HU-52 Atender los derechos del titular sobre sus datos personales | ZARU-59 | 5 | Should | Nikol | F2, F5 | RF-F2-08, 09, RF-F5-16 a 18 | ESC-F2-10, ESC-F5-11 | — | Pendiente |
+| HU-52 Atender los derechos del titular sobre sus datos personales | ZARU-59 | 5 | Should | Nikol | F2, F5 | RF-F2-08, 09, RF-F5-16 a 18 | ESC-F2-10, ESC-F5-11 | `tests/unit/eliminar-cliente.test.js` · `tests/integration/eliminar-cliente.test.js` | En desarrollo |
 | HU-53 Activar el protocolo de respuesta ante incidentes de seguridad de datos | ZARU-60 | 5 | Should | Nikol | F1, F8 | RF-F1-10, 11, RF-F8-14 a 16 | ESC-F1-03, ESC-F8-06 | — | Pendiente |
 | HU-54 Procesar de forma idempotente las acciones sincronizadas desde el dispositivo | ZARU-61 | 3 | Could | Vanessa | F3 | RF-F3-13, 14 | ESC-F3-08 | — | Pendiente |
 | HU-55 Guardar y sincronizar las acciones realizadas sin conexión | ZARU-71 | 8 | Could | Vanessa | F3 (frontend) | — (consume RF-F3-14) | — | — | Pendiente |

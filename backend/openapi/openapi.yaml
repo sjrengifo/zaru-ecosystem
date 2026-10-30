@@ -236,6 +236,25 @@ paths:
                   mensaje: Ya existe un cliente con ese teléfono
                   detalles: [{ campo: telefono, mensaje: El teléfono ya está registrado a nombre de Ana Gómez, clienteId: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10 }]
                   requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a
+    delete:
+      tags: [Clientes]
+      operationId: eliminarCliente
+      summary: Eliminar los datos personales de un cliente (solo administrador)
+      description: >-
+        HU-52. Borra de forma irreversible al cliente, sus vehículos, sus autorizaciones y sus notificaciones.
+        Las órdenes entregadas se conservan sin vehículo para las estadísticas. Queda registro en la auditoría,
+        sin datos personales.
+      responses:
+        '204': { description: Cliente eliminado. }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El cliente tiene un servicio en curso; no se elimina nada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '501': { $ref: '#/components/responses/NoImplementado' }
 
   /clientes/{id}/consentimientos:
     parameters:

@@ -1,11 +1,12 @@
 // HU-05 y HU-06 · Vehículos del establecimiento y su historial (ZARU-6, ZARU-7). Se registran desde el perfil de cada cliente.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api.js';
 import { TIPOS_VEHICULO } from '../lib/validacionVehiculo.js';
 import Modal from '../components/Modal.jsx';
 import DetalleCliente from '../components/DetalleCliente.jsx';
 import DetalleVehiculo from '../components/DetalleVehiculo.jsx';
+import Notificacion from '../components/Notificacion.jsx';
 
 const ESPERA_BUSQUEDA_MS = 250;
 
@@ -17,6 +18,8 @@ export default function Vehiculos() {
   const [recargas, setRecargas] = useState(0);
   const [clienteAbierto, setClienteAbierto] = useState(null);
   const [vehiculoAbierto, setVehiculoAbierto] = useState(null);
+  const [confirmacion, setConfirmacion] = useState(null);
+  const cerrarConfirmacion = useCallback(() => setConfirmacion(null), []);
 
   useEffect(() => {
     let vigente = true; // Una respuesta lenta no reemplaza los resultados de una búsqueda más reciente.
@@ -52,12 +55,20 @@ export default function Vehiculos() {
         <Modal titulo="Detalle del cliente" onCerrar={() => setClienteAbierto(null)}>
           <DetalleCliente
             id={clienteAbierto}
-            onCerrar={() => setClienteAbierto(null)}
             onAbrirCliente={setClienteAbierto}
             onVehiculoRegistrado={() => setRecargas((n) => n + 1)}
+            onEliminado={(cliente) => {
+              setClienteAbierto(null);
+              setRecargas((n) => n + 1);
+              setConfirmacion({ id: Date.now(), titulo: 'Cliente eliminado', detalle: cliente.nombre });
+            }}
           />
         </Modal>
       )}
+
+      <div className="notificaciones" role="status">
+        {confirmacion && <Notificacion key={confirmacion.id} titulo={confirmacion.titulo} detalle={confirmacion.detalle} onCerrar={cerrarConfirmacion} />}
+      </div>
 
       {vehiculoAbierto && <DetalleVehiculo vehiculo={vehiculoAbierto} nombreCliente={vehiculoAbierto.clientes.nombre} onCerrar={() => setVehiculoAbierto(null)} />}
 
@@ -93,7 +104,7 @@ export default function Vehiculos() {
               <tr key={v.id}>
                 <td>
                   <button type="button" className="enlace-tabla" onClick={() => setVehiculoAbierto(v)}>
-                    <span className="placa">{v.placa}</span>
+                    <span className="placa placa-azul">{v.placa}</span>
                   </button>
                 </td>
                 <td data-etiqueta="Tipo">{TIPOS_VEHICULO[v.tipo] ?? v.tipo}</td>

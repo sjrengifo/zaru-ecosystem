@@ -48,4 +48,5 @@ export const api = {
   post: (ruta, cuerpo) => peticion('POST', ruta, cuerpo),
   put: (ruta, cuerpo) => peticion('PUT', ruta, cuerpo),
   patch: (ruta, cuerpo) => peticion('PATCH', ruta, cuerpo),
+  delete: (ruta) => peticion('DELETE', ruta),
 };

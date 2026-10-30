@@ -247,6 +247,7 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, requieren el encabezado `
 | GET | `/clientes/:id` | Admin, Operario | Detalle de cliente con sus vehículos | Implementado |
 | POST | `/clientes` | Admin, Operario | Registrar cliente con autorización de datos y versión de la política (`politicaVersion`) | Implementado |
 | PUT | `/clientes/:id` | Admin, Operario | Actualizar cliente | Implementado |
+| DELETE | `/clientes/:id` | Admin | Eliminar los datos de un cliente a su solicitud (HU-52) | Implementado |
 | GET | `/clientes/:id/consentimientos` | Admin | Evidencia de autorización de tratamiento de datos | Implementado |
 | GET | `/vehiculos?placa=` | Admin, Operario | Listar o buscar vehículos | Implementado |
 | POST | `/vehiculos` | Admin, Operario | Registrar vehículo asociado a un cliente | Implementado |

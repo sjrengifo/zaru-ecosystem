@@ -346,7 +346,7 @@ CREATE TABLE public.orden_servicios (
 CREATE TABLE public.ordenes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     establecimiento_id uuid NOT NULL,
-    vehiculo_id uuid NOT NULL,
+    vehiculo_id uuid,
     estado public.estado_orden DEFAULT 'recibido'::public.estado_orden NOT NULL,
     subtotal numeric(12,2) DEFAULT 0 NOT NULL,
     descuento numeric(12,2) DEFAULT 0 NOT NULL,
@@ -938,6 +938,39 @@ language sql stable security definer set search_path = public as $$
       )
     )
 $$;
+
+-- HU-52: eliminar los datos personales de un cliente.
+
+create or replace function public.eliminar_cliente(p_establecimiento_id uuid, p_cliente_id uuid)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_vehiculos uuid[];
+  v_ordenes integer;
+begin
+  perform 1 from clientes where id = p_cliente_id and establecimiento_id = p_establecimiento_id for update;
+  if not found then
+    return jsonb_build_object('resultado', 'no_encontrado');
+  end if;
+
+  select coalesce(array_agg(id), '{}') into v_vehiculos
+  from vehiculos where cliente_id = p_cliente_id and establecimiento_id = p_establecimiento_id;
+
+  if exists (
+    select 1 from ordenes
+    where establecimiento_id = p_establecimiento_id and vehiculo_id = any (v_vehiculos) and estado <> 'entregado'
+  ) then
+    return jsonb_build_object('resultado', 'servicios_en_curso');
+  end if;
+
+  update ordenes set vehiculo_id = null
+  where establecimiento_id = p_establecimiento_id and vehiculo_id = any (v_vehiculos);
+  get diagnostics v_ordenes = row_count;
+
+  delete from clientes where id = p_cliente_id and establecimiento_id = p_establecimiento_id;
+
+  return jsonb_build_object('resultado', 'eliminado', 'vehiculos', cardinality(v_vehiculos), 'ordenes', v_ordenes);
+end $$;
 
 \unrestrict hLKh1JC2xMXqPQGcx528nWceu3Iqhq4uFSMCwbsvlkjA5H0xoPatBxbYrKE0xpU
 

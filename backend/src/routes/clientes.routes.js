@@ -13,6 +13,7 @@ router.get('/', validar({ query: busquedaClientes }), ctrl.listar);   // GET  /a
 router.get('/:id', ctrl.obtener);                                      // GET  /api/v1/clientes/:id
 router.post('/', validar({ body: clienteNuevo }), ctrl.crear);         // POST /api/v1/clientes
 router.put('/:id', validar({ body: clienteCambios }), ctrl.actualizar); // PUT  /api/v1/clientes/:id
+router.delete('/:id', requiereRol('admin'), ctrl.eliminar);            // DELETE /api/v1/clientes/:id  (HU-52)
 router.get('/:id/consentimientos', requiereRol('admin'), ctrl.consentimientos); // HU-51: evidencia de autorización
 
 export default router;
