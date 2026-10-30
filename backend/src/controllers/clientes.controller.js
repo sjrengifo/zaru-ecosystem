@@ -1,9 +1,10 @@
-// HU-03 y HU-04 — Lógica de clientes.
+// HU-03, HU-04 y HU-52 — Lógica de clientes.
 // - Multi-tenant (HU-41): todo acceso a datos pasa por req.tenant.
 // - Validación (HU-43): las rutas validan con schemas/clientes.schemas.js antes de llegar aquí.
 // - Cifrado (HU-50): el correo se guarda cifrado (AES-256-GCM) y se descifra solo al responder.
-import { AppError } from '../shared/errores.js';
+import { AppError, noEncontrado } from '../shared/errores.js';
 import { cifrar, descifrarCampos } from '../shared/cifrado.js';
+import { registrarAuditoria } from '../shared/auditoria.js';
 
 /** Quita los caracteres que alteran la sintaxis de filtros de PostgREST (coma, paréntesis, comodines). */
 const textoBuscable = (texto) => String(texto).replace(/[,()*%\\]/g, ' ').trim();
@@ -120,6 +121,38 @@ export async function actualizar(req, res, next) {
       throw dueno && dueno.id !== req.params.id ? telefonoRepetido(dueno) : err;
     }
     res.json(descifrarCampos(cliente));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * HU-52 CA1: eliminar los datos personales de un cliente a su solicitud. Es irreversible.
+ * La auditoría solo guarda el identificador y las cantidades: ningún dato personal del titular.
+ */
+export async function eliminar(req, res, next) {
+  try {
+    await req.tenant.obtener('clientes', req.params.id, 'id', 'Cliente');
+
+    let resultado;
+    try {
+      resultado = await req.tenant.rpc('eliminar_cliente', { p_cliente_id: req.params.id });
+    } catch (err) {
+      if (err.code === 'PGRST202') throw new AppError('NO_IMPLEMENTADO', 'Eliminar clientes aún no está disponible en este ambiente');
+      throw err;
+    }
+
+    if (resultado.resultado === 'no_encontrado') throw noEncontrado('Cliente');
+    if (resultado.resultado === 'servicios_en_curso') {
+      throw new AppError('CONFLICTO', 'Este cliente tiene un servicio en curso. Podrás eliminarlo cuando se entregue el vehículo.');
+    }
+
+    await registrarAuditoria(req, {
+      accion: 'ELIMINAR_CLIENTE',
+      resultado: 'permitido',
+      detalle: { vehiculos: resultado.vehiculos, ordenesConservadas: resultado.ordenes },
+    });
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

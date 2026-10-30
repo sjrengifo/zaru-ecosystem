@@ -91,7 +91,7 @@ Este documento fija las convenciones y el catálogo de endpoints. El detalle for
 | PUT | `/clientes/{id}` | admin, operario | HU-04 CA2 |
 | GET | `/clientes/{id}/consentimientos` | admin | HU-30 CA4 |
 | POST | `/clientes/{id}/consentimientos` | admin, operario | HU-30 |
-| POST | `/clientes/{id}/anonimizar` | admin | HU-52 CA3 |
+| DELETE | `/clientes/{id}` | admin | HU-52 CA1 a CA3 |
 | GET | `/vehiculos` | admin, operario | HU-05 |
 | POST | `/vehiculos` | admin, operario | HU-05 |
 | GET | `/vehiculos/{id}` | admin, operario | HU-05 |

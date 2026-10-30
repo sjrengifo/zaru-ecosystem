@@ -25,7 +25,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 | RF-F2-06 | Si el celular ya existe en el establecimiento, el registro responde `409` con el id y nombre del cliente existente. | HU-03 CA3 |
 | RF-F2-07 | Listar clientes con búsqueda por nombre (parcial, sin tildes), celular o placa. La paginación queda pendiente. | HU-04 CA1 |
 | RF-F2-08 | Actualizar nombre, celular y correo de un cliente; el cambio se refleja en todos los módulos. | HU-04 CA2, HU-52 CA2 |
-| RF-F2-09 | Anonimizar un cliente a solicitud del titular: se reemplazan sus datos personales de forma irreversible, se conservan las órdenes para estadísticas y se registra la gestión. | HU-52 CA3 |
+| RF-F2-09 | Eliminar un cliente a solicitud del titular: se borran de forma irreversible sus datos personales, vehículos, autorizaciones y notificaciones; se conservan las órdenes entregadas, sin vehículo, para estadísticas, y se registra la gestión. No se permite si tiene un servicio en curso. | HU-52 CA1 a CA3 |
 | RF-F2-10 | `GET /politicas-datos/vigente` devuelve la versión y URL de la política vigente. | HU-51 CA1 |
 
 ### Vehículos
@@ -101,10 +101,10 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 - **Cuando** consulto `GET /servicios?activo=true`
 - **Entonces** no aparece.
 
-**ESC-F2-10 — Anonimización** (RF-F2-09 · HU-52 CA3)
-- **Dado** un cliente con órdenes
-- **Cuando** el administrador lo anonimiza
-- **Entonces** nombre, celular y correo quedan irreconocibles, las órdenes se conservan, y la gestión queda en `solicitudes_titular` y en `auditoria`.
+**ESC-F2-10 — Eliminación** (RF-F2-09 · HU-52 CA1, CA3)
+- **Dado** un cliente con órdenes entregadas
+- **Cuando** el administrador confirma su eliminación
+- **Entonces** se borran sus datos y vehículos, ya no aparece al buscar por nombre, teléfono o placa, las órdenes se conservan sin vehículo y la gestión queda en `auditoria` sin datos personales.
 
 ## 5. Fuera de alcance
 - Validación del celular por SMS (F6).

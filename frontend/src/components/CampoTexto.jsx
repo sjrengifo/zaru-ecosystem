@@ -1,7 +1,7 @@
 // Campo de formulario con etiqueta, ayuda y error asociados para lectores de pantalla.
 import MensajeError from './MensajeError.jsx';
 
-export default function CampoTexto({ id, etiqueta, obligatorio, ayuda, error, ...propsInput }) {
+export default function CampoTexto({ id, etiqueta, obligatorio, ayuda, error, icono, ...propsInput }) {
   const idAyuda = ayuda ? `${id}-ayuda` : undefined;
   const idError = error ? `${id}-error` : undefined;
 
@@ -16,13 +16,16 @@ export default function CampoTexto({ id, etiqueta, obligatorio, ayuda, error, ..
         )}
       </label>
       {ayuda && <p id={idAyuda} className="campo-ayuda">{ayuda}</p>}
-      <input
-        id={id}
-        aria-required={obligatorio}
-        aria-invalid={!!error}
-        aria-describedby={[idAyuda, idError].filter(Boolean).join(' ') || undefined}
-        {...propsInput}
-      />
+      <div className={`campo-control${icono ? ' campo-con-icono' : ''}`}>
+        {icono}
+        <input
+          id={id}
+          aria-required={obligatorio}
+          aria-invalid={!!error}
+          aria-describedby={[idAyuda, idError].filter(Boolean).join(' ') || undefined}
+          {...propsInput}
+        />
+      </div>
       {error && <MensajeError id={idError}>{error}</MensajeError>}
     </div>
   );

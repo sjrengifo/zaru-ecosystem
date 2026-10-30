@@ -6,6 +6,7 @@ import { useFocoEnError } from '../hooks/useFocoEnError.js';
 import Modal from './Modal.jsx';
 import CampoTexto from './CampoTexto.jsx';
 import MensajeError from './MensajeError.jsx';
+import Icono from './Icono.jsx';
 import AvisoClienteExistente from './AvisoClienteExistente.jsx';
 import PieFormulario from './PieFormulario.jsx';
 
@@ -121,13 +122,20 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
     <Modal titulo="Nuevo cliente" onCerrar={intentarCerrar}>
       {/* noValidate: los errores se muestran junto a cada campo y con el mismo texto en todos los navegadores. */}
       <form ref={formulario} onSubmit={guardar} noValidate>
-        <div className="modal-cuerpo">
-          <p className="texto-suave leyenda">Los campos con <span className="obligatorio">*</span> son obligatorios.</p>
+        <div className="modal-cuerpo perfil">
+          <section className="perfil-tarjeta" aria-labelledby="cliente-contacto-titulo">
+            <div className="perfil-encabezado">
+              <h4 id="cliente-contacto-titulo">Datos de contacto</h4>
+              <span className="texto-suave nota-obligatorios">
+                <span className="obligatorio">*</span> Obligatorio
+              </span>
+            </div>
 
           {/* autoComplete off: quien escribe registra los datos de otra persona, no los suyos. */}
           <CampoTexto
             id="cliente-nombre"
             etiqueta="Nombre completo"
+            icono={<Icono nombre="persona" />}
             obligatorio
             data-foco-inicial
             autoComplete="off"
@@ -142,6 +150,7 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
           <CampoTexto
             id="cliente-telefono"
             etiqueta="Celular"
+            icono={<Icono nombre="telefono" />}
             obligatorio
             ayuda="10 dígitos, empieza por 3. Ejemplo: 300 123 4567"
             type="tel"
@@ -161,6 +170,7 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
           <CampoTexto
             id="cliente-correo"
             etiqueta="Correo"
+            icono={<Icono nombre="correo" />}
             obligatorio
             ayuda="Aquí le enviaremos los avisos del servicio."
             type="email"
@@ -172,15 +182,18 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
               quitarError('correo');
             }}
           />
+          </section>
 
-          <section className="autorizacion" aria-labelledby="politica-titulo">
-            <h4 id="politica-titulo">
-              Autorización de datos personales <span className="obligatorio" aria-hidden="true">*</span>
-            </h4>
+          <section className="perfil-tarjeta" aria-labelledby="politica-titulo">
+            <div className="perfil-encabezado">
+              <h4 id="politica-titulo">
+                Autorización de datos <span className="obligatorio" aria-hidden="true">*</span>
+              </h4>
+              {politica && <span className="texto-suave nota-obligatorios">Versión {politica.version}</span>}
+            </div>
 
             {politica && (
               <>
-                <p className="texto-suave leyenda">{politica.titulo} · versión {politica.version}</p>
                 <div className="politica" tabIndex={0} role="region" aria-label="Texto de la política de tratamiento de datos">
                   {parrafosPolitica(politica.contenido)}
                 </div>

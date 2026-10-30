@@ -18,7 +18,7 @@ Migración `<ts>_clientes_y_datos_personales.sql`:
 | Extensión `pg_trgm` + `unaccent` | Índice `gin` sobre `unaccent(lower(nombre))` | RF-F2-07 |
 | Vista `consentimientos_vigentes` | Último registro por (`cliente_id`, `tipo`) | RF-F2-05 |
 | Función `crear_cliente_con_consentimiento(...)` | Inserta cliente y consentimientos en una transacción; falla si `tratamiento_datos` no está otorgado | RF-F2-02, RNF-F2-02 |
-| Función `anonimizar_cliente(id, usuario_id)` | Reemplaza datos personales por `anonimo-<hash>` y registra la solicitud | RF-F2-09 |
+| Función `eliminar_cliente(establecimiento, id)` | Borra al titular, sus vehículos, autorizaciones y notificaciones; conserva las órdenes entregadas sin vehículo | RF-F2-09 |
 
 Ambas funciones se crean en el esquema `privado` con `security definer` y permisos solo para `service_role`.
 
@@ -33,7 +33,7 @@ Ambas funciones se crean en el esquema `privado` con `security definer` y permis
 | PUT | `/clientes/{id}` | admin, operario | `{ nombre?, celular?, correo? }` | `Cliente` | RF-F2-08 |
 | GET | `/clientes/{id}/consentimientos` | admin | — | `Consentimiento[]` | RF-F2-05 |
 | POST | `/clientes/{id}/consentimientos` | admin, operario | `{ tipo, otorgado }` | `201 Consentimiento` | RF-F2-04 |
-| POST | `/clientes/{id}/anonimizar` | admin | `{ motivo }` | `204` | RF-F2-09 |
+| DELETE | `/clientes/{id}` | admin | — | `204` · `409` si tiene un servicio en curso | RF-F2-09 |
 | GET | `/vehiculos` | admin, operario | `?placa&clienteId` | `Vehiculo[]` | RF-F2-11 |
 | POST | `/vehiculos` | admin, operario | `{ clienteId, placa, tipo, marca?, color? }` | `201 Vehiculo` · `409` | RF-F2-11 a 13 |
 | GET | `/vehiculos/{id}` | admin, operario | — | `Vehiculo` + `cliente` | RF-F2-14 |

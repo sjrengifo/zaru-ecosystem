@@ -62,6 +62,7 @@ La tabla `notificaciones` sigue el patrón *outbox* (ADR-03). La lógica de env�
 | `20261028135510` | `hu51_politica_y_consentimientos` | Política de datos versionada, evidencia inmutable de autorizaciones y registro atómico de cliente + autorización |
 | `20261030210000` | `hu03_politica_v1_1_correo_obligatorio` | Publica la versión 1.1 de la política de datos: el correo electrónico pasa a ser obligatorio |
 | `20261030220000` | `hu04_busqueda_clientes_sin_tildes` | Extensión `unaccent` y función `buscar_clientes`: búsqueda por nombre, teléfono o placa sin distinguir tildes |
+| `20261030230000` | `hu52_eliminar_cliente` | Permite órdenes sin vehículo y agrega `eliminar_cliente`: borra al titular y sus vehículos, y conserva las órdenes entregadas sin datos personales |
 
 **Reglas:**
 
@@ -137,6 +138,7 @@ psql -d zaru_prueba -f database/pruebas/03_rendimiento.sql              # CA3
 psql -d zaru_prueba -f database/pruebas/04_seguridad.sql                # HU-44: auditoría, contraseñas y claims
 psql -d zaru_prueba -f database/pruebas/05_consentimientos.sql          # HU-51: política y evidencia de autorización
 psql -d zaru_prueba -f database/pruebas/06_busqueda_clientes.sql        # HU-04: búsqueda sin tildes por nombre, teléfono o placa
+psql -d zaru_prueba -f database/pruebas/07_eliminar_cliente.sql         # HU-52: eliminar los datos de un cliente
 ```
 
 Los scripts 02 y 03 son solo para bases locales o de pruebas. Nunca se ejecutan contra producción.
