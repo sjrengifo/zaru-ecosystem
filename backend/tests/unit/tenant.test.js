@@ -58,6 +58,13 @@ describe('crearAccesoTenant', () => {
       expect(filtros(db.llamadas)).toEqual([`id=${ID}`, `establecimiento_id=${A}`]);
     });
 
+    it('consultarFuncion usa el establecimiento de la sesión aunque los argumentos traigan otro', () => {
+      const db = crearSupabaseFalso();
+      crearAccesoTenant(db, { establecimientoId: A }).consultarFuncion('buscar_clientes', { p_texto: 'ana', p_establecimiento_id: B }, 'id');
+      expect(db.llamadas).toContainEqual(['rpc', 'buscar_clientes', { p_texto: 'ana', p_establecimiento_id: A }]);
+      expect(db.llamadas).toContainEqual(['select', 'id']);
+    });
+
     it('eliminar filtra por id y por establecimiento', async () => {
       const db = crearSupabaseFalso({ data: { id: ID }, error: null });
       await crearAccesoTenant(db, { establecimientoId: A }).eliminar('clientes', ID);

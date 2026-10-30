@@ -88,7 +88,7 @@ Este documento fija las convenciones y el catálogo de endpoints. El detalle for
 | GET | `/clientes` | admin, operario | HU-04 CA1 |
 | POST | `/clientes` | admin, operario | HU-03, HU-51 |
 | GET | `/clientes/{id}` | admin, operario | HU-04 |
-| PATCH | `/clientes/{id}` | admin, operario | HU-04 CA2 |
+| PUT | `/clientes/{id}` | admin, operario | HU-04 CA2 |
 | GET | `/clientes/{id}/consentimientos` | admin | HU-30 CA4 |
 | POST | `/clientes/{id}/consentimientos` | admin, operario | HU-30 |
 | POST | `/clientes/{id}/anonimizar` | admin | HU-52 CA3 |

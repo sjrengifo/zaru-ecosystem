@@ -1,8 +1,8 @@
-// HU-03 CA3 · Vista de solo lectura para abrir un cliente que ya existe. La edición pertenece a HU-04.
+// HU-03 CA3 y HU-04 · Detalle de un cliente, con la opción de editarlo.
 import { useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 
-export default function DetalleCliente({ id, onCerrar }) {
+export default function DetalleCliente({ id, onEditar, onCerrar }) {
   const [cliente, setCliente] = useState(null);
   const [error, setError] = useState('');
 
@@ -37,6 +37,9 @@ export default function DetalleCliente({ id, onCerrar }) {
       <div className="modal-acciones">
         <button type="button" className="boton secundario" data-foco-inicial onClick={onCerrar}>
           Cerrar
+        </button>
+        <button type="button" className="boton" disabled={!cliente} onClick={() => onEditar(cliente)}>
+          Editar
         </button>
       </div>
     </>

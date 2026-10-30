@@ -30,7 +30,7 @@ Ambas funciones se crean en el esquema `privado` con `security definer` y permis
 | GET | `/clientes` | admin, operario | `?buscar&pagina&tamano` | `Pagina<ClienteResumen>` | RF-F2-07 |
 | POST | `/clientes` | admin, operario | `{ nombre, celular, correo?, autorizaciones: { tratamientoDatos, notificacionesServicio, comerciales } }` | `201 Cliente` · `409` | RF-F2-01 a 06 |
 | GET | `/clientes/{id}` | admin, operario | — | `Cliente` + `vehiculos` + `autorizacionesVigentes` | RF-F2-14 |
-| PATCH | `/clientes/{id}` | admin, operario | `{ nombre?, celular?, correo? }` | `Cliente` | RF-F2-08 |
+| PUT | `/clientes/{id}` | admin, operario | `{ nombre?, celular?, correo? }` | `Cliente` | RF-F2-08 |
 | GET | `/clientes/{id}/consentimientos` | admin | — | `Consentimiento[]` | RF-F2-05 |
 | POST | `/clientes/{id}/consentimientos` | admin, operario | `{ tipo, otorgado }` | `201 Consentimiento` | RF-F2-04 |
 | POST | `/clientes/{id}/anonimizar` | admin | `{ motivo }` | `204` | RF-F2-09 |

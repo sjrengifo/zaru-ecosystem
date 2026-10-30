@@ -8,21 +8,45 @@ import { cifrar, descifrarCampos } from '../shared/cifrado.js';
 /** Quita los caracteres que alteran la sintaxis de filtros de PostgREST (coma, paréntesis, comodines). */
 const textoBuscable = (texto) => String(texto).replace(/[,()*%\\]/g, ' ').trim();
 
-/** HU-04 CA1: listar y buscar por nombre o teléfono. */
+const COLUMNAS_LISTA = 'id, nombre, telefono, correo, vehiculos(placa)';
+
+/** Búsqueda mientras un ambiente no tenga la migración de buscar_clientes: igual, pero distingue tildes. */
+async function buscarSinFuncion(tenant, buscar) {
+  const texto = textoBuscable(buscar);
+  if (!texto) return [];
+  const compacto = texto.replace(/[\s-]/g, '');
+  const filtros = [`nombre.ilike.%${texto}%`];
+  if (compacto) {
+    const { data: vehiculos, error } = await tenant.listar('vehiculos', 'cliente_id').ilike('placa', `%${compacto}%`);
+    if (error) throw error;
+    filtros.push(`telefono.ilike.%${compacto}%`);
+    if (vehiculos.length) filtros.push(`id.in.(${vehiculos.map((v) => v.cliente_id).join(',')})`);
+  }
+  const { data, error } = await tenant.listar('clientes', COLUMNAS_LISTA).or(filtros.join(',')).order('nombre');
+  if (error) throw error;
+  return data;
+}
+
+/** HU-04 CA1: buscar por nombre, teléfono o placa, sin distinguir tildes ni mayúsculas. */
+async function buscarClientes(tenant, buscar) {
+  const { data, error } = await tenant.consultarFuncion('buscar_clientes', { p_texto: buscar }, COLUMNAS_LISTA).order('nombre');
+  if (error?.code === 'PGRST202') return buscarSinFuncion(tenant, buscar); // La función aún no existe en este ambiente.
+  if (error) throw error;
+  return data;
+}
+
 export async function listar(req, res, next) {
   try {
-    let consulta = req.tenant
-      .listar('clientes', 'id, nombre, telefono, correo, vehiculos(placa)')
-      .order('nombre');
-
-    const buscar = req.query.buscar ? textoBuscable(req.query.buscar) : '';
+    const buscar = req.query.buscar;
+    let clientes;
     if (buscar) {
-      consulta = consulta.or(`nombre.ilike.%${buscar}%,telefono.ilike.%${buscar}%`);
+      clientes = await buscarClientes(req.tenant, buscar);
+    } else {
+      const { data, error } = await req.tenant.listar('clientes', COLUMNAS_LISTA).order('nombre');
+      if (error) throw error;
+      clientes = data;
     }
-
-    const { data, error } = await consulta;
-    if (error) throw error;
-    res.json(data.map((c) => descifrarCampos(c)));
+    res.json(clientes.map((c) => descifrarCampos(c)));
   } catch (err) {
     next(err);
   }
@@ -87,7 +111,15 @@ export async function actualizar(req, res, next) {
   try {
     const { nombre, telefono, correo } = req.body;
     const cambios = { nombre, telefono, correo: correo === undefined ? undefined : cifrar(correo) };
-    res.json(descifrarCampos(await req.tenant.actualizar('clientes', req.params.id, cambios, '*', 'Cliente')));
+    let cliente;
+    try {
+      cliente = await req.tenant.actualizar('clientes', req.params.id, cambios, '*', 'Cliente');
+    } catch (err) {
+      // El teléfono ya es de otro cliente: se responde igual que al registrar (HU-03 CA3).
+      const dueno = err.codigo === 'CONFLICTO' && telefono ? await buscarPorTelefono(req.tenant, telefono) : null;
+      throw dueno && dueno.id !== req.params.id ? telefonoRepetido(dueno) : err;
+    }
+    res.json(descifrarCampos(cliente));
   } catch (err) {
     next(err);
   }

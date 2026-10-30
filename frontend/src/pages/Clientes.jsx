@@ -1,10 +1,12 @@
 // HU-03 y HU-04 · Clientes (ZARU-4, ZARU-5)
 // 📘 EJEMPLO DE REFERENCIA: así se piden datos al backend y se muestran en una tabla.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 import Modal from '../components/Modal.jsx';
+import Notificacion from '../components/Notificacion.jsx';
 import FormularioCliente from '../components/FormularioCliente.jsx';
 import DetalleCliente from '../components/DetalleCliente.jsx';
+import FormularioEditarCliente from '../components/FormularioEditarCliente.jsx';
 
 const ESPERA_BUSQUEDA_MS = 250;
 
@@ -16,7 +18,9 @@ export default function Clientes() {
   const [recargas, setRecargas] = useState(0);
   const [registrando, setRegistrando] = useState(false);
   const [clienteAbierto, setClienteAbierto] = useState(null);
+  const [clienteEditando, setClienteEditando] = useState(null);
   const [confirmacion, setConfirmacion] = useState(null);
+  const cerrarConfirmacion = useCallback(() => setConfirmacion(null), []);
 
   useEffect(() => {
     let vigente = true; // Una respuesta lenta no reemplaza los resultados de una búsqueda más reciente.
@@ -44,12 +48,26 @@ export default function Clientes() {
     setBuscar(''); // Una búsqueda activa podría ocultar al cliente recién creado.
     setRecargas((n) => n + 1);
     // CA1: el cliente queda creado con la fecha de autorización registrada.
-    setConfirmacion({ nombre: cliente.nombre, fecha: new Date(cliente.fecha_autorizacion).toLocaleString('es-CO') });
+    setConfirmacion({ id: Date.now(), titulo: 'Cliente registrado', detalle: `${cliente.nombre}. Autorización de datos: ${new Date(cliente.fecha_autorizacion).toLocaleString('es-CO')}` });
+  }
+
+  function alEditar(cliente) {
+    setClienteEditando(null);
+    setClienteAbierto(null);
+    setRecargas((n) => n + 1);
+    // HU-04 CA2: mensaje de confirmación. La búsqueda se conserva para seguir donde se estaba.
+    setConfirmacion({ id: Date.now(), titulo: 'Cambios guardados', detalle: cliente.nombre });
+  }
+
+  function abrirCliente(id, titulo) {
+    setConfirmacion(null);
+    setClienteAbierto({ id, titulo });
   }
 
   function abrirExistente(id) {
     setRegistrando(false);
-    setClienteAbierto(id);
+    setClienteEditando(null);
+    abrirCliente(id, 'Cliente existente');
   }
 
   return (
@@ -67,32 +85,35 @@ export default function Clientes() {
         </button>
       </div>
 
-      <div role="status">
-        {confirmacion && (
-          <div className="aviso aviso-exito">
-            <span aria-hidden="true">✓</span>
-            <p>
-              <strong>Cliente registrado: {confirmacion.nombre}.</strong> Autorización de datos: {confirmacion.fecha}
-            </p>
-            <button type="button" className="boton-icono" aria-label="Cerrar mensaje" onClick={() => setConfirmacion(null)}>
-              ×
-            </button>
-          </div>
-        )}
+      {/* La región existe siempre para que los lectores de pantalla anuncien la notificación al aparecer. */}
+      <div className="notificaciones" role="status">
+        {confirmacion && <Notificacion key={confirmacion.id} titulo={confirmacion.titulo} detalle={confirmacion.detalle} onCerrar={cerrarConfirmacion} />}
       </div>
 
       {registrando && <FormularioCliente onCreado={alCrear} onAbrirExistente={abrirExistente} onCancelar={() => setRegistrando(false)} />}
 
       {clienteAbierto && (
-        <Modal titulo="Cliente existente" onCerrar={() => setClienteAbierto(null)}>
-          <DetalleCliente id={clienteAbierto} onCerrar={() => setClienteAbierto(null)} />
+        <Modal titulo={clienteAbierto.titulo} onCerrar={() => setClienteAbierto(null)}>
+          <DetalleCliente id={clienteAbierto.id} onEditar={setClienteEditando} onCerrar={() => setClienteAbierto(null)} />
         </Modal>
+      )}
+
+      {/* El detalle queda abierto debajo: al cancelar la edición se vuelve a él. */}
+      {clienteEditando && (
+        <FormularioEditarCliente
+          key={clienteEditando.id}
+          cliente={clienteEditando}
+          onGuardado={alEditar}
+          onAbrirExistente={abrirExistente}
+          onCancelar={() => setClienteEditando(null)}
+        />
       )}
 
       <input
         type="search"
-        aria-label="Buscar clientes por nombre o teléfono"
-        placeholder="Buscar por nombre o teléfono…"
+        aria-label="Buscar clientes por nombre, teléfono o placa"
+        placeholder="Buscar por nombre, teléfono o placa…"
+        maxLength={60}
         value={buscar}
         onChange={(e) => setBuscar(e.target.value)}
       />
@@ -111,20 +132,42 @@ export default function Clientes() {
               <th scope="col">Teléfono</th>
               <th scope="col">Correo</th>
               <th scope="col">Vehículos</th>
+              <th scope="col" className="tabla-acciones" aria-label="Acciones" />
             </tr>
           </thead>
           <tbody>
             {clientes.map((c) => (
               <tr key={c.id}>
-                <td>{c.nombre}</td>
+                <td>
+                  <button type="button" className="enlace-tabla" onClick={() => abrirCliente(c.id, 'Detalle del cliente')}>
+                    {c.nombre}
+                  </button>
+                </td>
                 <td>{c.telefono}</td>
                 <td>{c.correo || '—'}</td>
                 <td>{c.vehiculos?.map((v) => v.placa).join(', ') || '—'}</td>
+                <td className="tabla-acciones">
+                  <button
+                    type="button"
+                    className="boton-editar"
+                    title="Editar"
+                    aria-label={`Editar a ${c.nombre}`}
+                    onClick={() => {
+                      setConfirmacion(null);
+                      setClienteEditando(c);
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                    </svg>
+                  </button>
+                </td>
               </tr>
             ))}
             {clientes.length === 0 && !error && (
               <tr>
-                <td colSpan={4} className="tabla-vacia">
+                <td colSpan={5} className="tabla-vacia">
                   {cargando ? 'Cargando clientes…' : buscar ? `No hay clientes que coincidan con "${buscar}".` : 'Aún no hay clientes. Registra el primero con "+ Nuevo cliente".'}
                 </td>
               </tr>
