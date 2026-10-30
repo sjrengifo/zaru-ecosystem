@@ -120,6 +120,14 @@ export function crearAccesoTenant(db, ctx) {
       return data;
     },
 
+    /**
+     * Consulta con una función que devuelve filas de una tabla y que filtra por p_establecimiento_id.
+     * Como `listar`, devuelve el query builder para elegir columnas relacionadas y seguir encadenando.
+     */
+    consultarFuncion(funcion, argumentos = {}, columnas = '*') {
+      return db.rpc(funcion, { ...argumentos, p_establecimiento_id: establecimientoId }).select(columnas);
+    },
+
     /** Elimina un registro del establecimiento. Lanza NO_ENCONTRADO si no le pertenece. */
     async eliminar(tabla, id, recurso) {
       if (!esUuid(id)) throw noEncontrado(recurso);

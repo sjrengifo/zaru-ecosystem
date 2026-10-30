@@ -125,7 +125,7 @@ paths:
       parameters:
         - name: buscar
           in: query
-          description: Texto a buscar en el nombre o el teléfono (máximo 60 caracteres).
+          description: Texto a buscar en el nombre, el teléfono o la placa, sin distinguir mayúsculas ni tildes (máximo 60 caracteres).
           schema: { type: string, maxLength: 60 }
           example: Ana
       responses:
@@ -225,7 +225,17 @@ paths:
         '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
-        '409': { $ref: '#/components/responses/Conflicto' }
+        '409':
+          description: El teléfono ya pertenece a otro cliente del establecimiento.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  codigo: CONFLICTO
+                  mensaje: Ya existe un cliente con ese teléfono
+                  detalles: [{ campo: telefono, mensaje: El teléfono ya está registrado a nombre de Ana Gómez, clienteId: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10 }]
+                  requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a
 
   /clientes/{id}/consentimientos:
     parameters:

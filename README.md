@@ -243,7 +243,7 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, requieren el encabezado `
 | GET | `/health` | Público | Estado del servicio | Implementado |
 | GET | `/me` | Admin, Operario | Usuario, rol, establecimiento y vencimiento de la sesión | Implementado |
 | GET | `/politicas-datos/vigente` | Público | Política de tratamiento de datos vigente (versión y texto) | Implementado |
-| GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes | Implementado |
+| GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes por nombre, teléfono o placa | Implementado |
 | GET | `/clientes/:id` | Admin, Operario | Detalle de cliente con sus vehículos | Implementado |
 | POST | `/clientes` | Admin, Operario | Registrar cliente con autorización de datos y versión de la política (`politicaVersion`) | Implementado |
 | PUT | `/clientes/:id` | Admin, Operario | Actualizar cliente | Implementado |

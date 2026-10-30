@@ -23,6 +23,10 @@ export function crearSupabaseFalso(respuesta = { data: null, error: null }) {
       llamadas.push(['from', tabla]);
       return builder;
     },
+    rpc(funcion, argumentos) {
+      llamadas.push(['rpc', funcion, argumentos]);
+      return builder;
+    },
     responder(nueva) {
       respuesta = nueva;
     },

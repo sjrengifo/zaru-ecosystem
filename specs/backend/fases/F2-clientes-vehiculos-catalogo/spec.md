@@ -23,7 +23,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 | RF-F2-04 | Cada autorización otorgada o revocada se guarda como evidencia inmutable con fecha, hora, canal, IP y versión de la política vigente. | HU-30 CA4, HU-51 CA2 |
 | RF-F2-05 | El establecimiento consulta el historial completo de autorizaciones de un cliente para auditoría. | HU-30 CA4 |
 | RF-F2-06 | Si el celular ya existe en el establecimiento, el registro responde `409` con el id y nombre del cliente existente. | HU-03 CA3 |
-| RF-F2-07 | Listar clientes con búsqueda por nombre (parcial, sin tildes), celular o placa, con paginación. | HU-04 CA1 |
+| RF-F2-07 | Listar clientes con búsqueda por nombre (parcial, sin tildes), celular o placa. La paginación queda pendiente. | HU-04 CA1 |
 | RF-F2-08 | Actualizar nombre, celular y correo de un cliente; el cambio se refleja en todos los módulos. | HU-04 CA2, HU-52 CA2 |
 | RF-F2-09 | Anonimizar un cliente a solicitud del titular: se reemplazan sus datos personales de forma irreversible, se conservan las órdenes para estadísticas y se registra la gestión. | HU-52 CA3 |
 | RF-F2-10 | `GET /politicas-datos/vigente` devuelve la versión y URL de la política vigente. | HU-51 CA1 |

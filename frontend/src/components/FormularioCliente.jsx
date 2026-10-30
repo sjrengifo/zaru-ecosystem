@@ -1,21 +1,18 @@
 // HU-03 · Registrar cliente con autorización de datos (ZARU-4) y HU-51 CA1: la política se muestra antes de aceptar.
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../services/api.js';
+import { limpiarTelefono, validarContacto } from '../lib/validacionCliente.js';
+import { useFocoEnError } from '../hooks/useFocoEnError.js';
 import Modal from './Modal.jsx';
 import CampoTexto from './CampoTexto.jsx';
 import MensajeError from './MensajeError.jsx';
+import AvisoClienteExistente from './AvisoClienteExistente.jsx';
+import PieFormulario from './PieFormulario.jsx';
 
 const CAMPOS = ['nombre', 'telefono', 'correo', 'autorizacionDatos'];
-const limpiarTelefono = (telefono) => telefono.replace(/[\s-]/g, '');
 
-/** Los mismos mensajes de la API, para mostrar todos los errores de una vez. La API sigue siendo quien decide. */
-function validar({ nombre, telefono, correo, autoriza }) {
-  const errores = {};
-  if (!nombre.trim()) errores.nombre = 'El nombre es obligatorio';
-  if (!telefono.trim()) errores.telefono = 'El teléfono es obligatorio';
-  else if (!/^3\d{9}$/.test(limpiarTelefono(telefono))) errores.telefono = 'El teléfono debe ser un celular colombiano de 10 dígitos que empiece por 3';
-  if (!correo.trim()) errores.correo = 'El correo es obligatorio';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim())) errores.correo = 'El correo no tiene un formato válido';
+function validar({ autoriza, ...contacto }) {
+  const errores = validarContacto(contacto);
   if (!autoriza) errores.autorizacionDatos = 'La autorización de tratamiento de datos es obligatoria (Ley 1581 de 2012)';
   return errores;
 }
@@ -61,15 +58,7 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
     cargarPolitica();
   }, []);
 
-  // Tras cada intento de guardar, el foco va a lo primero que hay que resolver (WCAG 3.3.1).
-  useEffect(() => {
-    if (!intentos) return;
-    const control = formulario.current.querySelector('[aria-invalid="true"], [data-foco-error]');
-    control?.focus();
-    // El mensaje queda debajo del control y puede no verse aunque el control sí.
-    const idMensaje = control?.getAttribute('aria-describedby')?.split(' ').pop();
-    if (idMensaje) document.getElementById(idMensaje)?.scrollIntoView({ block: 'nearest' });
-  }, [intentos]);
+  useFocoEnError(formulario, intentos);
 
   function quitarError(campo) {
     setErrores(({ [campo]: _, ...resto }) => resto);
@@ -167,23 +156,7 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
             }}
           />
 
-          {existente && (
-            <div className="tarjeta-duplicado" role="alert">
-              <span className="tarjeta-duplicado-icono" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="8" r="4" />
-                  <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
-                </svg>
-              </span>
-              <div className="tarjeta-duplicado-texto">
-                <p className="tarjeta-duplicado-titulo">Este cliente ya existe</p>
-                <p>{existente.mensaje}.</p>
-                <button type="button" className="boton-duplicado" data-foco-error onClick={() => onAbrirExistente(existente.id)}>
-                  Abrir cliente existente <span aria-hidden="true">→</span>
-                </button>
-              </div>
-            </div>
-          )}
+          {existente && <AvisoClienteExistente mensaje={existente.mensaje} onAbrir={() => onAbrirExistente(existente.id)} />}
 
           <CampoTexto
             id="cliente-correo"
@@ -251,36 +224,19 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
           )}
         </div>
 
-        {confirmarDescarte ? (
-          <div className="modal-acciones modal-acciones-confirmar" role="alertdialog" aria-label="Confirmar descarte">
-            <p>¿Descartar los datos de este cliente?</p>
-            <div>
-              <button
-                type="button"
-                className="boton secundario"
-                autoFocus
-                onClick={() => {
-                  setConfirmarDescarte(false);
-                  formulario.current.querySelector('[data-foco-inicial]').focus();
-                }}
-              >
-                Seguir editando
-              </button>
-              <button type="button" className="boton peligro" onClick={onCancelar}>
-                Descartar
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="modal-acciones">
-            <button type="button" className="boton secundario" onClick={intentarCerrar}>
-              Cancelar
-            </button>
-            <button className="boton" disabled={enviando || !politica}>
-              {enviando ? 'Guardando…' : 'Guardar cliente'}
-            </button>
-          </div>
-        )}
+        <PieFormulario
+          textoGuardar="Guardar cliente"
+          textoDescarte="¿Descartar los datos de este cliente?"
+          confirmando={confirmarDescarte}
+          enviando={enviando}
+          deshabilitado={!politica}
+          onCancelar={intentarCerrar}
+          onSeguirEditando={() => {
+            setConfirmarDescarte(false);
+            formulario.current.querySelector('[data-foco-inicial]').focus();
+          }}
+          onDescartar={onCancelar}
+        />
       </form>
     </Modal>
   );
