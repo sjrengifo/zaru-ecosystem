@@ -13,14 +13,12 @@ const telefono = z
   .string({ required_error: 'El teléfono es obligatorio', invalid_type_error: 'El teléfono debe ser texto' })
   .trim()
   .regex(/^3\d{9}$/, 'El teléfono debe ser un celular colombiano de 10 dígitos que empiece por 3');
+// Obligatorio desde la política 1.1: es un canal de notificación (HU-46). El pipe evita dos errores para un correo vacío.
 const correo = z
-  .string({ invalid_type_error: 'El correo debe ser texto' })
+  .string({ required_error: 'El correo es obligatorio', invalid_type_error: 'El correo debe ser texto' })
   .trim()
-  .email('El correo no tiene un formato válido')
-  .max(254)
-  .nullable()
-  .optional()
-  .or(z.literal('').transform(() => null));
+  .min(1, 'El correo es obligatorio')
+  .pipe(z.string().email('El correo no tiene un formato válido').max(254, 'El correo admite máximo 254 caracteres'));
 
 export const clienteNuevo = z.object({
   nombre,
@@ -36,7 +34,7 @@ export const clienteNuevo = z.object({
 });
 
 export const clienteCambios = z
-  .object({ nombre: nombre.optional(), telefono: telefono.optional(), correo })
+  .object({ nombre: nombre.optional(), telefono: telefono.optional(), correo: correo.optional() })
   .refine((v) => Object.values(v).some((x) => x !== undefined), { message: 'Envía al menos un dato para actualizar' });
 
 export const busquedaClientes = z.object({

@@ -60,6 +60,7 @@ La tabla `notificaciones` sigue el patrón *outbox* (ADR-03). La lógica de env�
 | `20261028132235` | `hu44_auditoria_y_claims_de_sesion` | Tabla `auditoria` inmutable y hook que agrega rol y establecimiento al token |
 | `20261028132259` | `hu44_search_path_auditoria` | Fija el `search_path` de la función de la auditoría (asesor de seguridad) |
 | `20261028135510` | `hu51_politica_y_consentimientos` | Política de datos versionada, evidencia inmutable de autorizaciones y registro atómico de cliente + autorización |
+| `20261030210000` | `hu03_politica_v1_1_correo_obligatorio` | Publica la versión 1.1 de la política de datos: el correo electrónico pasa a ser obligatorio |
 
 **Reglas:**
 

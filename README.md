@@ -99,7 +99,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
 | `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
 | `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
-| `politicas_datos` | Versiones de la política de tratamiento de datos; una versión publicada no se modifica ([texto v1.0](docs/legal/politica-tratamiento-datos-v1.0.md)) | HU-51 |
+| `politicas_datos` | Versiones de la política de tratamiento de datos; una versión publicada no se modifica ([texto v1.0](docs/legal/politica-tratamiento-datos-v1.0.md), [texto v1.1](docs/legal/politica-tratamiento-datos-v1.1.md)) | HU-51 |
 | `consentimientos` | Evidencia inmutable de cada autorización o revocación: fecha, hora, versión de la política, canal, IP y usuario | HU-51, HU-30 |
 
 ### Seguridad multi-tenant

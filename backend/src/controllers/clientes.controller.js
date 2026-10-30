@@ -36,34 +36,46 @@ export async function obtener(req, res, next) {
   }
 }
 
+async function buscarPorTelefono(tenant, telefono) {
+  const { data, error } = await tenant.listar('clientes', 'id, nombre').eq('telefono', telefono).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+const telefonoRepetido = (existente) =>
+  new AppError('CONFLICTO', 'Ya existe un cliente con ese teléfono', [
+    { campo: 'telefono', mensaje: `El teléfono ya está registrado a nombre de ${existente.nombre}`, clienteId: existente.id },
+  ]);
+
 /** HU-03 y HU-51: registrar cliente con autorización de datos (Ley 1581). */
 export async function crear(req, res, next) {
   try {
     const { nombre, telefono, correo } = req.body;
 
     // CA3: teléfono repetido en el mismo establecimiento.
-    const { data: existente } = await req.tenant
-      .listar('clientes', 'id, nombre')
-      .eq('telefono', telefono)
-      .maybeSingle();
-    if (existente) {
-      throw new AppError('CONFLICTO', 'Ya existe un cliente con ese teléfono', [
-        { campo: 'telefono', mensaje: `El teléfono ya está registrado a nombre de ${existente.nombre}`, clienteId: existente.id },
-      ]);
-    }
+    const existente = await buscarPorTelefono(req.tenant, telefono);
+    if (existente) throw telefonoRepetido(existente);
 
     // HU-51: cliente y evidencia de autorización en una sola transacción. Si la versión aceptada no es
     // la vigente, la base rechaza todo y no queda ningún dato personal guardado (CA3).
-    const [cliente] = await req.tenant.rpc('crear_cliente_con_consentimiento', {
-      p_nombre: nombre,
-      p_telefono: telefono,
-      p_correo: cifrar(correo ?? null),
-      p_autoriza: req.body.autorizacionDatos,
-      p_politica_version: req.body.politicaVersion,
-      p_canal: 'panel',
-      p_ip: req.ip ?? null,
-      p_registrado_por: req.ctx.usuarioId,
-    });
+    let cliente;
+    try {
+      [cliente] = await req.tenant.rpc('crear_cliente_con_consentimiento', {
+        p_nombre: nombre,
+        p_telefono: telefono,
+        p_correo: cifrar(correo),
+        p_autoriza: req.body.autorizacionDatos,
+        p_politica_version: req.body.politicaVersion,
+        p_canal: 'panel',
+        p_ip: req.ip ?? null,
+        p_registrado_por: req.ctx.usuarioId,
+      });
+    } catch (err) {
+      // CA3: dos registros simultáneos pasan la consulta anterior y la base rechaza el segundo;
+      // se responde igual que un duplicado normal para poder ofrecer abrir el cliente existente.
+      const ganador = err.codigo === 'CONFLICTO' ? await buscarPorTelefono(req.tenant, telefono) : null;
+      throw ganador ? telefonoRepetido(ganador) : err;
+    }
     res.status(201).json(descifrarCampos(cliente));
   } catch (err) {
     next(err);

@@ -29,7 +29,7 @@ describe.skipIf(!listo)(`Cifrado en reposo${listo ? '' : ` (omitida: faltan ${[.
     const res = await request(app)
       .post('/api/v1/clientes')
       .set('Authorization', `Bearer ${token}`)
-      .send({ nombre: '[Prueba HU-50] Titular', telefono: TELEFONO, correo: CORREO, autorizacionDatos: true, politicaVersion: '1.0' });
+      .send({ nombre: '[Prueba HU-50] Titular', telefono: TELEFONO, correo: CORREO, autorizacionDatos: true, politicaVersion: (await request(app).get('/api/v1/politicas-datos/vigente')).body.version });
     expect(res.status).toBe(201);
     expect(res.body.correo).toBe(CORREO);
     clienteId = res.body.id;

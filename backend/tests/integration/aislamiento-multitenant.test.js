@@ -108,8 +108,9 @@ describe.skipIf(!hayEntornoIntegracion)(`Aislamiento multi-tenant${hayEntornoInt
       const res = await post('/api/clientes', 'A', {
         nombre: `${ETIQUETA} Intento de cruce`,
         telefono: '3100004141',
+        correo: 'cruce.hu41@correo.com',
         autorizacionDatos: true,
-        politicaVersion: '1.0',
+        politicaVersion: (await request(app).get('/api/v1/politicas-datos/vigente')).body.version,
         establecimiento_id: EST_B,
       });
       expect(res.status).toBe(201);
