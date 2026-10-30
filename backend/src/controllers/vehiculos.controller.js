@@ -1,9 +1,7 @@
 // HU-05 y HU-06 — Lógica de vehículos.
 // - Multi-tenant (HU-41): todo acceso a datos pasa por req.tenant.
 // - Validación (HU-43): las rutas validan con schemas/vehiculos.schemas.js antes de llegar aquí.
-// TODO HU-06: historial = órdenes "entregado" del vehículo con fecha, servicios y valor.
 import { AppError } from '../shared/errores.js';
-import { pendiente } from './pendiente.js';
 
 /** Vehículos del establecimiento con su cliente; opcionalmente, los que contienen el texto en la placa. */
 export async function listar(req, res, next) {
@@ -61,4 +59,30 @@ export async function crear(req, res, next) {
   }
 }
 
-export const historial = pendiente('HU-06');
+/**
+ * HU-06: servicios ya entregados de un vehículo, del más reciente al más antiguo.
+ * Precios y total son los guardados en la orden, no los actuales del catálogo (HU-07 CA2).
+ */
+export async function historial(req, res, next) {
+  try {
+    await req.tenant.obtener('vehiculos', req.params.id, 'id', 'Vehículo');
+
+    const { data, error } = await req.tenant
+      .listar('ordenes', 'id, entregada_at, created_at, subtotal, descuento, total, orden_servicios(precio, servicios(nombre))')
+      .eq('vehiculo_id', req.params.id)
+      .eq('estado', 'entregado');
+    if (error) throw error;
+
+    const servicios = data.map((orden) => ({
+      ordenId: orden.id,
+      fecha: orden.entregada_at ?? orden.created_at,
+      servicios: orden.orden_servicios.map((s) => ({ nombre: s.servicios.nombre, precio: s.precio })),
+      subtotal: orden.subtotal,
+      descuento: orden.descuento,
+      total: orden.total,
+    }));
+    res.json(servicios.sort((a, b) => new Date(b.fecha) - new Date(a.fecha)));
+  } catch (err) {
+    next(err);
+  }
+}

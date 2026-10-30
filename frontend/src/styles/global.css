@@ -88,6 +88,7 @@ label { display: block; font-size: 14px; }
 .layout { display: flex; min-height: 100vh; }
 
 .menu {
+  flex-shrink: 0;
   width: 220px;
   background: var(--color-superficie);
   border-right: 1px solid var(--color-borde);
@@ -107,14 +108,17 @@ label { display: block; font-size: 14px; }
 
 .logo { color: var(--color-primario); font-size: 28px; }
 
-.contenido { flex: 1; padding: calc(var(--espacio) * 2); }
+.contenido { flex: 1; min-width: 0; padding: calc(var(--espacio) * 2); }
 
 .encabezado {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   margin-bottom: var(--espacio);
 }
+.encabezado h2 { margin: 0; }
 
 /* ---------- Login ---------- */
 .login { min-height: 100vh; display: grid; place-items: center; padding: var(--espacio); }
@@ -124,9 +128,8 @@ label { display: block; font-size: 14px; }
 /* ---------- Dashboard ---------- */
 .tablero {
   display: grid;
-  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--espacio);
-  overflow-x: auto;
 }
 .columna { display: flex; flex-direction: column; gap: 8px; }
 .tarjeta-vehiculo { display: flex; justify-content: space-between; }
@@ -144,6 +147,7 @@ label { display: block; font-size: 14px; }
   padding: 12px;
   border-bottom: 1px solid var(--color-borde);
 }
+.tabla td[data-etiqueta='Correo'] { overflow-wrap: anywhere; } /* Un correo largo se parte en vez de desbordar la tabla. */
 .tabla th {
   font-size: 13px;
   font-weight: 700;
@@ -156,6 +160,7 @@ label { display: block; font-size: 14px; }
 .modal {
   width: min(560px, calc(100vw - 2 * var(--espacio)));
   max-height: calc(100vh - 2 * var(--espacio));
+  max-height: calc(100dvh - 2 * var(--espacio)); /* En celular, descuenta las barras del navegador. */
   overflow-y: auto;
   border: 1px solid var(--color-borde);
   border-radius: var(--radio);
@@ -401,6 +406,29 @@ input[aria-invalid='true'] { border-color: var(--color-error); background: var(-
 .opcion:has(input:checked) { border-color: var(--color-primario); background: var(--color-fondo); font-weight: 600; }
 .opcion input { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--color-primario); }
 
+.enlace-accion {
+  min-height: 44px;
+  margin: -8px 0 -8px auto;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--color-primario);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.enlace-accion:hover { color: var(--color-primario-hover); text-decoration: underline; }
+.historial { margin-top: var(--espacio); padding-top: var(--espacio); border-top: 1px solid var(--color-borde); }
+.historial h4 { margin: 0 0 8px; font-size: 15px; }
+.historial > .texto-suave { margin: 0; }
+.lista-historial { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lista-historial > li { padding: 10px 12px; border: 1px solid var(--color-borde); border-radius: var(--radio); }
+.historial-encabezado { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.historial-encabezado time { color: var(--color-texto-suave); }
+.historial-servicios { margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; }
+.historial-servicios li { display: flex; justify-content: space-between; gap: 12px; padding-top: 2px; color: var(--color-texto-suave); }
+
 /* ---------- Notificaciones ---------- */
 .notificaciones {
   position: fixed;
@@ -456,9 +484,82 @@ input[aria-invalid='true'] { border-color: var(--color-error); background: var(-
   .notificacion { animation: none; }
 }
 
+/* ---------- Tablas como tarjetas: sin deslizar de lado para llegar a los datos o las acciones ---------- */
+@media (max-width: 900px) {
+  .tabla, .tabla tbody, .tabla tr { display: block; width: 100%; }
+  .tabla { background: none; overflow: visible; }
+  .tabla thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .tabla tbody tr {
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    background: var(--color-superficie);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+  }
+  .tabla td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 4px 0;
+    border: none;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+  .tabla td[data-etiqueta]::before {
+    content: attr(data-etiqueta);
+    flex-shrink: 0;
+    font-size: 13px;
+    color: var(--color-texto-suave);
+  }
+  .tabla td:first-child { text-align: left; }
+  .tabla .tabla-acciones {
+    width: auto;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-top: 4px;
+    border-top: 1px solid var(--color-borde);
+  }
+  .tabla .tabla-vacia { display: block; padding: var(--espacio); text-align: center; }
+  .enlace-tabla, .boton-fila { margin: 0; }
+  .tabla td[data-etiqueta] .enlace-tabla { text-align: right; }
+}
+
 /* ---------- Celular ---------- */
 @media (max-width: 768px) {
   .layout { flex-direction: column; }
-  .menu { width: 100%; }
+
+  /* El menú lateral pasa a ser una barra: logo y salir arriba, y las opciones se deslizan de lado. */
+  .menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px var(--espacio);
+    border-right: none;
+    border-bottom: 1px solid var(--color-borde);
+  }
+  .menu .logo { margin: 0; font-size: 24px; }
+  .menu nav {
+    position: relative;
+    order: 3;
+    flex: 0 0 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .menu nav::-webkit-scrollbar { display: none; }
+  .menu-item { display: flex; flex-shrink: 0; align-items: center; min-height: 44px; }
   .contenido { padding: var(--espacio); }
+}
+
+@media (max-width: 480px) {
+  .modal-encabezado, .modal-acciones, .modal-cuerpo { padding-inline: var(--espacio); }
+  .modal-acciones .boton { flex: 1; }
+  .modal-acciones-confirmar div { width: 100%; }
+  .encabezado .boton { width: 100%; }
+  .detalle { grid-template-columns: 1fr; gap: 0; }
+  .detalle dd { margin-bottom: 8px; }
 }
