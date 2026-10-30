@@ -64,7 +64,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 **ESC-F2-02 — Registro sin autorización** (RF-F2-02 · HU-03 CA2, HU-51 CA3)
 - **Dado** que la autorización no se otorga
 - **Cuando** intento registrar el cliente
-- **Entonces** recibo `400` con el campo `autorizaciones.tratamientoDatos` y no existe ninguna fila nueva en `clientes`.
+- **Entonces** recibo `400` con el campo `autorizacionDatos` y no existe ninguna fila nueva en `clientes`.
 
 **ESC-F2-03 — Autorizaciones separadas** (RF-F2-03 · HU-30 CA1)
 - **Dado** un registro que solo otorga la autorización de tratamiento
@@ -74,7 +74,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 **ESC-F2-04 — Celular duplicado** (RF-F2-06 · HU-03 CA3)
 - **Dado** un cliente con celular 3001234567
 - **Cuando** registro otro cliente con el mismo celular
-- **Entonces** recibo `409` con `detalles.clienteExistente`.
+- **Entonces** recibo `409` con el id del cliente existente en `detalles[0].clienteId`, también si dos registros llegan al mismo tiempo.
 
 **ESC-F2-05 — Búsqueda** (RF-F2-07 · HU-04 CA1)
 - **Dado** el cliente "José Pérez" con el vehículo ABC123

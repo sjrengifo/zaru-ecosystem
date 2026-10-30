@@ -13,7 +13,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 |---|---|---|---|---|---|---|---|---|---|
 | HU-01 Iniciar sesión en el panel administrativo | ZARU-2 | 5 | Must | Yeliani | F1 | RF-F1-01, 04, 06 | ESC-F1-01, 04 | — | En desarrollo |
 | HU-02 Gestionar usuarios operarios del establecimiento | ZARU-3 | 5 | Must | Yeliani | F1 | RF-F1-03, 05, 07, 08 | ESC-F1-03, 05, 06, 08 | — | Pendiente |
-| HU-03 Registrar cliente con autorización de datos | ZARU-4 | 3 | Must | Nikol | F2 | RF-F2-01 a 06 | ESC-F2-01 a 04 | — | Pendiente |
+| HU-03 Registrar cliente con autorización de datos | ZARU-4 | 3 | Must | Nikol | F2 | RF-F2-01 a 06 | ESC-F2-01 a 04 | `tests/unit/clientes.test.js` · `tests/integration/habeas-data.test.js` | En desarrollo |
 | HU-04 Consultar y editar clientes | ZARU-5 | 2 | Should | Nikol | F2 | RF-F2-07, 08 | ESC-F2-05 | — | Pendiente |
 | HU-05 Registrar vehículo asociado a un cliente | ZARU-6 | 3 | Must | Nikol | F2 | RF-F2-11 a 14 | ESC-F2-06 | — | Pendiente |
 | HU-06 Consultar historial de servicios de un vehículo | ZARU-7 | 3 | Should | Nikol | F2 | RF-F2-15 | ESC-F2-07 | — | Pendiente |

@@ -55,6 +55,8 @@ describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? ''
       expect(res.status).toBe(201);
       clienteId = res.body.id;
       creados.push(clienteId);
+      // HU-03 CA1: el cliente queda con la fecha de autorización registrada.
+      expect(new Date(res.body.fecha_autorizacion).getTime()).toBeGreaterThanOrEqual(antes - 5000);
 
       const { data } = await admin.from('consentimientos').select('*').eq('cliente_id', clienteId);
       expect(data).toHaveLength(1);
