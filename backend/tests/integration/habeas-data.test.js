@@ -8,7 +8,7 @@ const ADMIN_A = '00000000-0000-0000-0000-0000000a0058';
 const TEL = { valido: '3005151001', sinAutorizar: '3005151002', versionVieja: '3005151003' };
 
 describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? '' : ` (omitida: faltan ${faltantes.join(', ')})`}`, () => {
-  let request, app, admin;
+  let request, app, admin, politicaVigente;
   const tokens = {};
   const creados = [];
 
@@ -23,6 +23,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? ''
       if (error) throw error;
       tokens[quien] = data.session.access_token;
     }
+    politicaVigente = (await request(app).get('/api/v1/politicas-datos/vigente')).body.version;
   });
 
   afterAll(async () => {
@@ -37,7 +38,8 @@ describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? ''
     it('GET /api/v1/politicas-datos/vigente es pública y devuelve versión y texto', async () => {
       const res = await request(app).get('/api/v1/politicas-datos/vigente');
       expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ version: '1.0', titulo: 'Política de tratamiento de datos personales' });
+      expect(res.body.version).toMatch(/^\d+\.\d+$/);
+      expect(res.body.titulo).toBe('Política de tratamiento de datos personales');
       expect(res.body.contenido).toContain('Ley 1581 de 2012');
       expect(res.body.contenido).toContain('Derechos del titular');
     });
@@ -51,7 +53,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? ''
       const res = await request(app)
         .post('/api/v1/clientes')
         .use(con('A'))
-        .send({ nombre: '[Prueba HU-51] Titular', telefono: TEL.valido, autorizacionDatos: true, politicaVersion: '1.0' });
+        .send({ nombre: '[Prueba HU-51] Titular', telefono: TEL.valido, correo: 'titular.hu51@correo.com', autorizacionDatos: true, politicaVersion: politicaVigente });
       expect(res.status).toBe(201);
       clienteId = res.body.id;
       creados.push(clienteId);
@@ -65,7 +67,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? ''
         tipo: 'tratamiento_datos',
         otorgado: true,
         canal: 'panel',
-        politica_version: '1.0',
+        politica_version: politicaVigente,
         registrado_por: ADMIN_A,
       });
       expect(data[0].ip).toBeTruthy();
@@ -75,7 +77,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? ''
     it('el administrador consulta la evidencia de autorización del cliente', async () => {
       const res = await request(app).get(`/api/v1/clientes/${clienteId}/consentimientos`).use(con('A'));
       expect(res.status).toBe(200);
-      expect(res.body).toEqual([{ tipo: 'tratamiento_datos', otorgado: true, canal: 'panel', politicaVersion: '1.0', fecha: expect.any(String) }]);
+      expect(res.body).toEqual([{ tipo: 'tratamiento_datos', otorgado: true, canal: 'panel', politicaVersion: politicaVigente, fecha: expect.any(String) }]);
     });
 
     it('otro establecimiento no puede consultar esa evidencia', async () => {
@@ -96,7 +98,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? ''
       const res = await request(app)
         .post('/api/v1/clientes')
         .use(con('A'))
-        .send({ nombre: '[Prueba HU-51] Sin autorizar', telefono: TEL.sinAutorizar, autorizacionDatos: false, politicaVersion: '1.0' });
+        .send({ nombre: '[Prueba HU-51] Sin autorizar', telefono: TEL.sinAutorizar, correo: 'sinautorizar.hu51@correo.com', autorizacionDatos: false, politicaVersion: politicaVigente });
       expect(res.status).toBe(400);
       expect(res.body.error.detalles).toContainEqual({
         campo: 'autorizacionDatos',
@@ -109,7 +111,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? ''
       const res = await request(app)
         .post('/api/v1/clientes')
         .use(con('A'))
-        .send({ nombre: '[Prueba HU-51] Versión vieja', telefono: TEL.versionVieja, autorizacionDatos: true, politicaVersion: '0.9' });
+        .send({ nombre: '[Prueba HU-51] Versión vieja', telefono: TEL.versionVieja, correo: 'vieja.hu51@correo.com', autorizacionDatos: true, politicaVersion: '0.9' });
       expect(res.status).toBe(409);
       expect(res.body.error.detalles[0].campo).toBe('politicaVersion');
       expect(await clientesConTelefono(TEL.versionVieja)).toEqual([]);

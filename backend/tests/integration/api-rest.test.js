@@ -6,7 +6,7 @@ import { hayEntornoIntegracion, faltantes } from '../helpers/entorno.js';
 const CLIENTE_A = '00000000-0000-0000-0000-0000000ac058';
 
 describe.skipIf(!hayEntornoIntegracion)(`API REST${hayEntornoIntegracion ? '' : ` (omitida: faltan ${faltantes.join(', ')})`}`, () => {
-  let request, app, admin, token;
+  let request, app, admin, token, politicaVigente;
   const creados = [];
 
   beforeAll(async () => {
@@ -18,6 +18,7 @@ describe.skipIf(!hayEntornoIntegracion)(`API REST${hayEntornoIntegracion ? '' : 
     const { data, error } = await anon.auth.signInWithPassword({ email: process.env.SPIKE_A_EMAIL, password: process.env.SPIKE_PASSWORD });
     if (error) throw error;
     token = data.session.access_token;
+    politicaVigente = (await request(app).get('/api/v1/politicas-datos/vigente')).body.version;
   });
 
   afterAll(async () => {
@@ -32,7 +33,7 @@ describe.skipIf(!hayEntornoIntegracion)(`API REST${hayEntornoIntegracion ? '' : 
       const res = await request(app).post('/api/v1/clientes').use(conSesion).send({});
       expect(res.status).toBe(400);
       expect(res.body.error.codigo).toBe('VALIDACION');
-      expect(res.body.error.detalles.map((d) => d.campo)).toEqual(['nombre', 'telefono', 'autorizacionDatos', 'politicaVersion']);
+      expect(res.body.error.detalles.map((d) => d.campo)).toEqual(['nombre', 'telefono', 'correo', 'autorizacionDatos', 'politicaVersion']);
       const despues = await admin.from('clientes').select('id', { count: 'exact', head: true });
       expect(despues.count).toBe(antes.count);
     });
@@ -41,7 +42,7 @@ describe.skipIf(!hayEntornoIntegracion)(`API REST${hayEntornoIntegracion ? '' : 
       const res = await request(app)
         .post('/api/v1/clientes')
         .use(conSesion)
-        .send({ nombre: 'Duplicado', telefono: '3000000058', autorizacionDatos: true, politicaVersion: '1.0' });
+        .send({ nombre: 'Duplicado', telefono: '3000000058', correo: 'duplicado@correo.com', autorizacionDatos: true, politicaVersion: politicaVigente });
       expect(res.status).toBe(409);
       expect(res.body.error.codigo).toBe('CONFLICTO');
       expect(res.body.error.detalles[0]).toMatchObject({ campo: 'telefono', clienteId: CLIENTE_A });
@@ -51,10 +52,10 @@ describe.skipIf(!hayEntornoIntegracion)(`API REST${hayEntornoIntegracion ? '' : 
       const res = await request(app)
         .post('/api/v1/clientes')
         .use(conSesion)
-        .send({ nombre: '  [Prueba HU-43] Ana  ', telefono: '3004343434', correo: '', autorizacionDatos: true, politicaVersion: '1.0' });
+        .send({ nombre: '  [Prueba HU-43] Ana  ', telefono: '3004343434', correo: ' ana.hu43@correo.com ', autorizacionDatos: true, politicaVersion: politicaVigente });
       expect(res.status).toBe(201);
       creados.push(res.body.id);
-      expect(res.body).toMatchObject({ nombre: '[Prueba HU-43] Ana', telefono: '3004343434', correo: null, autorizacion_datos: true });
+      expect(res.body).toMatchObject({ nombre: '[Prueba HU-43] Ana', telefono: '3004343434', correo: 'ana.hu43@correo.com', autorizacion_datos: true });
     });
 
     it('PUT con un teléfono inválido responde 400 y no modifica el cliente', async () => {

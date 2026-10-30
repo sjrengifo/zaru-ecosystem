@@ -14,7 +14,8 @@ function validar({ nombre, telefono, correo, autoriza }) {
   if (!nombre.trim()) errores.nombre = 'El nombre es obligatorio';
   if (!telefono.trim()) errores.telefono = 'El teléfono es obligatorio';
   else if (!/^3\d{9}$/.test(limpiarTelefono(telefono))) errores.telefono = 'El teléfono debe ser un celular colombiano de 10 dígitos que empiece por 3';
-  if (correo.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim())) errores.correo = 'El correo no tiene un formato válido';
+  if (!correo.trim()) errores.correo = 'El correo es obligatorio';
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim())) errores.correo = 'El correo no tiene un formato válido';
   if (!autoriza) errores.autorizacionDatos = 'La autorización de tratamiento de datos es obligatoria (Ley 1581 de 2012)';
   return errores;
 }
@@ -187,6 +188,8 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
           <CampoTexto
             id="cliente-correo"
             etiqueta="Correo"
+            obligatorio
+            ayuda="Aquí le enviaremos los avisos del servicio."
             type="email"
             autoComplete="off"
             value={correo}

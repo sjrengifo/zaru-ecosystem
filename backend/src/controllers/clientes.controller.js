@@ -63,7 +63,7 @@ export async function crear(req, res, next) {
       [cliente] = await req.tenant.rpc('crear_cliente_con_consentimiento', {
         p_nombre: nombre,
         p_telefono: telefono,
-        p_correo: cifrar(correo ?? null),
+        p_correo: cifrar(correo),
         p_autoriza: req.body.autorizacionDatos,
         p_politica_version: req.body.politicaVersion,
         p_canal: 'panel',

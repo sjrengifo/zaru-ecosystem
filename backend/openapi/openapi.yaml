@@ -551,11 +551,11 @@ components:
 
     ClienteNuevo:
       type: object
-      required: [nombre, telefono, autorizacionDatos, politicaVersion]
+      required: [nombre, telefono, correo, autorizacionDatos, politicaVersion]
       properties:
         nombre: { type: string, minLength: 1, maxLength: 120 }
         telefono: { type: string, pattern: '^3\d{9}$', description: Celular colombiano de 10 dígitos. }
-        correo: { type: [string, 'null'], format: email }
+        correo: { type: string, format: email, maxLength: 254, description: Obligatorio desde la política 1.1; es un canal de notificación (HU-46). }
         autorizacionDatos: { type: boolean, const: true, description: Autorización de tratamiento de datos (Ley 1581 de 2012). }
         politicaVersion: { type: string, pattern: '^\d+\.\d+$', description: Versión de la política aceptada (de GET /politicas-datos/vigente). }
 
@@ -582,7 +582,7 @@ components:
       properties:
         nombre: { type: string, minLength: 1, maxLength: 120 }
         telefono: { type: string, pattern: '^3\d{9}$' }
-        correo: { type: [string, 'null'], format: email }
+        correo: { type: string, format: email, maxLength: 254, description: No se puede vaciar. }
 
     ClienteResumen:
       type: object

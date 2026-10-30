@@ -17,7 +17,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 
 | ID | Requisito | Origen |
 |---|---|---|
-| RF-F2-01 | Registrar un cliente exige nombre, celular (10 dígitos) y la autorización de tratamiento de datos; el correo es opcional. | HU-03 CA1, HU-51 CA1 |
+| RF-F2-01 | Registrar un cliente exige nombre, celular (10 dígitos), correo y la autorización de tratamiento de datos. El correo es obligatorio desde la política 1.1 porque es un canal de notificación (HU-46), y no se puede vaciar al editar. | HU-03 CA1, HU-51 CA1 |
 | RF-F2-02 | Sin autorización de tratamiento de datos, el registro se rechaza y **no se almacena ningún dato personal**. | HU-03 CA2, HU-51 CA3 |
 | RF-F2-03 | Al registrar, se reciben dos autorizaciones adicionales independientes y desmarcadas por defecto: notificaciones del servicio y comunicaciones comerciales. | HU-30 CA1 |
 | RF-F2-04 | Cada autorización otorgada o revocada se guarda como evidencia inmutable con fecha, hora, canal, IP y versión de la política vigente. | HU-30 CA4, HU-51 CA2 |
