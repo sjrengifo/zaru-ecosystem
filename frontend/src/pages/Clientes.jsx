@@ -7,6 +7,7 @@ import Notificacion from '../components/Notificacion.jsx';
 import FormularioCliente from '../components/FormularioCliente.jsx';
 import DetalleCliente from '../components/DetalleCliente.jsx';
 import FormularioEditarCliente from '../components/FormularioEditarCliente.jsx';
+import FormularioVehiculo from '../components/FormularioVehiculo.jsx';
 
 const ESPERA_BUSQUEDA_MS = 250;
 
@@ -19,6 +20,7 @@ export default function Clientes() {
   const [registrando, setRegistrando] = useState(false);
   const [clienteAbierto, setClienteAbierto] = useState(null);
   const [clienteEditando, setClienteEditando] = useState(null);
+  const [clienteConVehiculoNuevo, setClienteConVehiculoNuevo] = useState(null);
   const [confirmacion, setConfirmacion] = useState(null);
   const cerrarConfirmacion = useCallback(() => setConfirmacion(null), []);
 
@@ -59,6 +61,12 @@ export default function Clientes() {
     setConfirmacion({ id: Date.now(), titulo: 'Cambios guardados', detalle: cliente.nombre });
   }
 
+  function alRegistrarVehiculo(vehiculo) {
+    setConfirmacion({ id: Date.now(), titulo: 'Vehículo registrado', detalle: `${vehiculo.placa} · ${clienteConVehiculoNuevo.nombre}` });
+    setClienteConVehiculoNuevo(null);
+    setRecargas((n) => n + 1);
+  }
+
   function abrirCliente(id, titulo) {
     setConfirmacion(null);
     setClienteAbierto({ id, titulo });
@@ -94,8 +102,26 @@ export default function Clientes() {
 
       {clienteAbierto && (
         <Modal titulo={clienteAbierto.titulo} onCerrar={() => setClienteAbierto(null)}>
-          <DetalleCliente id={clienteAbierto.id} onEditar={setClienteEditando} onCerrar={() => setClienteAbierto(null)} />
+          <DetalleCliente
+            id={clienteAbierto.id}
+            onEditar={setClienteEditando}
+            onCerrar={() => setClienteAbierto(null)}
+            onAbrirCliente={(id) => abrirCliente(id, 'Detalle del cliente')}
+            onVehiculoRegistrado={() => setRecargas((n) => n + 1)}
+          />
         </Modal>
+      )}
+
+      {clienteConVehiculoNuevo && (
+        <FormularioVehiculo
+          cliente={clienteConVehiculoNuevo}
+          onRegistrado={alRegistrarVehiculo}
+          onAbrirCliente={(id) => {
+            setClienteConVehiculoNuevo(null);
+            abrirCliente(id, 'Detalle del cliente');
+          }}
+          onCancelar={() => setClienteConVehiculoNuevo(null)}
+        />
       )}
 
       {/* El detalle queda abierto debajo: al cancelar la edición se vuelve a él. */}
@@ -149,7 +175,24 @@ export default function Clientes() {
                 <td className="tabla-acciones">
                   <button
                     type="button"
-                    className="boton-editar"
+                    className="boton-fila"
+                    title="Agregar vehículo"
+                    aria-label={`Agregar vehículo a ${c.nombre}`}
+                    onClick={() => {
+                      setConfirmacion(null);
+                      setClienteConVehiculoNuevo(c);
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2" />
+                      <circle cx="6.5" cy="16.5" r="2.5" />
+                      <circle cx="16.5" cy="16.5" r="2.5" />
+                      <path d="M19 2v6M16 5h6" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="boton-fila"
                     title="Editar"
                     aria-label={`Editar a ${c.nombre}`}
                     onClick={() => {

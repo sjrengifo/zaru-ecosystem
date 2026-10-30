@@ -1,5 +1,5 @@
-// HU-03 CA3 y HU-04: el teléfono ya pertenece a otro cliente; se ofrece abrirlo.
-export default function AvisoClienteExistente({ mensaje, onAbrir }) {
+// HU-03 CA3, HU-04 y HU-05 CA2: el dato ya pertenece a otro cliente; se ofrece abrirlo.
+export default function AvisoClienteExistente({ titulo = 'Este cliente ya existe', mensaje, textoAccion = 'Abrir cliente existente', onAbrir }) {
   return (
     <div className="tarjeta-duplicado" role="alert">
       <span className="tarjeta-duplicado-icono" aria-hidden="true">
@@ -9,10 +9,10 @@ export default function AvisoClienteExistente({ mensaje, onAbrir }) {
         </svg>
       </span>
       <div className="tarjeta-duplicado-texto">
-        <p className="tarjeta-duplicado-titulo">Este cliente ya existe</p>
+        <p className="tarjeta-duplicado-titulo">{titulo}</p>
         <p>{mensaje}.</p>
         <button type="button" className="boton-duplicado" data-foco-error onClick={onAbrir}>
-          Abrir cliente existente <span aria-hidden="true">→</span>
+          {textoAccion} <span aria-hidden="true">→</span>
         </button>
       </div>
     </div>

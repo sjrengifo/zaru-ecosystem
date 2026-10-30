@@ -263,19 +263,57 @@ paths:
     get:
       tags: [Vehículos]
       operationId: listarVehiculos
-      summary: Listar o buscar vehículos por placa (pendiente HU-05)
+      summary: Listar o buscar vehículos por placa
+      description: Vehículos del establecimiento, ordenados por placa, con su cliente (HU-05).
       parameters:
-        - { name: placa, in: query, schema: { type: string }, example: ABC123 }
+        - name: placa
+          in: query
+          description: Texto contenido en la placa; ignora mayúsculas, espacios y guiones (máximo 20 caracteres).
+          schema: { type: string, maxLength: 20 }
+          example: ABC123
       responses:
+        '200':
+          description: Lista de vehículos.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/VehiculoConCliente' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
     post:
       tags: [Vehículos]
       operationId: crearVehiculo
-      summary: Registrar un vehículo asociado a un cliente (pendiente HU-05)
+      summary: Registrar un vehículo asociado a un cliente
+      description: >-
+        HU-05 CA1 y CA2. La placa se guarda en mayúsculas, sin espacios ni guiones, y no se repite en el establecimiento.
+        El cliente debe ser del establecimiento de la sesión; si no, responde `404`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VehiculoNuevo' }
+            example: { clienteId: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10, placa: abc-123, tipo: carro, marca: Mazda, color: Rojo }
       responses:
+        '201':
+          description: Vehículo registrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehiculo' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La placa ya está registrada en el establecimiento; `detalles` indica a qué cliente pertenece.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  codigo: CONFLICTO
+                  mensaje: Ya existe un vehículo con esa placa
+                  detalles: [{ campo: placa, mensaje: La placa ya está registrada a nombre de Ana Gómez, clienteId: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10 }]
+                  requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a
 
   /vehiculos/{id}/historial:
     parameters:
@@ -640,6 +678,27 @@ components:
         marca: { type: [string, 'null'] }
         color: { type: [string, 'null'] }
         created_at: { type: string, format: date-time }
+
+    VehiculoConCliente:
+      allOf:
+        - $ref: '#/components/schemas/Vehiculo'
+        - type: object
+          properties:
+            clientes:
+              type: object
+              properties:
+                id: { type: string, format: uuid }
+                nombre: { type: string }
+
+    VehiculoNuevo:
+      type: object
+      required: [clienteId, placa, tipo]
+      properties:
+        clienteId: { type: string, format: uuid }
+        placa: { type: string, description: 'Carro: ABC123. Moto: ABC12D o ABC12. Se aceptan minúsculas, espacios y guiones.' }
+        tipo: { type: string, enum: [carro, moto] }
+        marca: { type: [string, 'null'], maxLength: 40 }
+        color: { type: [string, 'null'], maxLength: 30 }
 
     Servicio:
       type: object
