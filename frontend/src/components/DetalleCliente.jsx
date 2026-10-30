@@ -1,8 +1,9 @@
-// HU-03 CA3, HU-04 y HU-05 · Perfil de un cliente: sus datos, sus vehículos y las opciones de editarlo y agregar vehículos.
+// HU-03 CA3, HU-04, HU-05 y HU-06 · Perfil de un cliente: sus datos, sus vehículos con su historial y las opciones de editarlo y agregar vehículos.
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 import { TIPOS_VEHICULO } from '../lib/validacionVehiculo.js';
 import FormularioVehiculo from './FormularioVehiculo.jsx';
+import DetalleVehiculo from './DetalleVehiculo.jsx';
 import Notificacion from './Notificacion.jsx';
 
 export default function DetalleCliente({ id, onEditar, onCerrar, onAbrirCliente, onVehiculoRegistrado }) {
@@ -10,6 +11,7 @@ export default function DetalleCliente({ id, onEditar, onCerrar, onAbrirCliente,
   const [error, setError] = useState('');
   const [recargas, setRecargas] = useState(0);
   const [agregando, setAgregando] = useState(false);
+  const [vehiculoAbierto, setVehiculoAbierto] = useState(null);
   const [confirmacion, setConfirmacion] = useState(null);
   const cerrarConfirmacion = useCallback(() => setConfirmacion(null), []);
 
@@ -63,6 +65,9 @@ export default function DetalleCliente({ id, onEditar, onCerrar, onAbrirCliente,
                     <li key={v.id}>
                       <span className="placa">{v.placa}</span>
                       <span className="texto-suave">{[TIPOS_VEHICULO[v.tipo] ?? v.tipo, v.marca, v.color].filter(Boolean).join(' · ')}</span>
+                      <button type="button" className="enlace-accion" aria-label={`Ver historial de ${v.placa}`} onClick={() => setVehiculoAbierto(v)}>
+                        Ver historial
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -93,6 +98,8 @@ export default function DetalleCliente({ id, onEditar, onCerrar, onAbrirCliente,
           onCancelar={() => setAgregando(false)}
         />
       )}
+
+      {vehiculoAbierto && <DetalleVehiculo vehiculo={vehiculoAbierto} nombreCliente={cliente.nombre} onCerrar={() => setVehiculoAbierto(null)} />}
 
       {/* Dentro del modal, para que el fondo oscuro no la tape. */}
       <div className="notificaciones" role="status">

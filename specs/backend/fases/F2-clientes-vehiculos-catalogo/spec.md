@@ -36,7 +36,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 | RF-F2-12 | Formato de placa válido: carro `AAA000`, moto `AAA00A` o `AAA00`. | HU-05 CA1 |
 | RF-F2-13 | Una placa repetida en el establecimiento responde `409` indicando a qué cliente pertenece. | HU-05 CA2 |
 | RF-F2-14 | El detalle del cliente incluye todos sus vehículos. | HU-05 CA3 |
-| RF-F2-15 | El historial de un vehículo lista sus órdenes entregadas con fecha, servicios y valor, de la más reciente a la más antigua; si no hay, devuelve una lista vacía. | HU-06 CA1, CA2 |
+| RF-F2-15 | El historial de un vehículo lista sus órdenes entregadas con fecha, servicios y valor, de la más reciente a la más antigua; si no hay, devuelve una lista vacía. La paginación queda pendiente. | HU-06 CA1, CA2 |
 
 ### Catálogo de servicios
 
@@ -89,7 +89,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 **ESC-F2-07 — Historial vacío** (RF-F2-15 · HU-06 CA2)
 - **Dado** un vehículo sin órdenes entregadas
 - **Cuando** consulto su historial
-- **Entonces** recibo `200` con `datos: []`.
+- **Entonces** recibo `200` con una lista vacía.
 
 **ESC-F2-08 — Precio histórico** (RF-F2-17 · HU-07 CA2)
 - **Dado** una orden con "Lavado básico" a 25 000

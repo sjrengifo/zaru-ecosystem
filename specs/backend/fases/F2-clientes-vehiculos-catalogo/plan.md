@@ -38,7 +38,7 @@ Ambas funciones se crean en el esquema `privado` con `security definer` y permis
 | POST | `/vehiculos` | admin, operario | `{ clienteId, placa, tipo, marca?, color? }` | `201 Vehiculo` · `409` | RF-F2-11 a 13 |
 | GET | `/vehiculos/{id}` | admin, operario | — | `Vehiculo` + `cliente` | RF-F2-14 |
 | PATCH | `/vehiculos/{id}` | admin, operario | `{ tipo?, marca?, color? }` | `Vehiculo` | RF-F2-11 |
-| GET | `/vehiculos/{id}/historial` | admin, operario | paginación | `Pagina<ServicioHistorial>` | RF-F2-15 |
+| GET | `/vehiculos/{id}/historial` | admin, operario | — | `ServicioHistorial[]` | RF-F2-15 |
 | GET | `/servicios` | admin, operario | `?activo` | `Servicio[]` | RF-F2-18 |
 | POST | `/servicios` | admin | `{ nombre, precio, duracionMin, incluyeRainInsure?, rainInsureDias? }` | `201 Servicio` | RF-F2-16 |
 | PATCH | `/servicios/{id}` | admin | campos parciales + `activo` | `Servicio` | RF-F2-17, 18 |

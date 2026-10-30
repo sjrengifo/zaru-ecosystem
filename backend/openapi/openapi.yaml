@@ -321,10 +321,22 @@ paths:
     get:
       tags: [Vehículos]
       operationId: obtenerHistorialVehiculo
-      summary: Historial de servicios de un vehículo (pendiente HU-06)
+      summary: Historial de servicios de un vehículo
+      description: >-
+        HU-06. Órdenes entregadas del vehículo, de la más reciente a la más antigua, con los precios guardados en cada orden.
+        Si no tiene servicios previos responde una lista vacía. Un vehículo de otro establecimiento responde `404`.
       responses:
+        '200':
+          description: Historial del vehículo.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ServicioHistorial' }
+              example:
+                - { ordenId: 7c2d1e8a-5b43-4f1c-8d66-1f7e0c2a9b11, fecha: '2026-10-28T14:05:12Z', servicios: [{ nombre: Lavado premium, precio: 45000 }], subtotal: 45000, descuento: 0, total: 45000 }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /servicios:
     get:
@@ -689,6 +701,22 @@ components:
               properties:
                 id: { type: string, format: uuid }
                 nombre: { type: string }
+
+    ServicioHistorial:
+      type: object
+      properties:
+        ordenId: { type: string, format: uuid }
+        fecha: { type: string, format: date-time, description: Fecha de entrega. }
+        servicios:
+          type: array
+          items:
+            type: object
+            properties:
+              nombre: { type: string }
+              precio: { type: number, description: Precio guardado en la orden. }
+        subtotal: { type: number }
+        descuento: { type: number }
+        total: { type: number }
 
     VehiculoNuevo:
       type: object

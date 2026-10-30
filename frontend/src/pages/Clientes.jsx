@@ -169,9 +169,9 @@ export default function Clientes() {
                     {c.nombre}
                   </button>
                 </td>
-                <td>{c.telefono}</td>
-                <td>{c.correo || '—'}</td>
-                <td>{c.vehiculos?.map((v) => v.placa).join(', ') || '—'}</td>
+                <td data-etiqueta="Teléfono">{c.telefono}</td>
+                <td data-etiqueta="Correo">{c.correo || '—'}</td>
+                <td data-etiqueta="Vehículos">{c.vehiculos?.map((v) => v.placa).join(', ') || '—'}</td>
                 <td className="tabla-acciones">
                   <button
                     type="button"
