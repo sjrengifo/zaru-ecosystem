@@ -248,8 +248,8 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, requieren el encabezado `
 | POST | `/clientes` | Admin, Operario | Registrar cliente con autorización de datos y versión de la política (`politicaVersion`) | Implementado |
 | PUT | `/clientes/:id` | Admin, Operario | Actualizar cliente | Implementado |
 | GET | `/clientes/:id/consentimientos` | Admin | Evidencia de autorización de tratamiento de datos | Implementado |
-| GET | `/vehiculos?placa=` | Admin, Operario | Listar o buscar vehículos | Pendiente |
-| POST | `/vehiculos` | Admin, Operario | Registrar vehículo | Pendiente |
+| GET | `/vehiculos?placa=` | Admin, Operario | Listar o buscar vehículos | Implementado |
+| POST | `/vehiculos` | Admin, Operario | Registrar vehículo asociado a un cliente | Implementado |
 | GET | `/vehiculos/:id/historial` | Admin, Operario | Historial de servicios | Pendiente |
 | GET | `/servicios` | Admin, Operario | Catálogo de servicios | Implementado |
 | POST / PUT | `/servicios`, `/servicios/:id` | Admin | Crear, editar o desactivar servicio | Pendiente |

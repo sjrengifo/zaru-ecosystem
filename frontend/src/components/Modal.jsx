@@ -17,12 +17,14 @@ export default function Modal({ titulo, onCerrar, children }) {
   // Esc llega como `cancel` aunque el foco esté fuera de los controles.
   function alCancelar(e) {
     e.preventDefault();
+    e.stopPropagation(); // Con un modal dentro de otro, React propaga el evento y cerraría también el de afuera.
     onCerrar();
   }
 
   // Algunos navegadores cierran con un segundo Esc aunque se cancele: mientras el modal
   // siga montado se reabre, y solo el padre decide si desaparece.
-  function alCerrarseSolo() {
+  function alCerrarseSolo(e) {
+    e.stopPropagation();
     dialogo.current.showModal();
     onCerrar();
   }

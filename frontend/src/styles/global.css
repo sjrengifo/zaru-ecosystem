@@ -336,7 +336,7 @@ input[aria-invalid='true'] { border-color: var(--color-error); background: var(-
 }
 .enlace-tabla:hover { color: var(--color-texto-suave); }
 .tabla .tabla-acciones { width: 1%; text-align: center; white-space: nowrap; }
-.boton-editar {
+.boton-fila {
   display: inline-grid;
   place-items: center;
   width: 44px;
@@ -348,7 +348,58 @@ input[aria-invalid='true'] { border-color: var(--color-error); background: var(-
   color: var(--color-primario);
   cursor: pointer;
 }
-.boton-editar:hover { background: var(--color-fondo); color: var(--color-primario-hover); }
+.boton-fila:hover { background: var(--color-fondo); color: var(--color-primario-hover); }
+
+/* ---------- Vehículos ---------- */
+.placa {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--color-texto);
+  background: var(--color-encabezado-tabla);
+  border: 1px solid var(--color-borde);
+  border-radius: 6px;
+}
+.perfil-vehiculos { margin-top: var(--espacio); padding-top: var(--espacio); border-top: 1px solid var(--color-borde); }
+.perfil-vehiculos-encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.perfil-vehiculos h4 { margin: 0; font-size: 15px; }
+.perfil-vehiculos > .texto-suave { margin: 0; }
+.lista-vehiculos { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.lista-vehiculos li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}
+.grupo-opciones { margin: 0 0 var(--espacio); padding: 0; border: none; }
+.grupo-opciones legend { padding: 0; font-size: 14px; font-weight: 500; }
+.opciones { display: flex; gap: 8px; margin-top: 6px; }
+.opcion {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  cursor: pointer;
+}
+.opcion:has(input:checked) { border-color: var(--color-primario); background: var(--color-fondo); font-weight: 600; }
+.opcion input { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--color-primario); }
 
 /* ---------- Notificaciones ---------- */
 .notificaciones {

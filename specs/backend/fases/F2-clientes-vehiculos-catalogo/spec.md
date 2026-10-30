@@ -32,7 +32,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 
 | ID | Requisito | Origen |
 |---|---|---|
-| RF-F2-11 | Registrar un vehículo asociado a un cliente con placa, tipo, marca y color; la placa se normaliza a mayúsculas sin espacios ni guiones. | HU-05 CA1 |
+| RF-F2-11 | Registrar un vehículo asociado a un cliente con placa, tipo (carro o moto), marca y color; placa y tipo son obligatorios, y la placa se normaliza a mayúsculas sin espacios ni guiones. | HU-05 CA1 |
 | RF-F2-12 | Formato de placa válido: carro `AAA000`, moto `AAA00A` o `AAA00`. | HU-05 CA1 |
 | RF-F2-13 | Una placa repetida en el establecimiento responde `409` indicando a qué cliente pertenece. | HU-05 CA2 |
 | RF-F2-14 | El detalle del cliente incluye todos sus vehículos. | HU-05 CA3 |
