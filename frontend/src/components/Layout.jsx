@@ -1,8 +1,12 @@
 // Estructura común de las páginas privadas: menú lateral + contenido.
-import { useEffect, useRef } from 'react';
+// HU-13 CA2: aplica el logo y los colores guardados de la sede a todo el panel. Al recargar se usa la
+// última copia conocida (lib/brandingGuardado.js) para no mostrar primero el branding de Zaru.
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSesion } from '../hooks/useSesion.js';
+import { leerBranding, guardarBranding, borrarBranding } from '../lib/brandingGuardado.js';
+import { api } from '../services/api.js';
 
 const MENU = [
   { ruta: '/', texto: 'Dashboard' },
@@ -17,7 +21,46 @@ const MENU = [
 export default function Layout() {
   const { pathname } = useLocation();
   const navegacion = useRef(null);
-  const { usuario, establecimiento, errorSesion } = useSesion();
+  const { usuario, establecimiento: establecimientoSesion, errorSesion } = useSesion();
+  const [establecimiento, setEstablecimiento] = useState(leerBranding);
+  const [cargado, setCargado] = useState(false);
+  const [errorEstablecimiento, setErrorEstablecimiento] = useState('');
+  const nombreSede = establecimiento?.nombre ?? establecimientoSesion?.nombre;
+
+  useEffect(() => {
+    let vigente = true;
+    api
+      .get('/establecimiento')
+      .then((datos) => {
+        if (!vigente) return;
+        setEstablecimiento(datos);
+        setCargado(true);
+      })
+      .catch((e) => {
+        if (!vigente) return;
+        setErrorEstablecimiento(e.message); // Sin branding el panel sigue con los colores de Zaru.
+        setCargado(true);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
+  // Cada versión que llega de la API (o que guarda la página de Branding) queda como copia para la próxima carga.
+  useEffect(() => {
+    if (cargado && establecimiento) guardarBranding(establecimiento);
+  }, [cargado, establecimiento]);
+
+  // Los colores de la sede reemplazan las variables de global.css; los tonos derivados se calculan solos.
+  // useLayoutEffect los aplica antes de pintar la pantalla, así no se alcanzan a ver los colores de Zaru.
+  useLayoutEffect(() => {
+    const raiz = document.documentElement.style;
+    const colores = { '--color-primario': establecimiento?.color_primario, '--color-secundario': establecimiento?.color_secundario };
+    for (const [variable, valor] of Object.entries(colores)) {
+      if (valor) raiz.setProperty(variable, valor);
+    }
+    return () => Object.keys(colores).forEach((variable) => raiz.removeProperty(variable));
+  }, [establecimiento?.color_primario, establecimiento?.color_secundario]);
 
   // En celular el menú se desliza de lado: la opción actual siempre queda a la vista.
   useEffect(() => {
@@ -30,8 +73,16 @@ export default function Layout() {
     <div className="layout">
       <aside className="menu">
         <div className="menu-marca">
-          <h1 className="logo">Zaru</h1>
-          {establecimiento && <span className="texto-suave">{establecimiento.nombre}</span>}
+          <h1 className="logo">
+            {establecimiento?.logo_url ? (
+              <img src={establecimiento.logo_url} alt={establecimiento.nombre} />
+            ) : establecimiento || cargado ? (
+              'Zaru'
+            ) : (
+              <span className="logo-espacio" aria-label="Cargando" /> // Reserva el lugar del logo mientras llega.
+            )}
+          </h1>
+          {nombreSede && <span className="texto-suave">{nombreSede}</span>}
         </div>
 
         <nav ref={navegacion}>
@@ -54,7 +105,10 @@ export default function Layout() {
           <button
             type="button"
             className="boton secundario"
-            onClick={() => supabase.auth.signOut()}
+            onClick={() => {
+              borrarBranding(); // Quien entre después en este equipo no ve el branding de esta sede.
+              supabase.auth.signOut();
+            }}
           >
             Cerrar sesión
           </button>
@@ -67,7 +121,7 @@ export default function Layout() {
             {errorSesion}
           </p>
         )}
-        <Outlet /> {/* Aquí se dibuja la página actual */}
+        <Outlet context={{ establecimiento, setEstablecimiento, errorEstablecimiento }} /> {/* Aquí se dibuja la página actual */}
       </main>
     </div>
   );

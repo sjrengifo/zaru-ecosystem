@@ -22,13 +22,21 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-09 Visualizar el dashboard operativo en tiempo real | ZARU-10 | 8 | Must | Yeliani | F3 | RF-F3-10, 12 | ESC-F3-07, 09 | — | Pendiente |
 | HU-10 Actualizar el estado operativo del vehículo | ZARU-11 | 5 | Must | Vanessa | F3 | RF-F3-05 a 09 | ESC-F3-03 a 06 | — | Pendiente |
 | HU-11 Recibir alertas de vehículos sin actualizar | ZARU-12 | 3 | Could | Yeliani | F3 | RF-F3-11 | ESC-F3-07 | — | Pendiente |
-| HU-12 Crear y gestionar promociones | ZARU-13 | 5 | Should | María José | F4 | RF-F4-01 a 06 | ESC-F4-01 a 04 | — | Pendiente |
-| HU-13 Personalizar el branding de la sede | ZARU-14 | 5 | Should | María José | F4 | RF-F4-07 a 09 | ESC-F4-05, 06 | — | Pendiente |
+| HU-12 Crear y gestionar promociones | ZARU-13 | 5 | Should | María José | F4 | RF-F4-01 a 06 | ESC-F4-01 a 04 | `tests/unit/promociones.test.js`, `tests/integration/promociones.test.js`, `database/pruebas/09_promociones.sql` | En desarrollo |
+| HU-13 Personalizar el branding de la sede | ZARU-14 | 5 | Should | María José | F4 | RF-F4-07 a 09 | ESC-F4-05, 06 | `tests/unit/branding.test.js`, `tests/integration/branding.test.js`, `database/pruebas/08_branding.sql` | En desarrollo |
 | HU-14 Recuperar la contraseña del panel administrativo | ZARU-66 | 2 | Should | Yeliani | F1 | RF-F1-12 | — | — | Pendiente |
 | HU-15 Configurar la garantía Rain Insure en los servicios | ZARU-67 | 3 | Could | Silvana | F2 | RF-F2-16 | ESC-F2-08 | — | Pendiente |
 | HU-16 Consultar reportes de servicios más demandados y horas de mayor afluencia | ZARU-68 | 14 | Could | Silvana | F3 | RF-F3-15, 16 | — | — | Pendiente |
 
 **Total de la épica: 74 puntos.**
+
+### Evidencia manual · HU-13 (1 de noviembre de 2026, panel y API en local)
+
+| CA | Resultado | Evidencia |
+|---|---|---|
+| CA1 | Cumple | Al cambiar los colores y elegir un logo PNG, la vista previa se actualizó al instante sin guardar. |
+| CA2 | Cumple en el panel | Migración `20261101190000_hu13_branding_logos` aplicada en Supabase el 1 de noviembre de 2026 (verificados el bucket `logos` con 2 MB y PNG/JPG, las 3 políticas de Storage y los 2 checks de color). Se subió un logo, se guardó y, tras recargar, aparece en el menú lateral del panel y en Storage. La vista del cliente final corresponde a HU-18. |
+| CA3 | Cumple en el panel | El navegador rechazó un `.txt` renombrado a `falso.png`, un PDF y un PNG de más de 2 MB con el mensaje "PNG o JPG de máximo 2 MB". El rechazo de la API (`400`) está cubierto por `tests/unit/branding.test.js`. |
 
 ## Épica 4 — Arquitectura y backend (ZARU-48) · Sprint 1
 
@@ -40,7 +48,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-44 Autenticar y autorizar usuarios por roles en el backend | ZARU-51 | 5 | Must | Samuel | F1 | RF-F1-01, 02, 05 · RNF-F1-01 | ESC-F1-01 a 03 | — | En desarrollo |
 | HU-45 Propagar en tiempo real los cambios de estado del vehículo | ZARU-52 | 5 | Must | Adri | F3, F5 | RF-F3-12, RF-F5-05 a 07 | ESC-F3-09, ESC-F5-04 a 06 | — | Pendiente |
 | HU-46 Gestionar el envío de notificaciones (push, SMS y correo) | ZARU-53 | 8 | Must | Adri | F6 | RF-F6-01, 15, 16, 20 | ESC-F6-01, 09, 12 | — | Pendiente |
-| HU-47 Desplegar la plataforma en la nube con balanceo de carga y autoescalado | ZARU-54 | 8 | Should | María José | F8 | RF-F8-17 a 19 | ESC-F8-07 | — | Pendiente |
+| HU-47 Desplegar la plataforma en la nube | ZARU-54 | 3 | Should | María José | F8 | RF-F8-17 a 19 | ESC-F8-07, 08 | `humo-produccion.yml` | En desarrollo |
 | HU-48 Monitorear la disponibilidad y el rendimiento del sistema | ZARU-55 | 3 | Should | Silvana | F0, F8 | RF-F0-05, 06, RF-F8-05 a 07 | ESC-F0-03, 04, ESC-F8-03 | — | Pendiente |
 | HU-49 Realizar copias de seguridad diarias y restaurar la información | ZARU-56 | 5 | Should | Silvana | F8 | RF-F8-08 a 11 | ESC-F8-04 | — | Pendiente |
 | HU-50 Cifrar la información en tránsito y en reposo | ZARU-57 | 3 | Must | Samuel | F1, F8 | RNF-F1-02, 03, RF-F8-12, 13 | ESC-F8-05 | — | En desarrollo |
@@ -100,9 +108,9 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 
 | | Puntos |
 |---|---|
-| Sprint 1 (Épicas 1 y 4) | 174 |
+| Sprint 1 (Épicas 1 y 4) | 169 |
 | Sprint 2 (Épicas 2 y 3) | 112 |
-| **Backlog total** | **286** |
+| **Backlog total** | **281** |
 
-Requisitos especificados: 150 RF y 36 RNF, con 82 escenarios de aceptación distribuidos en las fases F0 a F8.
+Requisitos especificados: 150 RF y 35 RNF, con 83 escenarios de aceptación distribuidos en las fases F0 a F8.
 

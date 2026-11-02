@@ -51,12 +51,12 @@ La descripción "Como… deseo… para…" de HU-34 (Bitácora de notificaciones
 
 **Propuesta:** Las contraseñas las gestiona Supabase Auth, que las almacena con bcrypt. El backend nunca recibe ni guarda contraseñas. El criterio se valida verificando que ninguna tabla de `public` contiene contraseñas.
 
-## DA-06 — Infraestructura de HU-47 (autoescalado en AWS o Google Cloud)
-**Bloquea:** F8 · **Estado:** En curso: se decide en el Spike HU-58 (ZARU-64).
+## DA-06 — Infraestructura de HU-47
+**Bloquea:** F8 · **Estado:** Resuelta.
 
-El proyecto usa Render y Supabase en planes gratuitos, que no ofrecen autoescalado ni balanceo configurable.
+El proyecto usa Render, Vercel y Supabase en planes gratuitos, que no ofrecen autoescalado ni balanceo configurable.
 
-**Propuesta:** En F8 se entrega (1) la arquitectura objetivo documentada en AWS o GCP con su estimación de costos, (2) la contenedorización del backend (Dockerfile) lista para esa plataforma y (3) pruebas de carga con el volumen de 81 establecimientos sobre la infraestructura actual. La migración real queda condicionada a presupuesto.
+**Decisión:** HU-47 se reformuló en Jira como *Desplegar la plataforma en la nube* (3 puntos): publicar la API en Render y el panel en Vercel con despliegue automático desde `main`. El balanceo de carga, el autoescalado en AWS o GCP, la contenedorización y las pruebas de carga salen del alcance del proyecto.
 
 ## DA-07 — Copias de seguridad (HU-49)
 **Bloquea:** F8 · **Estado:** Abierta

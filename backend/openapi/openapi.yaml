@@ -76,7 +76,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Salud' }
-              example: { ok: true, servicio: zaru-api, version: 1.0.0, fecha: '2026-10-28T13:00:00.000Z' }
+              example: { ok: true, servicio: zaru-api, version: 1.0.0, commit: 3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345, fecha: '2026-10-28T13:00:00.000Z' }
 
   /politicas-datos/vigente:
     get:
@@ -403,12 +403,64 @@ paths:
 
   /ordenes:
     post:
-      tags: [Órdenes]
+      tags: [�rdenes]
       operationId: crearOrden
-      summary: Registrar el ingreso de un vehículo (pendiente HU-08)
+      summary: Registrar el ingreso de un veh�culo
+      description: >-
+        HU-08 (RF-F3-01 a RF-F3-04, CA1 y CA2). Crea la orden en `recibido` con los servicios y precios
+        del momento, aplica la mejor promoci�n vigente, calcula la entrega estimada y genera el c�digo de
+        seguimiento. Acepta un veh�culo registrado o crea cliente, consentimiento y veh�culo en la misma
+        transacci�n. Un veh�culo con una orden activa responde `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrdenNueva' }
+            examples:
+              registrado:
+                summary: Veh�culo ya registrado
+                value:
+                  vehiculoId: 11111111-1111-4111-8111-111111111111
+                  servicioIds: [22222222-2222-4222-8222-222222222222, 33333333-3333-4333-8333-333333333333]
+                  observaciones: Ray�n en la puerta
+              nuevo:
+                summary: Cliente y veh�culo nuevos
+                value:
+                  servicioIds: [22222222-2222-4222-8222-222222222222]
+                  nuevoVehiculo:
+                    cliente:
+                      nombre: Ana G�mez
+                      telefono: '3001234567'
+                      correo: ana@example.com
+                      autorizacionDatos: true
+                      politicaVersion: '1.1'
+                    vehiculo: { placa: XYZ987, tipo: carro, marca: Mazda, color: Rojo }
       responses:
+        '201':
+          description: Orden creada y lista para el dashboard.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Orden' }
+              example:
+                id: 55555555-5555-4555-8555-555555555555
+                estado: recibido
+                subtotal: 55000
+                descuento: 0
+                total: 55000
+                codigoSeguimiento: ABCDEFGHJK
+                entregaEstimadaAt: '2026-11-02T15:10:00.000Z'
+                observaciones: null
+                created_at: '2026-11-02T14:00:00.000Z'
+                entregada_at: null
+                vehiculo: { id: 11111111-1111-4111-8111-111111111111, placa: XYZ987, tipo: carro, marca: Mazda, color: Rojo, cliente: { id: c1, nombre: Ana G�mez, telefono: '3001234567' } }
+                servicios:
+                  - { id: 22222222-2222-4222-8222-222222222222, nombre: Lavado b�sico, precio: 25000, duracionMin: 30, descuento: 0 }
+                promocion: null
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
 
   /ordenes/{id}/estado:
     parameters:
@@ -425,30 +477,84 @@ paths:
     get:
       tags: [Promociones]
       operationId: listarPromociones
-      summary: Listar promociones (pendiente HU-12)
+      summary: Listar promociones por estado
+      description: >-
+        HU-12 (RF-F4-02, RF-F4-06). El estado lo calcula la base con la fecha de Bogotá: `programada` (aún no empieza),
+        `vigente` (hoy está entre inicio y fin, ambos incluidos), `vencida` (ya pasó su fin; ocurre sola, CA2) o
+        `desactivada` (la apagó el administrador; solo aparece en `todas`). Las vigentes son las que verá el cliente final (CA1).
+      parameters:
+        - name: estado
+          in: query
+          description: Filtro por estado. Por defecto `todas`.
+          schema: { type: string, enum: [vigentes, programadas, vencidas, todas], default: todas }
       responses:
+        '200':
+          description: Promociones del establecimiento, de la más reciente a la más antigua por fecha de inicio.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Promocion' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
     post:
       tags: [Promociones]
       operationId: crearPromocion
-      summary: Crear una promoción (solo administrador; pendiente HU-12)
+      summary: Crear una promoción (solo administrador)
+      description: >-
+        HU-12 CA1 (RF-F4-01). Descuento entero de 1 a 100, fecha de fin igual o posterior al inicio y a hoy, y al menos
+        un servicio del catálogo del establecimiento. Promoción y servicios se guardan juntos o no se guarda nada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromocionNueva' }
+            example:
+              nombre: Martes de motor
+              descripcion: 20 % en el lavado de motor
+              condiciones: Válida de lunes a viernes
+              descuentoPct: 20
+              fechaInicio: '2026-11-01'
+              fechaFin: '2026-11-30'
+              servicioIds: [6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10]
       responses:
+        '201':
+          description: Promoción creada, con su estado calculado y sus servicios.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promocion' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
 
   /promociones/{id}:
     parameters:
       - $ref: '#/components/parameters/Id'
-    put:
+    patch:
       tags: [Promociones]
       operationId: actualizarPromocion
-      summary: Editar una promoción (solo administrador; pendiente HU-12)
+      summary: Editar, activar o desactivar una promoción (solo administrador)
+      description: >-
+        HU-12 (RF-F4-03). Se envían solo los campos que cambian; `servicioIds` reemplaza la lista completa. Desactivar
+        (`activa: false`) no la borra. Los cambios no alteran órdenes ya creadas, que guardan su propio precio y descuento.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromocionCambios' }
+            examples:
+              desactivar: { summary: Desactivar, value: { activa: false } }
+              extender: { summary: Extender la vigencia, value: { fechaFin: '2026-12-15' } }
       responses:
+        '200':
+          description: Promoción actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promocion' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /usuarios:
     get:
@@ -497,11 +603,65 @@ paths:
     put:
       tags: [Establecimiento]
       operationId: actualizarBranding
-      summary: Personalizar logo y colores (solo administrador; pendiente HU-13)
+      summary: Guardar los colores de la sede (solo administrador)
+      description: HU-13 CA1 y CA2 (RF-F4-08). Ambos colores son obligatorios, en formato `#RRGGBB`; se guardan en mayúsculas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BrandingEntrada' }
+            example: { colorPrimario: '#0F766E', colorSecundario: '#F59E0B' }
       responses:
+        '200':
+          description: Establecimiento con los colores guardados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Establecimiento' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /establecimiento/logo:
+    post:
+      tags: [Establecimiento]
+      operationId: subirLogo
+      summary: Subir o reemplazar el logo de la sede (solo administrador)
+      description: >-
+        HU-13 CA1, CA2 y CA3 (RF-F4-07). Acepta un PNG o JPG de máximo 2 MB; el formato se comprueba por el contenido
+        del archivo, no por su extensión. Se guarda en el bucket público `logos/{establecimientoId}/` y el logo anterior se borra.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [logo]
+              properties:
+                logo:
+                  type: string
+                  format: binary
+                  description: Imagen PNG o JPG de máximo 2 MB.
+            encoding:
+              logo: { contentType: 'image/png, image/jpeg' }
+      responses:
+        '200':
+          description: Establecimiento con la URL pública del logo nuevo en `logo_url`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Establecimiento' }
+        '400':
+          description: Archivo ausente, de otro formato o de más de 2 MB. `detalles` indica los requisitos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  codigo: VALIDACION
+                  mensaje: El archivo supera 2 MB
+                  detalles: [{ campo: logo, mensaje: El logo debe ser una imagen PNG o JPG de máximo 2 MB }]
+                  requestId: 1f0c9a7e-5b2d-4c1e-8a3f-6d9e0b7c2a14
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
 
 components:
   securitySchemes:
@@ -611,6 +771,9 @@ components:
         ok: { type: boolean }
         servicio: { type: string }
         version: { type: string }
+        commit:
+          type: string
+          description: Commit desplegado (`local` fuera de Render). Lo usa la prueba de humo de producción.
         fecha: { type: string, format: date-time }
 
     Sesion:
@@ -747,6 +910,102 @@ components:
         marca: { type: [string, 'null'], maxLength: 40 }
         color: { type: [string, 'null'], maxLength: 30 }
 
+    VehiculoDatos:
+      type: object
+      required: [placa, tipo]
+      properties:
+        placa: { type: string, description: 'Carro: ABC123. Moto: ABC12D o ABC12. Se aceptan min�sculas, espacios y guiones.' }
+        tipo: { type: string, enum: [carro, moto] }
+        marca: { type: [string, 'null'], maxLength: 40 }
+        color: { type: [string, 'null'], maxLength: 30 }
+
+    OrdenNueva:
+      description: >-
+        Indica exactamente una forma de veh�culo: `vehiculoId` para uno registrado, o `nuevoVehiculo`
+        para crear cliente, consentimiento y veh�culo junto con la orden. Los servicios repetidos se
+        cuentan una vez.
+      oneOf:
+        - $ref: '#/components/schemas/OrdenConVehiculoRegistrado'
+        - $ref: '#/components/schemas/OrdenConVehiculoNuevo'
+
+    OrdenConVehiculoRegistrado:
+      type: object
+      required: [vehiculoId, servicioIds]
+      properties:
+        vehiculoId: { type: string, format: uuid }
+        servicioIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, format: uuid }
+        observaciones: { type: [string, 'null'], maxLength: 500 }
+
+    OrdenConVehiculoNuevo:
+      type: object
+      required: [nuevoVehiculo, servicioIds]
+      properties:
+        nuevoVehiculo:
+          type: object
+          required: [cliente, vehiculo]
+          properties:
+            cliente: { $ref: '#/components/schemas/ClienteNuevo' }
+            vehiculo: { $ref: '#/components/schemas/VehiculoDatos' }
+        servicioIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, format: uuid }
+        observaciones: { type: [string, 'null'], maxLength: 500 }
+
+    OrdenServicio:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        precio: { type: number, description: Precio copiado al crear la orden. }
+        duracionMin: { type: integer }
+        descuento: { type: number, description: Descuento aplicado por la mejor promoci�n vigente. }
+
+    Orden:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        estado: { type: string, enum: [recibido, en_lavado, listo, entregado] }
+        subtotal: { type: number }
+        descuento: { type: number }
+        total: { type: number }
+        codigoSeguimiento:
+          type: string
+          pattern: '^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{10}$'
+          description: C�digo p�blico de seguimiento, sin caracteres ambiguos.
+        entregaEstimadaAt: { type: string, format: date-time }
+        observaciones: { type: [string, 'null'], maxLength: 500 }
+        created_at: { type: string, format: date-time }
+        entregada_at: { type: [string, 'null'], format: date-time }
+        vehiculo:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            placa: { type: string }
+            tipo: { type: string, enum: [carro, moto] }
+            marca: { type: [string, 'null'] }
+            color: { type: [string, 'null'] }
+            cliente:
+              type: object
+              properties:
+                id: { type: string, format: uuid }
+                nombre: { type: string }
+                telefono: { type: string }
+        servicios:
+          type: array
+          items: { $ref: '#/components/schemas/OrdenServicio' }
+        promocion:
+          type: [object, 'null']
+          properties:
+            id: { type: string, format: uuid }
+            nombre: { type: string }
+            descuento_pct: { type: number }
+
     Servicio:
       type: object
       properties:
@@ -758,11 +1017,76 @@ components:
         activo: { type: boolean }
         created_at: { type: string, format: date-time }
 
-    Establecimiento:
+    Promocion:
       type: object
       properties:
         id: { type: string, format: uuid }
+        establecimiento_id: { type: string, format: uuid }
         nombre: { type: string }
-        logo_url: { type: [string, 'null'] }
-        color_primario: { type: [string, 'null'] }
-        color_secundario: { type: [string, 'null'] }
+        descripcion: { type: [string, 'null'] }
+        condiciones: { type: [string, 'null'] }
+        descuento_pct: { type: number, minimum: 1, maximum: 100 }
+        fecha_inicio: { type: string, format: date }
+        fecha_fin: { type: string, format: date }
+        activa: { type: boolean }
+        estado: { type: string, enum: [programada, vigente, vencida, desactivada] }
+        servicios:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              nombre: { type: string }
+        created_at: { type: string, format: date-time }
+
+    PromocionNueva:
+      type: object
+      required: [nombre, descuentoPct, fechaInicio, fechaFin, servicioIds]
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 80 }
+        descripcion: { type: [string, 'null'], maxLength: 500 }
+        condiciones: { type: [string, 'null'], maxLength: 500 }
+        descuentoPct: { type: integer, minimum: 1, maximum: 100 }
+        fechaInicio: { type: string, format: date }
+        fechaFin: { type: string, format: date, description: Igual o posterior a fechaInicio y a hoy (Bogotá). }
+        servicioIds:
+          type: array
+          minItems: 1
+          items: { type: string, format: uuid }
+        activa: { type: boolean, default: true }
+
+    PromocionCambios:
+      type: object
+      minProperties: 1
+      description: Mismos campos que PromocionNueva, todos opcionales. La fecha de fin puede quedar en el pasado (terminar la promoción antes).
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 80 }
+        descripcion: { type: [string, 'null'], maxLength: 500 }
+        condiciones: { type: [string, 'null'], maxLength: 500 }
+        descuentoPct: { type: integer, minimum: 1, maximum: 100 }
+        fechaInicio: { type: string, format: date }
+        fechaFin: { type: string, format: date }
+        servicioIds:
+          type: array
+          minItems: 1
+          items: { type: string, format: uuid }
+        activa: { type: boolean }
+
+    Establecimiento:
+      type: object
+      description: >-
+        `nombre`, `logo_url`, `color_primario` y `color_secundario` forman el branding de la sede, el mismo que verá el
+        cliente final (RF-F4-09). `logo_url` es pública: se abre sin sesión.
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        logo_url: { type: [string, 'null'], format: uri }
+        color_primario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$', example: '#2563EB' }
+        color_secundario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$', example: '#0EA5E9' }
+
+    BrandingEntrada:
+      type: object
+      required: [colorPrimario, colorSecundario]
+      properties:
+        colorPrimario: { type: string, pattern: '^#[0-9A-Fa-f]{6}$', example: '#0F766E' }
+        colorSecundario: { type: string, pattern: '^#[0-9A-Fa-f]{6}$', example: '#F59E0B' }

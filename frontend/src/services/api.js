@@ -2,6 +2,7 @@
 // Uso:  const clientes = await api.get('/clientes');
 //       await api.post('/clientes', { nombre: 'Ana', ... });
 import { supabase } from '../lib/supabase.js';
+import { borrarBranding } from '../lib/brandingGuardado.js';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
@@ -9,14 +10,16 @@ async function peticion(metodo, ruta, cuerpo) {
   // Adjunta el token de la sesión para que el backend sepa quién eres.
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
+  // Un archivo (FormData) se envía tal cual: el navegador fija el Content-Type multipart con su separador.
+  const esArchivo = cuerpo instanceof FormData;
 
   const respuesta = await fetch(`${BASE_URL}${ruta}`, {
     method: metodo,
     headers: {
-      'Content-Type': 'application/json',
+      ...(!esArchivo && { 'Content-Type': 'application/json' }),
       ...(token && { Authorization: `Bearer ${token}` }),
     },
-    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+    body: esArchivo ? cuerpo : cuerpo ? JSON.stringify(cuerpo) : undefined,
   });
 
   const json = await respuesta.json().catch(() => ({}));
@@ -28,6 +31,7 @@ async function peticion(metodo, ruta, cuerpo) {
     } catch {
       // sessionStorage puede no estar disponible (modo privado); el login se muestra igual.
     }
+    borrarBranding();
     await supabase.auth.signOut({ scope: 'local' });
   }
 
@@ -49,4 +53,6 @@ export const api = {
   put: (ruta, cuerpo) => peticion('PUT', ruta, cuerpo),
   patch: (ruta, cuerpo) => peticion('PATCH', ruta, cuerpo),
   delete: (ruta) => peticion('DELETE', ruta),
+  /** Envía un formulario con archivos:  await api.subir('/establecimiento/logo', formData) */
+  subir: (ruta, formData) => peticion('POST', ruta, formData),
 };

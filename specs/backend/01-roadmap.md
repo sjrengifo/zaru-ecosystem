@@ -28,7 +28,7 @@ El proyecto tiene **dos sprints de dos semanas**. El Sprint 1 construye la base 
 
 | Sprint | Fechas | Épicas | Fases | Puntos (Jira) |
 |---|---|---|---|---|
-| **Sprint 1** | 20 oct – 4 nov 2026 | Épica 1 (ZARU-1) y Épica 4 (ZARU-48) | F0, F1, F2, F3, F4 y F8, más HU-46 (núcleo de F6) y HU-59 (de F5) | **174** |
+| **Sprint 1** | 20 oct – 4 nov 2026 | Épica 1 (ZARU-1) y Épica 4 (ZARU-48) | F0, F1, F2, F3, F4 y F8, más HU-46 (núcleo de F6) y HU-59 (de F5) | **169** |
 | **Sprint 2** | Por definir (2 semanas) | Épica 2 (ZARU-30) y Épica 3 (ZARU-15) | F5, F6 y F7 | **112** |
 
 ## Fases
@@ -42,7 +42,7 @@ Los puntos son los de Jira. Cada HU se cuenta en la fase donde se construye su p
 | **F2** | 1 | Clientes, vehículos, catálogo y datos personales | HU-03, HU-04, HU-05, HU-06, HU-07, HU-15, HU-51, HU-52 | 25 |
 | **F3** | 1 | Órdenes y operación en tiempo real | HU-08, HU-09, HU-10, HU-11, HU-16, HU-45, HU-54, HU-55 | 51 |
 | **F4** | 1 | Promociones y branding | HU-12, HU-13 | 10 |
-| **F8** | 1 | Producción y operación | HU-47, HU-48, HU-49, HU-50, HU-53 | 24 |
+| **F8** | 1 | Producción y operación | HU-47, HU-48, HU-49, HU-50, HU-53 | 19 |
 | **F6 (núcleo)** | 1 | Motor de envío de notificaciones | HU-46 | 8 |
 | **F5 (seguridad)** | 1 | Protección del acceso sin contraseña | HU-59 | 5 |
 | **F5** | 2 | API del cliente final | HU-17 a HU-27 | 42 |
@@ -53,7 +53,7 @@ F8 se adelanta al Sprint 1 porque sus HUs pertenecen a la Épica 4. Se trabaja e
 
 ## Sprint 1: responsables y orden de trabajo
 
-Samuel tiene las HUs que hoy están en curso, porque son la base de todas las demás. El resto se reparte entre 21 y 25 puntos por persona, agrupado en cadenas para reducir las dependencias entre integrantes.
+Samuel tiene las HUs que hoy están en curso, porque son la base de todas las demás. El resto se reparte entre 18 y 25 puntos por persona, agrupado en cadenas para reducir las dependencias entre integrantes.
 
 | Responsable | Puntos | Orden de trabajo (→) |
 |---|---|---|
@@ -62,7 +62,7 @@ Samuel tiene las HUs que hoy están en curso, porque son la base de todas las de
 | Yeliani Barbosa | 23 | HU-01 Login → HU-14 Recuperar contraseña → HU-02 Operarios → HU-09 Dashboard → HU-11 Alertas* |
 | Nikol Salamanca | 21 | HU-53 Protocolo de incidentes → HU-03 Registrar cliente → HU-05 Vehículo → HU-04 Consultar/editar → HU-06 Historial → HU-52 Derechos del titular |
 | Vanessa Nuñez | 24 | HU-07 Catálogo → HU-08 Orden de servicio → HU-10 Cambio de estado → HU-54 Idempotencia* → HU-55 Sin conexión* |
-| María José Rosas | 23 | HU-56 CI/CD → HU-13 Branding → HU-12 Promociones → HU-47 Despliegue |
+| María José Rosas | 18 | HU-56 CI/CD → HU-13 Branding → HU-12 Promociones → HU-47 Despliegue |
 | Silvana Cuartas | 25 | HU-48 Monitoreo → HU-49 Copias de seguridad → HU-15 Rain Insure* → HU-16 Reportes* |
 
 \* HUs Could: son las primeras que pasan al Sprint 2 si el avance del 01/11 es bajo.

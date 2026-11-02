@@ -2,19 +2,21 @@
    Estilos globales de Zaru
    🎨 Equipo DMI: los colores y medidas de la marca están en
    las variables de abajo. Cambien aquí y se aplica en todo.
-   (HU-13: el branding de cada sede reemplazará --color-primario)
+   HU-13: el branding de cada sede reemplaza --color-primario y
+   --color-secundario (Layout.jsx); sus tonos se derivan solos.
    ========================================================= */
 :root {
   --color-primario: #2563eb;
-  --color-primario-hover: #1d4ed8;
+  --color-secundario: #0ea5e9;
+  --color-primario-hover: color-mix(in srgb, var(--color-primario) 85%, #000);
   --color-fondo: #f5f7fb;
   --color-superficie: #ffffff;
   --color-texto: #111827;
   --color-texto-suave: #6b7280;
   --color-borde: #e5e7eb;
   --color-encabezado-tabla: #eef1f6;
-  --color-primario-suave: #eff4ff;
-  --color-primario-suave-hover: #dbe6fe;
+  --color-primario-suave: color-mix(in srgb, var(--color-primario) 8%, #fff);
+  --color-primario-suave-hover: color-mix(in srgb, var(--color-primario) 16%, #fff);
   --color-placa: #ffd400;
   --color-error: #b91c1c;
   --color-error-fondo: #fef2f2;
@@ -73,7 +75,9 @@ label { display: block; font-size: 14px; }
   cursor: pointer;
 }
 .boton:hover { background: var(--color-primario-hover); }
-.boton:disabled { opacity: 0.6; cursor: wait; }
+/* Deshabilitado no es lo mismo que cargando: el reloj solo aparece mientras se guarda (aria-busy). */
+.boton:disabled { opacity: 0.6; cursor: not-allowed; }
+.boton[aria-busy='true'] { cursor: progress; }
 .boton { min-height: 44px; }
 .boton.secundario {
   background: var(--color-superficie);
@@ -124,6 +128,8 @@ label { display: block; font-size: 14px; }
 .menu-item.active { background: var(--color-primario); color: #fff; }
 
 .logo { color: var(--color-primario); font-size: 28px; }
+.logo img { display: block; max-width: 100%; max-height: 56px; object-fit: contain; }
+.logo-espacio { display: block; height: 56px; }
 
 .contenido { flex: 1; min-width: 0; padding: calc(var(--espacio) * 2); }
 
@@ -827,3 +833,173 @@ input[aria-invalid='true'] { border-color: var(--color-error); background: var(-
   background: var(--color-exito-fondo);
 }
 .auth-form .aviso p + p { margin-top: 8px; }
+
+/* ---------- HU-13 · Branding de la sede ---------- */
+.branding {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: calc(var(--espacio) * 1.5);
+  align-items: start;
+}
+.branding fieldset { border: none; margin: 0; padding: 0; min-width: 0; }
+.branding input[type='file'] { padding: 8px; }
+.selector-color { display: flex; gap: 8px; align-items: center; }
+.selector-color input[type='color'] {
+  flex-shrink: 0;
+  width: 48px;
+  height: 44px;
+  padding: 4px;
+  cursor: pointer;
+}
+.selector-color input[type='text'] { max-width: 140px; font-family: ui-monospace, monospace; text-transform: uppercase; }
+.branding-acciones { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.aviso-info { color: var(--color-texto); border-color: var(--color-borde); background: var(--color-fondo); }
+.aviso-advertencia { color: var(--color-advertencia); border-color: var(--color-advertencia-borde); background: var(--color-advertencia-fondo); }
+.aviso-contraste p { margin-bottom: 8px; }
+.boton-tono { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 12px; font-size: 14px; }
+.muestra-color { width: 18px; height: 18px; border-radius: 4px; border: 1px solid rgba(0, 0, 0, 0.15); }
+
+.vista-previa { position: sticky; top: var(--espacio); }
+.vista-previa-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.vista-previa-titulo h3 { margin: 0; font-size: 16px; }
+.etiqueta-sin-guardar {
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-advertencia);
+  background: var(--color-advertencia-fondo);
+  border: 1px solid var(--color-advertencia-borde);
+  border-radius: 999px;
+}
+.vista-previa-pantalla {
+  overflow: hidden;
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+}
+.vista-previa-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  color: #fff;
+  font-weight: 600;
+  background: var(--marca-primario);
+}
+.vista-previa-encabezado img {
+  width: 44px;
+  height: 44px;
+  padding: 4px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 8px;
+}
+.vista-previa-inicial {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--marca-primario);
+  background: #fff;
+  border-radius: 8px;
+}
+.vista-previa-cuerpo { padding: 16px; }
+.vista-previa-cuerpo p { margin: 0 0 8px; }
+.vista-previa-pasos { display: flex; gap: 4px; padding: 0; margin: 16px 0; list-style: none; font-size: 12px; }
+.vista-previa-pasos li {
+  flex: 1;
+  padding-top: 8px;
+  color: var(--color-texto-suave);
+  text-align: center;
+  border-top: 4px solid var(--color-borde);
+}
+.vista-previa-pasos li.hecho { color: var(--color-texto); border-top-color: var(--marca-secundario); }
+.vista-previa-pasos li[aria-current='step'] { font-weight: 600; }
+.vista-previa-boton {
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+  color: #fff;
+  background: var(--marca-primario);
+  border: none;
+  border-radius: var(--radio);
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .branding { grid-template-columns: 1fr; }
+  .vista-previa { position: static; }
+}
+
+/* ---------- HU-12 · Promociones ---------- */
+textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  font: inherit;
+  resize: vertical;
+}
+.campos-fila { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.lista-servicios { display: grid; gap: 8px; margin-top: 6px; }
+.lista-servicios .casilla { margin: 0; cursor: pointer; }
+
+.filtros { display: flex; flex-wrap: wrap; gap: 8px; margin: var(--espacio) 0; }
+.filtro {
+  min-height: 40px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-texto);
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.filtro:hover { background: var(--color-primario-suave); }
+.filtro[aria-pressed='true'] { color: #fff; background: var(--color-primario); border-color: var(--color-primario); font-weight: 600; }
+
+.estado-promocion {
+  display: inline-block;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid;
+  border-radius: 999px;
+}
+.estado-vigente { color: var(--color-exito); background: var(--color-exito-fondo); }
+.estado-programada { color: var(--color-primario-hover); background: var(--color-primario-suave); }
+.estado-vencida { color: var(--color-texto-suave); background: var(--color-fondo); }
+.estado-desactivada { color: var(--color-advertencia); background: var(--color-advertencia-fondo); border-style: dashed; }
+
+.boton-pequeno { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+.tabla-acciones .boton-pequeno { margin-left: 4px; }
+
+/* ---------- HU-08 · Ingreso de vehículo ---------- */
+.campo-con-accion { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.campo-con-accion .campo { margin: 0; }
+.campo-con-accion > .boton { margin-bottom: 0; }
+.resumen-orden {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  background: var(--color-fondo);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}
+.resumen-orden > div { display: flex; justify-content: space-between; gap: 12px; }
+.resumen-orden .resumen-total {
+  padding-top: 8px;
+  font-size: 18px;
+  border-top: 1px solid var(--color-borde);
+}
+.resumen-orden p { margin: 0; }
+
+@media (max-width: 480px) {
+  .campos-fila { grid-template-columns: 1fr; gap: 0; }
+  .campo-con-accion { grid-template-columns: 1fr; align-items: stretch; }
+}

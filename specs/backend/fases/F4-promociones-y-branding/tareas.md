@@ -13,23 +13,29 @@ Rama sugerida: `feature/ZARU-13-promociones-branding`.
 1. Endpoints y esquemas `Promocion`, `Branding` en `openapi.yaml` (el logo como `multipart/form-data`).
 
 ### T4.3 — CRUD de promociones
-**Cubre:** RF-F4-01 a RF-F4-03, RF-F4-06
+**Cubre:** RF-F4-01 a RF-F4-03, RF-F4-06 · Rama: `feature/ZARU-13-promociones`
 1. Pruebas unitarias de estado de promoción y pruebas de ESC-F4-01 y ESC-F4-02.
 2. Módulo `promociones`.
+
+**Avance (1 nov 2026):** migración `20261101220000_hu12_promociones` (columnas, estado por fecha de Bogotá, vistas, `guardar_promocion`, `mejor_promocion`), endpoints `GET`/`POST`/`PATCH`, OpenAPI, pruebas unitarias y SQL en verde, pantalla del panel. Pendiente: aplicar la migración en Supabase y las pruebas manuales.
 
 ### T4.4 — Aplicación del descuento en órdenes
 **Cubre:** RF-F4-04, RF-F4-05
 1. Pruebas de ESC-F4-03 y ESC-F4-04.
 2. Verificar que las pruebas de F3 siguen en verde con la nueva `crear_orden`.
 
+**Avance (1 nov 2026):** `mejor_promocion` lista y probada (ESC-F4-03, ESC-F4-04 y desempate en `09_promociones.sql`). Integrarla en `crear_orden` corresponde a HU-08 (ver `plan.md`, sección 8).
+
 ### T4.5 — Branding y logo
-**Cubre:** RF-F4-07 a RF-F4-09
+**Cubre:** RF-F4-07 a RF-F4-09 · Rama: `feature/ZARU-14-branding-sede`
 1. Pruebas de ESC-F4-05 y ESC-F4-06, incluido el archivo falso.
 2. Endpoints de branding y logo.
 
+**Avance (1 nov 2026):** migración del bucket y de los checks de color, endpoints, pruebas unitarias en verde y pantalla del panel. Migración aplicada en Supabase. Pruebas manuales: CA1, CA2 y CA3 cumplen en el panel; la vista del cliente final queda para HU-18. Ver la evidencia en `05-trazabilidad.md`.
+
 ### T4.6 — Aislamiento
-1. Agregar `promociones/{id}` a la suite.
-2. Prueba: el admin de A no puede escribir en `logos/{id-de-B}/`.
+1. Agregar `promociones/{id}` a la suite. Cubierto en `tests/integration/promociones.test.js` (la sede B no ve ni edita promociones de A) y en `09_promociones.sql` (la vista con la sesión del admin de A solo muestra A).
+2. Prueba: el admin de A no puede escribir en `logos/{id-de-B}/`. Escrita en `tests/integration/branding.test.js`; se ejecuta con las credenciales de integración (`backend/.env.spike.local`).
 
 ## Compuerta de validación de la fase
 

@@ -45,11 +45,15 @@ Rama sugerida: `feature/ZARU-62-produccion`. **Prerrequisitos:** DA-06, DA-07 y 
 2. Escribir `impacto-incidente.sql` y verificar ESC-F8-06.
 3. Realizar un simulacro con el equipo y registrar los tiempos.
 
-### T8.7 — Escalabilidad
-**Cubre:** RF-F8-17 a RF-F8-19
-1. `Dockerfile` y prueba con `docker compose` de 2 instancias detrás de un proxy local.
-2. `objetivo-nube.md` con diagrama y costos.
-3. Script k6 y ejecución de ESC-F8-07 contra staging; informe en `docs/operacion/informe-carga.md`.
+### T8.7 — Publicación en la nube (HU-47)
+**Cubre:** RF-F8-17 a RF-F8-19 · Rama: `feature/ZARU-54-despliegue-nube`
+1. Integrar `develop` en `main`: Render y Vercel construyen desde `main`.
+2. Crear el servicio en Render desde el Blueprint y el proyecto en Vercel, en el orden del README (sección 10): `FRONTEND_URL` debe ser `https://` desde el primer arranque.
+3. Configurar Site URL y Redirect URLs en Supabase Auth con el dominio del panel.
+4. Crear las variables `URL_API_PRODUCCION` y `URL_PANEL_PRODUCCION` en GitHub y verificar ESC-F8-07 y ESC-F8-08.
+5. Registrar las URLs públicas en el README.
+
+**Hecho cuando:** un merge a `main` aparece publicado en ambas URLs y la prueba de humo pasa.
 
 ## Compuerta de validación de la fase
 
@@ -73,7 +77,8 @@ Rama sugerida: `feature/ZARU-62-produccion`. **Prerrequisitos:** DA-06, DA-07 y 
 - [ ] `curl -I http://…` es redirigido o rechazado; `Strict-Transport-Security` presente.
 - [ ] El correo de un cliente no es legible con un `select` directo sobre la tabla.
 - [ ] Simulacro de incidente completado y documentado.
-- [ ] Informe de carga con p95 < 800 ms y errores < 1 % (o plan de acción documentado).
+- [ ] Panel y API accesibles en sus URLs públicas; un administrador inicia sesión desde el navegador.
+- [ ] Un merge a `main` queda publicado sin pasos manuales y la prueba de humo pasa.
 
 ### Cierre
 - [ ] Estado de `spec.md` cambiado a `Validada`
