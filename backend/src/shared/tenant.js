@@ -128,6 +128,38 @@ export function crearAccesoTenant(db, ctx) {
       return db.rpc(funcion, { ...argumentos, p_establecimiento_id: establecimientoId }).select(columnas);
     },
 
+    /**
+     * Archivos del establecimiento en un bucket de Storage (HU-13). Todo queda dentro de la carpeta
+     * {establecimientoId}/: el nombre que recibe `subir` nunca puede salir de ella, y `borrar` ignora
+     * rutas de otra carpeta.
+     */
+    archivos(bucket) {
+      const almacen = db.storage.from(bucket);
+      const carpeta = `${establecimientoId}/`;
+      const marcaUrl = `/object/public/${bucket}/`;
+      const esPropia = (ruta) => typeof ruta === 'string' && ruta.startsWith(carpeta) && !ruta.includes('..');
+      return {
+        /** Sube el archivo y devuelve su ruta y su URL pública. */
+        async subir(nombre, contenido, opciones) {
+          const ruta = carpeta + nombre.replace(/[^\w.-]/g, '');
+          const { error } = await almacen.upload(ruta, contenido, { ...opciones, upsert: false });
+          if (error) throw error;
+          return { ruta, url: almacen.getPublicUrl(ruta).data.publicUrl };
+        },
+        /** Ruta dentro del bucket de una URL pública, o null si no es un archivo de este establecimiento. */
+        rutaDeUrl(url) {
+          const ruta = typeof url === 'string' ? url.split(marcaUrl)[1]?.split('?')[0] : null;
+          return ruta && esPropia(decodeURIComponent(ruta)) ? decodeURIComponent(ruta) : null;
+        },
+        /** Borra un archivo propio. Devuelve el error de Storage, si lo hubo, en lugar de lanzarlo. */
+        async borrar(ruta) {
+          if (!esPropia(ruta)) return null;
+          const { error } = await almacen.remove([ruta]);
+          return error;
+        },
+      };
+    },
+
     /** Elimina un registro del establecimiento. Lanza NO_ENCONTRADO si no le pertenece. */
     async eliminar(tabla, id, recurso) {
       if (!esUuid(id)) throw noEncontrado(recurso);
