@@ -23,6 +23,9 @@ export function validarColor(color, campo) {
   return FORMATO_COLOR.test(color) ? null : `${campo} debe tener el formato #RRGGBB, por ejemplo #2563EB`;
 }
 
+/** Contraste mínimo del texto normal según WCAG 2.x, nivel AA. */
+export const CONTRASTE_MINIMO = 4.5;
+
 /** Contraste del texto blanco sobre un color (WCAG 2.x). Por debajo de 4.5 el texto normal se lee mal. */
 export function contrasteConBlanco(color) {
   if (!FORMATO_COLOR.test(color)) return 21;
@@ -32,4 +35,14 @@ export function contrasteConBlanco(color) {
   });
   const luminancia = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   return 1.05 / (luminancia + 0.05);
+}
+
+/** El tono más cercano al color, igual de matiz pero más oscuro, donde el texto blanco ya se lee bien. */
+export function tonoLegible(color) {
+  const canales = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+  for (let factor = 0.99; factor > 0; factor -= 0.01) {
+    const hex = '#' + canales.map((c) => Math.round(c * factor).toString(16).padStart(2, '0')).join('').toUpperCase();
+    if (contrasteConBlanco(hex) >= CONTRASTE_MINIMO) return hex;
+  }
+  return '#000000';
 }

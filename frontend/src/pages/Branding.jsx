@@ -7,7 +7,7 @@ import { useOutletContext } from 'react-router-dom';
 import { api } from '../services/api.js';
 import { useRol } from '../hooks/useRol.js';
 import { useFocoEnError } from '../hooks/useFocoEnError.js';
-import { REQUISITOS_LOGO, validarLogo, validarColor, contrasteConBlanco } from '../lib/validacionBranding.js';
+import { REQUISITOS_LOGO, CONTRASTE_MINIMO, validarLogo, validarColor, contrasteConBlanco, tonoLegible } from '../lib/validacionBranding.js';
 import MensajeError from '../components/MensajeError.jsx';
 import Notificacion from '../components/Notificacion.jsx';
 import VistaPreviaBranding from '../components/VistaPreviaBranding.jsx';
@@ -55,7 +55,10 @@ export default function Branding() {
   const colorCambiado = (c) => borrador[c.clave] !== null && borrador[c.clave] !== establecimiento[c.columna];
   const hayCambios = Boolean(borrador.logo) || COLORES.some(colorCambiado);
   const primario = color('primario');
-  const contrasteBajo = !validarColor(primario, '') && contrasteConBlanco(primario) < 4.5;
+  // El aviso desaparece apenas el color alcanza el contraste mínimo.
+  const contraste = validarColor(primario, '') ? null : contrasteConBlanco(primario);
+  const contrasteBajo = contraste !== null && contraste < CONTRASTE_MINIMO;
+  const formatoContraste = (valor) => valor.toLocaleString('es-CO', { maximumFractionDigits: 2 });
 
   async function elegirLogo(evento) {
     const archivo = evento.target.files[0];
@@ -198,8 +201,18 @@ export default function Branding() {
             })}
 
             {contrasteBajo && (
-              <div className="aviso aviso-advertencia">
-                <p>Con este color primario el texto blanco de los botones se lee con dificultad. Prueba un tono más oscuro.</p>
+              <div className="aviso aviso-advertencia aviso-contraste" role="status">
+                <p>
+                  Con este color primario el texto blanco de los botones se lee con dificultad: el contraste es de{' '}
+                  <strong>{formatoContraste(contraste)}:1</strong> y se recomienda al menos {formatoContraste(CONTRASTE_MINIMO)}:1. Este aviso
+                  desaparece cuando el color lo cumpla.
+                </p>
+                {esAdmin && (
+                  <button type="button" className="boton secundario boton-tono" onClick={() => cambiarColor('primario', tonoLegible(primario))}>
+                    <span className="muestra-color" style={{ background: tonoLegible(primario) }} aria-hidden="true" />
+                    Usar {tonoLegible(primario)}
+                  </button>
+                )}
               </div>
             )}
 
@@ -214,7 +227,7 @@ export default function Branding() {
                 <button type="button" className="boton secundario" disabled={!hayCambios} onClick={descartar}>
                   Descartar cambios
                 </button>
-                <button className="boton" disabled={!hayCambios}>
+                <button className="boton" disabled={!hayCambios} aria-busy={enviando}>
                   {enviando ? 'Guardando…' : 'Guardar'}
                 </button>
               </div>

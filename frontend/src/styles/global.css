@@ -75,7 +75,9 @@ label { display: block; font-size: 14px; }
   cursor: pointer;
 }
 .boton:hover { background: var(--color-primario-hover); }
-.boton:disabled { opacity: 0.6; cursor: wait; }
+/* Deshabilitado no es lo mismo que cargando: el reloj solo aparece mientras se guarda (aria-busy). */
+.boton:disabled { opacity: 0.6; cursor: not-allowed; }
+.boton[aria-busy='true'] { cursor: progress; }
 .boton { min-height: 44px; }
 .boton.secundario {
   background: var(--color-superficie);
@@ -777,6 +779,9 @@ input[aria-invalid='true'] { border-color: var(--color-error); background: var(-
 .branding-acciones { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .aviso-info { color: var(--color-texto); border-color: var(--color-borde); background: var(--color-fondo); }
 .aviso-advertencia { color: var(--color-advertencia); border-color: var(--color-advertencia-borde); background: var(--color-advertencia-fondo); }
+.aviso-contraste p { margin-bottom: 8px; }
+.boton-tono { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 12px; font-size: 14px; }
+.muestra-color { width: 18px; height: 18px; border-radius: 4px; border: 1px solid rgba(0, 0, 0, 0.15); }
 
 .vista-previa { position: sticky; top: var(--espacio); }
 .vista-previa-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
