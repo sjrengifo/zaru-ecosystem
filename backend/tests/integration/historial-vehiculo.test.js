@@ -2,6 +2,7 @@
 // Requiere backend/.env y backend/.env.spike.local; sin ellos se omite.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { hayEntornoIntegracion, faltantes } from '../helpers/entorno.js';
+import { codigoSeguimiento } from '../helpers/ordenes.js';
 
 const EST_A = '00000000-0000-0000-0000-00000000a058';
 const TEL = '3007070701';
@@ -25,7 +26,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Historial de vehículo${hayEntornoInteg
     const subtotal = lineas.reduce((suma, l) => suma + l.precio, 0);
     const { data } = await admin
       .from('ordenes')
-      .insert({ establecimiento_id: EST_A, vehiculo_id, estado, subtotal, descuento, total: subtotal - descuento, created_at: fecha, entregada_at: estado === 'entregado' ? fecha : null })
+      .insert({ establecimiento_id: EST_A, vehiculo_id, estado, subtotal, descuento, total: subtotal - descuento, codigo_seguimiento: codigoSeguimiento(), created_at: fecha, entregada_at: estado === 'entregado' ? fecha : null })
       .select()
       .single()
       .throwOnError();
