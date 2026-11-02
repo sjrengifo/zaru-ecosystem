@@ -316,8 +316,8 @@ El despliegue es continuo desde la rama `main` (HU-47, `ZARU-54`): Render y Verc
 
 | Servicio | URL pública |
 |---|---|
-| API | _pendiente_ |
-| Panel | _pendiente_ |
+| API | https://zaru-api-i5s5.onrender.com/api/v1 · estado: [`/api/v1/health`](https://zaru-api-i5s5.onrender.com/api/v1/health) · documentación: [`/api/docs`](https://zaru-api-i5s5.onrender.com/api/docs) |
+| Panel | https://zaru-panel.vercel.app |
 
 ### Requisito previo: `main` actualizada
 
