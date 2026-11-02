@@ -2,6 +2,7 @@
 // Uso:  const clientes = await api.get('/clientes');
 //       await api.post('/clientes', { nombre: 'Ana', ... });
 import { supabase } from '../lib/supabase.js';
+import { borrarBranding } from '../lib/brandingGuardado.js';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
@@ -30,6 +31,7 @@ async function peticion(metodo, ruta, cuerpo) {
     } catch {
       // sessionStorage puede no estar disponible (modo privado); el login se muestra igual.
     }
+    borrarBranding();
     await supabase.auth.signOut({ scope: 'local' });
   }
 

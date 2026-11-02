@@ -115,6 +115,7 @@ label { display: block; font-size: 14px; }
 
 .logo { color: var(--color-primario); font-size: 28px; }
 .logo img { display: block; max-width: 100%; max-height: 56px; object-fit: contain; }
+.logo-espacio { display: block; height: 56px; }
 
 .contenido { flex: 1; min-width: 0; padding: calc(var(--espacio) * 2); }
 

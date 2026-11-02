@@ -58,7 +58,6 @@ export default function Branding() {
   // El aviso desaparece apenas el color alcanza el contraste mínimo.
   const contraste = validarColor(primario, '') ? null : contrasteConBlanco(primario);
   const contrasteBajo = contraste !== null && contraste < CONTRASTE_MINIMO;
-  const formatoContraste = (valor) => valor.toLocaleString('es-CO', { maximumFractionDigits: 2 });
 
   async function elegirLogo(evento) {
     const archivo = evento.target.files[0];
@@ -202,15 +201,11 @@ export default function Branding() {
 
             {contrasteBajo && (
               <div className="aviso aviso-advertencia aviso-contraste" role="status">
-                <p>
-                  Con este color primario el texto blanco de los botones se lee con dificultad: el contraste es de{' '}
-                  <strong>{formatoContraste(contraste)}:1</strong> y se recomienda al menos {formatoContraste(CONTRASTE_MINIMO)}:1. Este aviso
-                  desaparece cuando el color lo cumpla.
-                </p>
+                <p>Con este color primario, el texto blanco de los botones puede costar leerlo. Un tono un poco más oscuro se verá mejor.</p>
                 {esAdmin && (
                   <button type="button" className="boton secundario boton-tono" onClick={() => cambiarColor('primario', tonoLegible(primario))}>
                     <span className="muestra-color" style={{ background: tonoLegible(primario) }} aria-hidden="true" />
-                    Usar {tonoLegible(primario)}
+                    Usar este tono
                   </button>
                 )}
               </div>
