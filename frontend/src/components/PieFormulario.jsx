@@ -21,7 +21,7 @@ export default function PieFormulario({ textoGuardar, textoDescarte, confirmando
       <button type="button" className="boton secundario" onClick={onCancelar}>
         Cancelar
       </button>
-      <button className="boton" disabled={enviando || deshabilitado}>
+      <button className="boton" disabled={enviando || deshabilitado} aria-busy={enviando}>
         {enviando ? 'Guardando…' : textoGuardar}
       </button>
     </div>

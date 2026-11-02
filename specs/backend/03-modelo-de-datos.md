@@ -87,7 +87,8 @@ establecimientos ◀── perfiles (auth.users) ── admins_plataforma
 |---|---|
 | `promociones` + columnas | `descripcion`, `condiciones`, `activa bool default true` (HU-27) |
 | `ordenes` + columnas | `promocion_id → promociones` (promoción aplicada) |
-| Storage | Bucket `logos` (público, PNG/JPG, ≤ 2 MB) |
+| `establecimientos` + checks | `color_primario` y `color_secundario` con formato `#RRGGBB` (HU-13) |
+| Storage | Bucket `logos` (público, PNG/JPG, ≤ 2 MB); un administrador solo escribe en `logos/{establecimiento_id}/` (HU-13) |
 
 ### F5 — Cliente final
 
