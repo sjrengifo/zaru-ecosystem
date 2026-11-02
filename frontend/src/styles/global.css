@@ -101,6 +101,20 @@ label { display: block; font-size: 14px; }
   gap: var(--espacio);
 }
 .menu nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.menu-marca { display: flex; flex-direction: column; gap: 4px; }
+.menu-usuario {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: var(--espacio);
+  border-top: 1px solid var(--color-borde);
+}
+.menu-usuario strong { font-size: 14px; }
+.aviso-advertencia {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
 .menu-item {
   padding: 8px 12px;
   border-radius: var(--radio);
@@ -127,6 +141,20 @@ label { display: block; font-size: 14px; }
 .login { min-height: 100vh; display: grid; place-items: center; padding: var(--espacio); }
 .login-form { width: 100%; max-width: 360px; }
 .login-form .boton { width: 100%; }
+
+/* Indicador de carga del botón (HU-01, req. 1) */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: girar 0.7s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
 
 /* ---------- Dashboard ---------- */
 .tablero {
@@ -729,6 +757,18 @@ input[aria-invalid='true'] { border-color: var(--color-error); background: var(-
     border-bottom: 1px solid var(--color-borde);
   }
   .menu .logo { margin: 0; font-size: 24px; }
+  .menu-marca { flex-direction: row; align-items: baseline; gap: 8px; }
+  .menu-marca .texto-suave { font-size: 13px; }
+  .menu-usuario {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding-top: 0;
+    border-top: none;
+  }
+  .menu-usuario strong,
+  .menu-usuario .texto-suave { display: none; }
+  .menu-usuario .boton { margin: 0; }
   .menu nav {
     position: relative;
     order: 3;

@@ -1,12 +1,14 @@
 // HU-01 · Iniciar sesión en el panel administrativo (ZARU-2)
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSesion } from '../hooks/useSesion.js';
 
+const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function Login() {
-  const navegar = useNavigate();
-  const { sesion } = useSesion();
+  const { sesion, cargando, errorSesion, recargar } = useSesion();
+  const ubicacion = useLocation();
   const [correo, setCorreo] = useState('');
   const [clave, setClave] = useState('');
   // HU-44 CA3: si el backend rechazó un token vencido, se explica por qué se volvió al login.
@@ -23,39 +25,98 @@ export default function Login() {
   });
   const [enviando, setEnviando] = useState(false);
 
-  if (sesion) return <Navigate to="/" replace />;
+  // Vuelve a la ruta privada que el usuario intentó abrir, o al dashboard.
+  const destino =
+    ubicacion.state?.desde && ubicacion.state.desde !== '/login' ? ubicacion.state.desde : '/';
+
+  // Si ya hay sesión validada, no se vuelve a pedir login (HU-01, req. 3).
+  if (sesion && !cargando) return <Navigate to={destino} replace />;
 
   async function iniciarSesion(e) {
     e.preventDefault();
+    if (enviando) return;
+
+    const correoNormalizado = correo.trim().toLowerCase();
+
+    // Validación de campos obligatorios (req. 1).
+    if (!correoNormalizado || !clave) {
+      return setError('Completa el correo y la contraseña');
+    }
+    if (!CORREO_VALIDO.test(correoNormalizado)) {
+      return setError('Ingresa un correo electrónico válido');
+    }
+
     setError('');
     setEnviando(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: correo, password: clave });
-    setEnviando(false);
 
-    // CA2: mensaje genérico, sin decir qué dato falló.
-    if (error) return setError('Correo o contraseña incorrectos');
-    navegar('/'); // CA1: lleva al dashboard
+    try {
+      const { error: errorAuth } = await supabase.auth.signInWithPassword({
+        email: correoNormalizado,
+        password: clave,
+      });
+
+      if (errorAuth) {
+        // CA2: mensaje genérico, sin revelar si falló el correo o la contraseña.
+        setError('Correo o contraseña incorrectos');
+        return;
+      }
+
+      // CA1 + CA3: valida contra el backend que el perfil exista, esté activo
+      // y pertenezca a un establecimiento. Si no, el contexto cierra la sesión.
+      await recargar();
+    } catch {
+      setError('No se pudo conectar con el servidor. Intenta de nuevo.');
+    } finally {
+      setEnviando(false);
+    }
   }
+
+  const mensajeError = error || errorSesion;
 
   return (
     <div className="login">
-      <form className="tarjeta login-form" onSubmit={iniciarSesion}>
+      <form className="tarjeta login-form" onSubmit={iniciarSesion} noValidate>
         <h1 className="logo">Zaru</h1>
         <p className="texto-suave">Panel administrativo</p>
 
-        <label>
-          Correo
-          <input type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} required />
-        </label>
-        <label>
-          Contraseña
-          <input type="password" value={clave} onChange={(e) => setClave(e.target.value)} required />
-        </label>
+        <label htmlFor="correo">Correo</label>
+        <input
+          id="correo"
+          type="email"
+          value={correo}
+          onChange={(e) => setCorreo(e.target.value)}
+          autoComplete="email"
+          autoFocus
+          disabled={enviando}
+          required
+        />
 
-        {error && <p className="error">{error}</p>}
+        <label htmlFor="clave">Contraseña</label>
+        <input
+          id="clave"
+          type="password"
+          value={clave}
+          onChange={(e) => setClave(e.target.value)}
+          autoComplete="current-password"
+          disabled={enviando}
+          required
+        />
 
-        <button className="boton" disabled={enviando}>
-          {enviando ? 'Entrando…' : 'Iniciar sesión'}
+        {mensajeError && (
+          <p className="error" role="alert" aria-live="polite">
+            {mensajeError}
+          </p>
+        )}
+
+        <button className="boton" type="submit" disabled={enviando} aria-busy={enviando}>
+          {enviando ? (
+            <>
+              <span className="spinner" aria-hidden="true" />
+              Entrando…
+            </>
+          ) : (
+            'Iniciar sesión'
+          )}
         </button>
       </form>
     </div>
