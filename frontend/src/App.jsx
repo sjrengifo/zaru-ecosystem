@@ -1,3 +1,4 @@
+
 // Mapa de rutas: qué página se muestra en cada dirección (URL).
 import { Routes, Route, Navigate } from 'react-router-dom';
 import RutaProtegida from './components/RutaProtegida.jsx';

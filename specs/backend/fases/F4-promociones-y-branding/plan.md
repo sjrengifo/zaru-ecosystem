@@ -24,15 +24,15 @@ Migración `<ts>_promociones_y_branding.sql`:
 | POST | `/promociones` | admin | `{ nombre, descripcion?, condiciones?, descuentoPct, fechaInicio, fechaFin, servicioIds[] }` | `201 Promocion` | RF-F4-01 |
 | PATCH | `/promociones/{id}` | admin | Campos parciales + `activa` | `Promocion` | RF-F4-03 |
 | GET | `/establecimiento` | admin, operario | — | `Establecimiento` con `branding` | RF-F4-09 |
-| PUT | `/establecimiento/branding` | admin | `{ colorPrimario, colorSecundario }` | `Branding` | RF-F4-08 |
-| POST | `/establecimiento/logo` | admin | `multipart/form-data` campo `logo` | `{ logoUrl }` · `400` | RF-F4-07 |
+| PUT | `/establecimiento/branding` | admin | `{ colorPrimario, colorSecundario }` | `Establecimiento` | RF-F4-08 |
+| POST | `/establecimiento/logo` | admin | `multipart/form-data` campo `logo` | `Establecimiento` (con `logo_url`) · `400` | RF-F4-07 |
 
 ## 4. Diseño de módulos
 
 | Componente | Comportamiento |
 |---|---|
 | `modules/promociones` | CRUD con validación `fechaFin >= fechaInicio` y servicios del mismo tenant |
-| `modules/establecimiento` | Branding y logo. Usa `multer` en memoria con límite de 2 MB y `file-type` para detectar el formato real. Guarda en `logos/{establecimientoId}/logo-{timestamp}.{ext}` y borra el logo anterior. |
+| `modules/establecimiento` | Branding y logo. Usa `multer` en memoria con límite de 2 MB y detecta el formato real por la firma binaria (`shared/logo.js`; para dos formatos no hace falta `file-type`). Sube con `req.tenant.archivos('logos')`, que limita todo a `logos/{establecimientoId}/`, guarda `logo-{timestamp}.{ext}` y borra el logo anterior. |
 
 ## 5. Reglas de negocio
 
@@ -41,7 +41,7 @@ Migración `<ts>_promociones_y_branding.sql`:
 | Descuento por servicio = precio × pct de la mejor promoción vigente | Función SQL | — |
 | Redondeo a pesos enteros | `round(…, 0)` | — |
 | Servicios de la promoción del mismo tenant | Validación en servicio | `400` |
-| Archivo PNG/JPG ≤ 2 MB por contenido | `multer` + `file-type` | `400 VALIDACION` |
+| Archivo PNG/JPG ≤ 2 MB por contenido | `multer` + firma binaria | `400 VALIDACION` |
 
 ## 6. Estrategia de pruebas
 

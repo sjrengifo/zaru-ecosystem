@@ -117,7 +117,7 @@ Todo el tráfico usa HTTPS: la API rechaza HTTP en producción y Supabase exige 
 
 ### Gestión de cambios
 
-Todo cambio de esquema se escribe como un archivo nuevo en `supabase/migrations/` (`AAAAMMDDHHMMSS_descripcion.sql`) y se aplica igual en cualquier ambiente. Una migración aplicada nunca se edita. En el mismo Pull Request se regenera `database/schema.sql` y se ejecutan las pruebas de `database/pruebas/` (ver [`docs/base-de-datos.md`](docs/base-de-datos.md)).
+Todo cambio de esquema se escribe como un archivo nuevo en `supabase/migrations/` (`AAAAMMDDHHMMSS_descripcion.sql`) y se aplica igual en cualquier ambiente. Una migración aplicada nunca se edita. Se aplica en Supabase **antes** del merge a `main`, porque `main` se despliega sola (ver [Despliegue](#10-despliegue)). En el mismo Pull Request se regenera `database/schema.sql` y se ejecutan las pruebas de `database/pruebas/` (ver [`docs/base-de-datos.md`](docs/base-de-datos.md)).
 
 ---
 
@@ -318,6 +318,33 @@ El despliegue es continuo desde la rama `main` (HU-47, `ZARU-54`): Render y Verc
 |---|---|
 | API | https://zaru-api-i5s5.onrender.com/api/v1 · estado: [`/api/v1/health`](https://zaru-api-i5s5.onrender.com/api/v1/health) · documentación: [`/api/docs`](https://zaru-api-i5s5.onrender.com/api/docs) |
 | Panel | https://zaru-panel.vercel.app |
+
+### Migraciones de base de datos: antes del merge a `main`
+
+`main` se publica sola en Render y Vercel, pero la base de datos **no**: Supabase no aplica las migraciones de `supabase/migrations/` por su cuenta. Si un Pull Request trae una migración, hay que aplicarla en Supabase **antes** de integrarlo en `main`; si no, la API publicada usaría tablas, columnas o buckets que todavía no existen.
+
+Pasos desde el SQL Editor de Supabase (ejemplo con la migración de HU-13, `20261101190000_hu13_branding_logos.sql`):
+
+1. Entrar a [supabase.com/dashboard](https://supabase.com/dashboard), abrir el proyecto de Zaru y, en el menú izquierdo, **SQL Editor → New query**.
+2. Si la migración trae una consulta de revisión previa en su encabezado, ejecutarla primero. Para HU-13:
+
+   ```sql
+   select id, nombre, color_primario, color_secundario from establecimientos
+   where color_primario !~ '^#[0-9A-Fa-f]{6}$' or color_secundario !~ '^#[0-9A-Fa-f]{6}$';
+   ```
+
+   Si devuelve filas, detenerse y decidir con el equipo cómo corregir esos datos.
+3. Abrir el archivo de la migración en el repositorio, copiar **todo** su contenido, pegarlo en una consulta nueva y pulsar **Run**. Debe responder *Success. No rows returned*. Si falla, Supabase revierte la consulta completa y no queda nada a medias.
+4. Registrar la migración como aplicada, para que `supabase db push` no intente repetirla:
+
+   ```sql
+   insert into supabase_migrations.schema_migrations (version, name)
+   values ('20261101190000', 'hu13_branding_logos');
+   ```
+
+5. Comprobar el resultado. Para HU-13: **Storage** muestra el bucket `logos` como *Public*, y **Database → Tables → establecimientos → Constraints** muestra los dos checks de color.
+
+Después se integra el Pull Request en `main`.
 
 ### Requisito previo: `main` actualizada
 

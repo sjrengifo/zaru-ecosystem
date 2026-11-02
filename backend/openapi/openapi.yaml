@@ -497,11 +497,65 @@ paths:
     put:
       tags: [Establecimiento]
       operationId: actualizarBranding
-      summary: Personalizar logo y colores (solo administrador; pendiente HU-13)
+      summary: Guardar los colores de la sede (solo administrador)
+      description: HU-13 CA1 y CA2 (RF-F4-08). Ambos colores son obligatorios, en formato `#RRGGBB`; se guardan en mayúsculas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BrandingEntrada' }
+            example: { colorPrimario: '#0F766E', colorSecundario: '#F59E0B' }
       responses:
+        '200':
+          description: Establecimiento con los colores guardados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Establecimiento' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+
+  /establecimiento/logo:
+    post:
+      tags: [Establecimiento]
+      operationId: subirLogo
+      summary: Subir o reemplazar el logo de la sede (solo administrador)
+      description: >-
+        HU-13 CA1, CA2 y CA3 (RF-F4-07). Acepta un PNG o JPG de máximo 2 MB; el formato se comprueba por el contenido
+        del archivo, no por su extensión. Se guarda en el bucket público `logos/{establecimientoId}/` y el logo anterior se borra.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [logo]
+              properties:
+                logo:
+                  type: string
+                  format: binary
+                  description: Imagen PNG o JPG de máximo 2 MB.
+            encoding:
+              logo: { contentType: 'image/png, image/jpeg' }
+      responses:
+        '200':
+          description: Establecimiento con la URL pública del logo nuevo en `logo_url`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Establecimiento' }
+        '400':
+          description: Archivo ausente, de otro formato o de más de 2 MB. `detalles` indica los requisitos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  codigo: VALIDACION
+                  mensaje: El archivo supera 2 MB
+                  detalles: [{ campo: logo, mensaje: El logo debe ser una imagen PNG o JPG de máximo 2 MB }]
+                  requestId: 1f0c9a7e-5b2d-4c1e-8a3f-6d9e0b7c2a14
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
 
 components:
   securitySchemes:
@@ -763,9 +817,19 @@ components:
 
     Establecimiento:
       type: object
+      description: >-
+        `nombre`, `logo_url`, `color_primario` y `color_secundario` forman el branding de la sede, el mismo que verá el
+        cliente final (RF-F4-09). `logo_url` es pública: se abre sin sesión.
       properties:
         id: { type: string, format: uuid }
         nombre: { type: string }
-        logo_url: { type: [string, 'null'] }
-        color_primario: { type: [string, 'null'] }
-        color_secundario: { type: [string, 'null'] }
+        logo_url: { type: [string, 'null'], format: uri }
+        color_primario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$', example: '#2563EB' }
+        color_secundario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$', example: '#0EA5E9' }
+
+    BrandingEntrada:
+      type: object
+      required: [colorPrimario, colorSecundario]
+      properties:
+        colorPrimario: { type: string, pattern: '^#[0-9A-Fa-f]{6}$', example: '#0F766E' }
+        colorSecundario: { type: string, pattern: '^#[0-9A-Fa-f]{6}$', example: '#F59E0B' }

@@ -23,13 +23,15 @@ Rama sugerida: `feature/ZARU-13-promociones-branding`.
 2. Verificar que las pruebas de F3 siguen en verde con la nueva `crear_orden`.
 
 ### T4.5 — Branding y logo
-**Cubre:** RF-F4-07 a RF-F4-09
+**Cubre:** RF-F4-07 a RF-F4-09 · Rama: `feature/ZARU-14-branding-sede`
 1. Pruebas de ESC-F4-05 y ESC-F4-06, incluido el archivo falso.
 2. Endpoints de branding y logo.
 
+**Avance (1 nov 2026):** migración del bucket y de los checks de color, endpoints, pruebas unitarias en verde y pantalla del panel. Pruebas manuales: CA1 y CA3 cumplen en el panel; CA2 queda pendiente de aplicar la migración en Supabase. Ver la evidencia en `05-trazabilidad.md`.
+
 ### T4.6 — Aislamiento
 1. Agregar `promociones/{id}` a la suite.
-2. Prueba: el admin de A no puede escribir en `logos/{id-de-B}/`.
+2. Prueba: el admin de A no puede escribir en `logos/{id-de-B}/`. Escrita en `tests/integration/branding.test.js`; se ejecuta cuando la migración esté aplicada y haya credenciales de integración.
 
 ## Compuerta de validación de la fase
 
