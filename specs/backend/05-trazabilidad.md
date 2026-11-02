@@ -40,7 +40,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-44 Autenticar y autorizar usuarios por roles en el backend | ZARU-51 | 5 | Must | Samuel | F1 | RF-F1-01, 02, 05 · RNF-F1-01 | ESC-F1-01 a 03 | — | En desarrollo |
 | HU-45 Propagar en tiempo real los cambios de estado del vehículo | ZARU-52 | 5 | Must | Adri | F3, F5 | RF-F3-12, RF-F5-05 a 07 | ESC-F3-09, ESC-F5-04 a 06 | — | Pendiente |
 | HU-46 Gestionar el envío de notificaciones (push, SMS y correo) | ZARU-53 | 8 | Must | Adri | F6 | RF-F6-01, 15, 16, 20 | ESC-F6-01, 09, 12 | — | Pendiente |
-| HU-47 Desplegar la plataforma en la nube con balanceo de carga y autoescalado | ZARU-54 | 8 | Should | María José | F8 | RF-F8-17 a 19 | ESC-F8-07 | — | Pendiente |
+| HU-47 Desplegar la plataforma en la nube | ZARU-54 | 3 | Should | María José | F8 | RF-F8-17 a 19 | ESC-F8-07, 08 | `humo-produccion.yml` | En desarrollo |
 | HU-48 Monitorear la disponibilidad y el rendimiento del sistema | ZARU-55 | 3 | Should | Silvana | F0, F8 | RF-F0-05, 06, RF-F8-05 a 07 | ESC-F0-03, 04, ESC-F8-03 | — | Pendiente |
 | HU-49 Realizar copias de seguridad diarias y restaurar la información | ZARU-56 | 5 | Should | Silvana | F8 | RF-F8-08 a 11 | ESC-F8-04 | — | Pendiente |
 | HU-50 Cifrar la información en tránsito y en reposo | ZARU-57 | 3 | Must | Samuel | F1, F8 | RNF-F1-02, 03, RF-F8-12, 13 | ESC-F8-05 | — | En desarrollo |
@@ -100,9 +100,9 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 
 | | Puntos |
 |---|---|
-| Sprint 1 (Épicas 1 y 4) | 174 |
+| Sprint 1 (Épicas 1 y 4) | 169 |
 | Sprint 2 (Épicas 2 y 3) | 112 |
-| **Backlog total** | **286** |
+| **Backlog total** | **281** |
 
-Requisitos especificados: 150 RF y 36 RNF, con 82 escenarios de aceptación distribuidos en las fases F0 a F8.
+Requisitos especificados: 150 RF y 35 RNF, con 83 escenarios de aceptación distribuidos en las fases F0 a F8.
 

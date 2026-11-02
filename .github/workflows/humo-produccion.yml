@@ -1,0 +1,54 @@
+# HU-47 CA3: después de cada merge a main, comprueba que Render y Vercel publicaron la nueva versión
+# sin pasos manuales. Las URLs públicas se definen en GitHub → Settings → Secrets and variables →
+# Actions → Variables: URL_API_PRODUCCION (sin /api/v1) y URL_PANEL_PRODUCCION.
+name: Prueba de humo en producción
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  humo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      API: ${{ vars.URL_API_PRODUCCION }}
+      PANEL: ${{ vars.URL_PANEL_PRODUCCION }}
+    steps:
+      - name: Verificar configuración
+        run: |
+          if [ -z "$API" ] || [ -z "$PANEL" ]; then
+            echo "::error::Faltan las variables URL_API_PRODUCCION o URL_PANEL_PRODUCCION en GitHub."
+            exit 1
+          fi
+
+      # Render tarda unos minutos en construir; además el plan gratuito despierta el servicio en ~30 s.
+      # Se espera hasta que /health reporte el commit de este push (máximo 15 minutos).
+      - name: API publica el commit nuevo
+        run: |
+          for intento in $(seq 1 30); do
+            commit=$(curl -fsS --max-time 60 "$API/api/v1/health" | jq -r '.commit' || true)
+            echo "Intento $intento: commit desplegado = ${commit:-sin respuesta}"
+            if [ "$commit" = "$GITHUB_SHA" ]; then exit 0; fi
+            sleep 30
+          done
+          echo "::error::La API no publicó $GITHUB_SHA en 15 minutos."
+          exit 1
+
+      - name: Panel responde en la raíz y en rutas internas
+        run: |
+          for ruta in / /login /clientes; do
+            estado=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$PANEL$ruta")
+            echo "$ruta → $estado"
+            [ "$estado" = "200" ] || { echo "::error::El panel respondió $estado en $ruta"; exit 1; }
+          done
+
+      - name: El panel permite iniciar sesión contra la API (CORS)
+        run: |
+          origen=$(curl -fsS -o /dev/null -D - -X OPTIONS "$API/api/v1/me" \
+            -H "Origin: $PANEL" -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: authorization' \
+            | tr -d '\r' | awk -F': ' 'tolower($1)=="access-control-allow-origin"{print $2}')
+          echo "Access-Control-Allow-Origin: ${origen:-ausente}"
+          [ "$origen" = "$PANEL" ] || { echo "::error::FRONTEND_URL en Render no coincide con $PANEL"; exit 1; }
