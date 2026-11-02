@@ -172,6 +172,11 @@ describe('CA3: versionado', () => {
     expect(res.headers.deprecation).toBeUndefined();
   });
 
+  it('informa el commit desplegado para la prueba de humo (HU-47 CA3)', async () => {
+    const res = await request(app).get('/api/v1/health');
+    expect(res.body.commit).toBe('local');
+  });
+
   it('la ruta anterior /api sigue funcionando igual y avisa cuál es la versión sucesora', async () => {
     const [anterior, actual] = await Promise.all([request(app).get('/api/health'), request(app).get('/api/v1/health')]);
     expect(anterior.status).toBe(200);

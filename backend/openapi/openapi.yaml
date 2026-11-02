@@ -76,7 +76,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Salud' }
-              example: { ok: true, servicio: zaru-api, version: 1.0.0, fecha: '2026-10-28T13:00:00.000Z' }
+              example: { ok: true, servicio: zaru-api, version: 1.0.0, commit: 3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345, fecha: '2026-10-28T13:00:00.000Z' }
 
   /politicas-datos/vigente:
     get:
@@ -611,6 +611,9 @@ components:
         ok: { type: boolean }
         servicio: { type: string }
         version: { type: string }
+        commit:
+          type: string
+          description: Commit desplegado (`local` fuera de Render). Lo usa la prueba de humo de producción.
         fecha: { type: string, format: date-time }
 
     Sesion:

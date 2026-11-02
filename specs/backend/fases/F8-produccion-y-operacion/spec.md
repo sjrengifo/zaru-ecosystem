@@ -6,10 +6,10 @@
 | Épicas | ZARU-48 |
 | Historias | HU-47 (ZARU-54), HU-48 (ZARU-55), HU-49 (ZARU-56), HU-50 CA2 (ZARU-57), HU-53 CA2 y CA3 (ZARU-60), HU-56 CA3 (ZARU-62) |
 | Depende de | F0 a F7 (puede iniciarse en paralelo a F6–F7 para ambientes y monitoreo) · DA-06, DA-07 y DA-08 confirmadas |
-| Puntos | 24 (Jira) · Sprint 1 |
+| Puntos | 19 (Jira) · Sprint 1 |
 
 ## 1. Objetivo
-Operar la plataforma de forma confiable: cambios que pasan por un ambiente de pruebas antes de producción, monitoreo con alertas, copias de seguridad diarias cifradas y restaurables, datos cifrados en tránsito y en reposo, un protocolo documentado para incidentes de datos personales y una arquitectura validada para la carga proyectada de 81 establecimientos.
+Operar la plataforma de forma confiable: cambios que pasan por un ambiente de pruebas antes de producción, monitoreo con alertas, copias de seguridad diarias cifradas y restaurables, datos cifrados en tránsito y en reposo, un protocolo documentado para incidentes de datos personales y la plataforma publicada en la nube con despliegue automático desde `main`.
 
 ## 2. Requisitos funcionales
 
@@ -54,20 +54,19 @@ Operar la plataforma de forma confiable: cambios que pasan por un ambiente de pr
 | RF-F8-15 | Una consulta sobre la auditoría identifica, para un rango de tiempo y un usuario o IP, los registros y establecimientos afectados. | HU-53 CA2 |
 | RF-F8-16 | El procedimiento incluye la notificación a los establecimientos y titulares afectados y el reporte a la Superintendencia de Industria y Comercio cuando aplique. | HU-53 CA3 |
 
-### Escalabilidad (HU-47)
+### Publicación en la nube (HU-47)
 
 | ID | Requisito | Origen |
 |---|---|---|
-| RF-F8-17 | El backend se empaqueta en una imagen de contenedor sin estado, apta para correr en varias instancias detrás de un balanceador. | HU-47 CA1, CA2 |
-| RF-F8-18 | Se documenta la arquitectura objetivo en AWS o GCP con balanceo, autoescalado por CPU y latencia, y su costo mensual estimado. | HU-47, DA-06 |
-| RF-F8-19 | Una prueba de carga simula 81 establecimientos en hora pico y verifica los tiempos de respuesta. | HU-47 CA4 |
+| RF-F8-17 | La API se publica en Render y el panel en Vercel, cada uno en una dirección pública con HTTPS. | HU-47 CA1 |
+| RF-F8-18 | El panel publicado usa la API publicada: `VITE_API_URL` apunta a Render, `FRONTEND_URL` (CORS) al dominio del panel y Supabase Auth admite ese dominio. | HU-47 CA2 |
+| RF-F8-19 | Un merge a `main` publica la API y el panel sin pasos manuales, y una prueba de humo verifica que la API sirve el commit nuevo y que el panel responde. | HU-47 CA3 |
 
 ## 3. Requisitos no funcionales
 
 | ID | Requisito | Medida |
 |---|---|---|
 | RNF-F8-01 | Disponibilidad mensual de la API en producción. | ≥ 99 % (excluye suspensiones del plan gratuito, ver ADR-07) |
-| RNF-F8-02 | Prueba de carga: 81 establecimientos × 10 operarios/clientes concurrentes. | p95 < 800 ms, errores < 1 % |
 | RNF-F8-03 | Objetivo de recuperación. | RPO ≤ 24 h, RTO ≤ 4 h |
 | RNF-F8-04 | TLS. | Solo HTTPS, TLS ≥ 1.2, HSTS activo |
 
@@ -103,16 +102,22 @@ Operar la plataforma de forma confiable: cambios que pasan por un ambiente de pr
 - **Cuando** el equipo ejecuta la consulta de impacto para ese usuario y rango
 - **Entonces** obtiene los recursos accedidos y los establecimientos afectados.
 
-**ESC-F8-07 — Carga proyectada** (RF-F8-19 · HU-47 CA4)
-- **Dado** el ambiente de pruebas
-- **Cuando** se ejecuta el escenario de carga de 81 establecimientos
-- **Entonces** se cumplen p95 < 800 ms y errores < 1 %, o se documentan los cuellos de botella y la acción correctiva.
+**ESC-F8-07 — Plataforma publicada** (RF-F8-17, RF-F8-18 · HU-47 CA1, CA2)
+- **Dado** la API en Render y el panel en Vercel
+- **Cuando** un administrador abre el dominio del panel desde su navegador e inicia sesión
+- **Entonces** entra al dashboard y las pantallas cargan datos de la API publicada sin errores de CORS.
+
+**ESC-F8-08 — Publicación automática** (RF-F8-19 · HU-47 CA3)
+- **Dado** un PR integrado en `main`
+- **Cuando** Render y Vercel terminan de publicar
+- **Entonces** `/api/v1/health` reporta el commit del merge y el workflow *Prueba de humo en producción* pasa sin intervención manual.
 
 ## 5. Fuera de alcance
-- Migración efectiva a AWS o GCP (condicionada a presupuesto, DA-06).
+- Balanceo de carga, autoescalado, contenedorización y pruebas de carga: salieron de HU-47 al reformularse en Jira (DA-06).
+- Migración a AWS o GCP.
 - Certificaciones formales de seguridad.
 
 ## 6. Decisiones abiertas relacionadas
-- **DA-06** Infraestructura de HU-47.
+- **DA-06** Infraestructura de HU-47 (resuelta).
 - **DA-07** Copias de seguridad en el plan gratuito.
 - **DA-08** Cifrado en reposo.

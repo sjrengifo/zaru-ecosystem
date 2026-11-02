@@ -123,7 +123,7 @@ supabase/
 **Decisión:** Las notificaciones de cambio de estado se programan con 20 segundos de retraso. Si el estado se revierte en ese lapso, se cancelan; si ya se enviaron, se envía una corrección (HU-28 CA3). Se mantiene el límite de 30 segundos de HU-28 CA1.
 
 ### ADR-07 — Plataforma de despliegue
-**Decisión:** Durante el proyecto académico el backend se despliega en Render y la base en Supabase (planes gratuitos). HU-47 (balanceo de carga y autoescalado en AWS o Google Cloud) se aborda en F8 documentando la arquitectura objetivo y validándola con pruebas de carga; su implementación real depende de presupuesto. Ver decisión abierta DA-06.
+**Decisión:** Durante el proyecto académico el backend se despliega en Render, el panel en Vercel y la base en Supabase (planes gratuitos), con publicación automática desde `main` (HU-47). Balanceo de carga y autoescalado quedan fuera del alcance del proyecto. Ver DA-06.
 
 ### ADR-08 — Worker dentro del proceso de la API
 **Decisión:** El worker de notificaciones corre en el mismo proceso que la API, activado por `WORKER_ENABLED=true`.

@@ -28,9 +28,12 @@ export const MODULOS = [
 
 const router = Router();
 
+// Commit desplegado: Render define RENDER_GIT_COMMIT en cada despliegue (HU-47 CA3, prueba de humo).
+const COMMIT = process.env.RENDER_GIT_COMMIT || 'local';
+
 // Ruta pública para comprobar que la API está viva.
 router.get('/health', (req, res) => {
-  res.json({ ok: true, servicio: 'zaru-api', version: VERSION_API, fecha: new Date().toISOString() });
+  res.json({ ok: true, servicio: 'zaru-api', version: VERSION_API, commit: COMMIT, fecha: new Date().toISOString() });
 });
 
 // HU-51 CA1: la política de tratamiento de datos es pública (la consulta también el cliente final).
