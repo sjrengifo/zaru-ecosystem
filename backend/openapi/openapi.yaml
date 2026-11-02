@@ -425,30 +425,84 @@ paths:
     get:
       tags: [Promociones]
       operationId: listarPromociones
-      summary: Listar promociones (pendiente HU-12)
+      summary: Listar promociones por estado
+      description: >-
+        HU-12 (RF-F4-02, RF-F4-06). El estado lo calcula la base con la fecha de Bogotá: `programada` (aún no empieza),
+        `vigente` (hoy está entre inicio y fin, ambos incluidos), `vencida` (ya pasó su fin; ocurre sola, CA2) o
+        `desactivada` (la apagó el administrador; solo aparece en `todas`). Las vigentes son las que verá el cliente final (CA1).
+      parameters:
+        - name: estado
+          in: query
+          description: Filtro por estado. Por defecto `todas`.
+          schema: { type: string, enum: [vigentes, programadas, vencidas, todas], default: todas }
       responses:
+        '200':
+          description: Promociones del establecimiento, de la más reciente a la más antigua por fecha de inicio.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Promocion' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
     post:
       tags: [Promociones]
       operationId: crearPromocion
-      summary: Crear una promoción (solo administrador; pendiente HU-12)
+      summary: Crear una promoción (solo administrador)
+      description: >-
+        HU-12 CA1 (RF-F4-01). Descuento entero de 1 a 100, fecha de fin igual o posterior al inicio y a hoy, y al menos
+        un servicio del catálogo del establecimiento. Promoción y servicios se guardan juntos o no se guarda nada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromocionNueva' }
+            example:
+              nombre: Martes de motor
+              descripcion: 20 % en el lavado de motor
+              condiciones: Válida de lunes a viernes
+              descuentoPct: 20
+              fechaInicio: '2026-11-01'
+              fechaFin: '2026-11-30'
+              servicioIds: [6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10]
       responses:
+        '201':
+          description: Promoción creada, con su estado calculado y sus servicios.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promocion' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
 
   /promociones/{id}:
     parameters:
       - $ref: '#/components/parameters/Id'
-    put:
+    patch:
       tags: [Promociones]
       operationId: actualizarPromocion
-      summary: Editar una promoción (solo administrador; pendiente HU-12)
+      summary: Editar, activar o desactivar una promoción (solo administrador)
+      description: >-
+        HU-12 (RF-F4-03). Se envían solo los campos que cambian; `servicioIds` reemplaza la lista completa. Desactivar
+        (`activa: false`) no la borra. Los cambios no alteran órdenes ya creadas, que guardan su propio precio y descuento.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromocionCambios' }
+            examples:
+              desactivar: { summary: Desactivar, value: { activa: false } }
+              extender: { summary: Extender la vigencia, value: { fechaFin: '2026-12-15' } }
       responses:
+        '200':
+          description: Promoción actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promocion' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /usuarios:
     get:
@@ -814,6 +868,61 @@ components:
         duracion_min: { type: integer, minimum: 1 }
         activo: { type: boolean }
         created_at: { type: string, format: date-time }
+
+    Promocion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        establecimiento_id: { type: string, format: uuid }
+        nombre: { type: string }
+        descripcion: { type: [string, 'null'] }
+        condiciones: { type: [string, 'null'] }
+        descuento_pct: { type: number, minimum: 1, maximum: 100 }
+        fecha_inicio: { type: string, format: date }
+        fecha_fin: { type: string, format: date }
+        activa: { type: boolean }
+        estado: { type: string, enum: [programada, vigente, vencida, desactivada] }
+        servicios:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              nombre: { type: string }
+        created_at: { type: string, format: date-time }
+
+    PromocionNueva:
+      type: object
+      required: [nombre, descuentoPct, fechaInicio, fechaFin, servicioIds]
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 80 }
+        descripcion: { type: [string, 'null'], maxLength: 500 }
+        condiciones: { type: [string, 'null'], maxLength: 500 }
+        descuentoPct: { type: integer, minimum: 1, maximum: 100 }
+        fechaInicio: { type: string, format: date }
+        fechaFin: { type: string, format: date, description: Igual o posterior a fechaInicio y a hoy (Bogotá). }
+        servicioIds:
+          type: array
+          minItems: 1
+          items: { type: string, format: uuid }
+        activa: { type: boolean, default: true }
+
+    PromocionCambios:
+      type: object
+      minProperties: 1
+      description: Mismos campos que PromocionNueva, todos opcionales. La fecha de fin puede quedar en el pasado (terminar la promoción antes).
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 80 }
+        descripcion: { type: [string, 'null'], maxLength: 500 }
+        condiciones: { type: [string, 'null'], maxLength: 500 }
+        descuentoPct: { type: integer, minimum: 1, maximum: 100 }
+        fechaInicio: { type: string, format: date }
+        fechaFin: { type: string, format: date }
+        servicioIds:
+          type: array
+          minItems: 1
+          items: { type: string, format: uuid }
+        activa: { type: boolean }
 
     Establecimiento:
       type: object
