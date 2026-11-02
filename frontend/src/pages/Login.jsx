@@ -1,13 +1,12 @@
 // HU-01 · Iniciar sesión en el panel administrativo (ZARU-2)
 import { useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSesion } from '../hooks/useSesion.js';
-
-const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { validarCorreo } from '../lib/validacionCorreo.js';
 
 export default function Login() {
-  const { sesion, cargando, errorSesion, recargar } = useSesion();
+  const { sesion, cargando, errorSesion, recargar, recuperacion } = useSesion();
   const ubicacion = useLocation();
   const [correo, setCorreo] = useState('');
   const [clave, setClave] = useState('');
@@ -29,6 +28,9 @@ export default function Login() {
   const destino =
     ubicacion.state?.desde && ubicacion.state.desde !== '/login' ? ubicacion.state.desde : '/';
 
+  // HU-14: una sesión de recuperación solo puede ir a cambiar la contraseña.
+  if (sesion && recuperacion) return <Navigate to="/restablecer" replace />;
+
   // Si ya hay sesión validada, no se vuelve a pedir login (HU-01, req. 3).
   if (sesion && !cargando) return <Navigate to={destino} replace />;
 
@@ -42,8 +44,9 @@ export default function Login() {
     if (!correoNormalizado || !clave) {
       return setError('Completa el correo y la contraseña');
     }
-    if (!CORREO_VALIDO.test(correoNormalizado)) {
-      return setError('Ingresa un correo electrónico válido');
+    const mensajeCorreo = validarCorreo(correoNormalizado);
+    if (mensajeCorreo) {
+      return setError(mensajeCorreo);
     }
 
     setError('');
@@ -101,6 +104,10 @@ export default function Login() {
           disabled={enviando}
           required
         />
+
+        <Link className="login-olvido" to="/recuperar">
+          ¿Olvidaste tu contraseña?
+        </Link>
 
         {mensajeError && (
           <p className="error" role="alert" aria-live="polite">

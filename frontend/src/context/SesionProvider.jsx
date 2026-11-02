@@ -1,7 +1,14 @@
 // HU-01 — Estado único de la sesión del panel.
 // Centraliza auth de Supabase + validación del perfil contra el backend,
 // para que Login, RutaProtegida y Layout no dupliquen consultas.
+// HU-14: distingue la sesión temporal de recuperación de una sesión normal.
 import { createContext, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  enlaceAuth,
+  hayRecuperacionGuardada,
+  limpiarRecuperacion,
+  marcarRecuperacion,
+} from '../lib/enlaceAuth.js';
 import { supabase } from '../lib/supabase.js';
 import { api } from '../services/api.js';
 
@@ -11,7 +18,9 @@ export const SesionContext = createContext({
   establecimiento: null,
   cargando: true,
   errorSesion: '',
+  recuperacion: false,
   recargar: async () => false,
+  finalizarRecuperacion: async () => {},
 });
 
 export function SesionProvider({ children }) {
@@ -20,18 +29,48 @@ export function SesionProvider({ children }) {
   const [establecimiento, setEstablecimiento] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [errorSesion, setErrorSesion] = useState('');
+  // HU-14: el enlace válido llega como #type=recovery; el vencido, como #error_code=...
+  // La marca sobrevive recargas y pestañas para que la sesión temporal de
+  // recuperación no se confunda con una sesión normal.
+  const [recuperacion, setRecuperacion] = useState(() => {
+    if (enlaceAuth.recuperacion) {
+      marcarRecuperacion();
+      return true;
+    }
+    return hayRecuperacionGuardada();
+  });
+  const recuperacionRef = useRef(recuperacion);
   const montado = useRef(true);
 
   // Valida la sesión contra el backend y resuelve perfil + establecimiento.
   // Devuelve false cuando la cuenta no tiene acceso (token inválido o perfil inactivo).
   const validarAcceso = useCallback(async (sesionActual) => {
     if (!sesionActual) {
+      // HU-14: si no hay sesión, una marca de recuperación quedó huérfana
+      // (enlace vencido o ya usado): se descarta para no bloquear el login.
+      if (recuperacionRef.current) {
+        recuperacionRef.current = false;
+        limpiarRecuperacion();
+        if (montado.current) setRecuperacion(false);
+      }
       if (montado.current) {
         setUsuario(null);
         setEstablecimiento(null);
         setCargando(false);
       }
       return false;
+    }
+
+    // HU-14: la sesión de recuperación solo sirve para cambiar la contraseña.
+    // No se valida /me ni se carga el panel con ella.
+    if (recuperacionRef.current) {
+      if (montado.current) {
+        setUsuario(null);
+        setEstablecimiento(null);
+        setErrorSesion('');
+        setCargando(false);
+      }
+      return true;
     }
 
     if (montado.current) {
@@ -83,13 +122,43 @@ export function SesionProvider({ children }) {
     const { data } = await supabase.auth.getSession();
     const actual = data.session ?? null;
     if (montado.current) setSesion(actual);
+    if (recuperacionRef.current) {
+      if (montado.current) setCargando(false);
+      return true;
+    }
     return validarAcceso(actual);
   }, [validarAcceso]);
+
+  // HU-14: cierra la sesión temporal y limpia la marca al terminar o cancelar.
+  const finalizarRecuperacion = useCallback(async () => {
+    limpiarRecuperacion();
+    recuperacionRef.current = false;
+    setRecuperacion(false);
+    setSesion(null);
+    setUsuario(null);
+    setEstablecimiento(null);
+    setErrorSesion('');
+    setCargando(false);
+    await supabase.auth.signOut().catch(() => {});
+  }, []);
 
   useEffect(() => {
     montado.current = true;
 
     const { data: escucha } = supabase.auth.onAuthStateChange((evento, nuevaSesion) => {
+      // HU-14: Supabase avisa con PASSWORD_RECOVERY cuando el enlace es válido.
+      if (evento === 'PASSWORD_RECOVERY') {
+        recuperacionRef.current = true;
+        marcarRecuperacion();
+        setRecuperacion(true);
+        setSesion(nuevaSesion ?? null);
+        setUsuario(null);
+        setEstablecimiento(null);
+        setErrorSesion('');
+        setCargando(false);
+        return;
+      }
+
       // Refrescar el token no cambia el usuario: evita repetir la consulta.
       if (evento === 'TOKEN_REFRESHED') {
         setSesion(nuevaSesion ?? null);
@@ -115,7 +184,16 @@ export function SesionProvider({ children }) {
 
   return (
     <SesionContext.Provider
-      value={{ sesion, usuario, establecimiento, cargando, errorSesion, recargar }}
+      value={{
+        sesion,
+        usuario,
+        establecimiento,
+        cargando,
+        errorSesion,
+        recuperacion,
+        recargar,
+        finalizarRecuperacion,
+      }}
     >
       {children}
     </SesionContext.Provider>

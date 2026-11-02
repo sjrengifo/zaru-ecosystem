@@ -792,3 +792,38 @@ input[aria-invalid='true'] { border-color: var(--color-error); background: var(-
   .boton-eliminar { flex-basis: 100%; }
   .eliminar-impacto > div { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* ---------- HU-14: recuperar y restablecer contraseña ---------- */
+.auth-form h1.logo { margin-bottom: 4px; }
+.auth-form > .texto-suave { margin: 0 0 var(--espacio); }
+.auth-titulo { margin: 0 0 var(--espacio); font-size: 20px; }
+.auth-intro { margin: 0 0 var(--espacio); line-height: 1.5; }
+.login-olvido {
+  display: inline-block;
+  margin: -4px 0 8px;
+  color: var(--color-primario);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.login-olvido:hover { color: var(--color-primario-hover); text-decoration: underline; }
+.boton-enlace {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+.auth-enlace {
+  display: block;
+  width: 100%;
+  margin: var(--espacio) 0 0;
+  text-align: center;
+}
+.auth-enlace:disabled { opacity: 0.6; cursor: wait; }
+.aviso-exito {
+  color: var(--color-exito);
+  border-color: var(--color-exito);
+  background: var(--color-exito-fondo);
+}
+.auth-form .aviso p + p { margin-top: 8px; }
