@@ -1,7 +1,7 @@
 # F8 — Producción y operación: Plan técnico
 
 ## 1. Resumen del enfoque
-Se crea un segundo proyecto de Supabase para pruebas (`zaru-staging`) y se separan los servicios de Render por ambiente. GitHub Actions orquesta migraciones y despliegues. El monitoreo combina un servicio externo de disponibilidad, captura de errores y los logs de Render. Las copias de seguridad se hacen con un workflow programado. La escalabilidad se valida con k6 y se documenta la arquitectura objetivo.
+Se crea un segundo proyecto de Supabase para pruebas (`zaru-staging`) y se separan los servicios de Render por ambiente. GitHub Actions orquesta migraciones y despliegues. El monitoreo combina un servicio externo de disponibilidad, captura de errores y los logs de Render. Las copias de seguridad se hacen con un workflow programado. La API se publica en Render y el panel en Vercel con despliegue automático desde `main` (HU-47).
 
 ## 2. Ambientes
 
@@ -73,19 +73,20 @@ La clave privada de `age` se guarda fuera de GitHub, en poder del Configuration 
 
 Incluye plantillas de comunicación y un simulacro antes del cierre de la fase.
 
-## 8. Escalabilidad
+## 8. Publicación en la nube (HU-47)
 
 | Elemento | Entregable |
 |---|---|
-| `backend/Dockerfile` | Imagen multi-etapa `node:20-alpine`, usuario sin privilegios, `HEALTHCHECK` |
-| Sin estado | Verificación de que caché, SSE y worker funcionan con 2 instancias (el worker usa `SKIP LOCKED`; cada instancia tiene su propio bus Realtime) |
-| `docs/arquitectura/objetivo-nube.md` | Diagrama en AWS (ALB + ECS Fargate con autoescalado por CPU 60 % y latencia) o GCP (Cloud Run con mín. 1 / máx. 10 instancias), supuestos y costo mensual |
-| `tests/carga/escenario-81.js` (k6) | 81 sedes × (consultas de dashboard cada 10 s + 1 cambio de estado/min + 5 seguimientos SSE) durante 15 min |
+| `render.yaml` | Blueprint de la API: Node 22, health check `/api/v1/health`, variables secretas con `sync: false` |
+| `frontend/vercel.json` | Reescrituras para que las rutas del panel funcionen al recargar |
+| `GET /api/v1/health` | Incluye `commit` (`RENDER_GIT_COMMIT`) para saber qué versión está publicada |
+| `.github/workflows/humo-produccion.yml` | Tras cada push a `main`: espera a que la API sirva el commit nuevo, comprueba el panel y el CORS entre ambos |
+| README, sección 10 | Orden de creación de los servicios y URLs públicas |
 
 ## 9. Riesgos y mitigaciones
 
 | Riesgo | Mitigación |
 |---|---|
-| El plan gratuito no soporta la carga | El informe de carga documenta límites y el costo del siguiente plan |
+| `FRONTEND_URL` vacía o con `http://` impide arrancar la API en producción | El README define el dominio del panel antes de crear el servicio de Render |
 | Migración destructiva en producción | Aprobación manual, copia de seguridad previa en el pipeline y prueba en staging |
 | Pérdida de la clave de descifrado | Dos custodios y procedimiento de rotación |

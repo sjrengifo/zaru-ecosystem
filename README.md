@@ -157,7 +157,7 @@ zaru-ecosystem/
 │
 ├── specs/backend/                Plan de desarrollo del backend (Spec Driven Development)
 ├── docs/                         Convenciones, base de datos y decisiones de arquitectura
-├── .github/                      Workflow de CI y plantilla de Pull Request
+├── .github/                      Workflows de CI y prueba de humo, plantilla de Pull Request
 └── render.yaml                   Blueprint de despliegue del backend en Render
 ```
 
@@ -312,18 +312,43 @@ El backend se desarrolla con **Spec Driven Development**. El roadmap por fases, 
 | Backend | Render | `render.yaml` (Blueprint), raíz `backend/`, health check `/api/v1/health` |
 | Frontend | Vercel | Raíz `frontend/`, build `npm run build`, salida `dist/` |
 
-El despliegue es continuo desde la rama `main`.
+El despliegue es continuo desde la rama `main` (HU-47, `ZARU-54`): Render y Vercel publican cada merge sin pasos manuales, y el workflow `humo-produccion.yml` verifica después que la API sirva el commit nuevo y que el panel responda.
 
-### Backend (Render)
+| Servicio | URL pública |
+|---|---|
+| API | https://zaru-api-i5s5.onrender.com/api/v1 · estado: [`/api/v1/health`](https://zaru-api-i5s5.onrender.com/api/v1/health) · documentación: [`/api/docs`](https://zaru-api-i5s5.onrender.com/api/docs) |
+| Panel | https://zaru-panel.vercel.app |
 
-1. Crear un servicio desde **New → Blueprint** seleccionando este repositorio.
-2. Definir `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ZARU_CLAVE_CIFRADO`, `FRONTEND_URL` (con `https://`) y `NODE_ENV=production`.
+### Requisito previo: `main` actualizada
 
-### Frontend (Vercel)
+Render y Vercel construyen desde `main`. Antes de crear los servicios, `develop` debe estar integrada en `main` (PR `develop → main`); de lo contrario Render lee un `render.yaml` antiguo, con el health check en `/api/health` y sin `ZARU_CLAVE_CIFRADO`.
 
-1. Importar el repositorio con **Root Directory** `frontend`.
-2. Definir `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `VITE_API_URL` (URL de Render seguida de `/api/v1`).
-3. Actualizar `FRONTEND_URL` en Render con el dominio asignado por Vercel.
+### Orden de creación
+
+El backend valida sus variables al arrancar (`backend/src/config/env.js`): en producción `FRONTEND_URL` es obligatoria y debe empezar por `https://`, así que no puede quedar vacía mientras se crea el panel. Como cada servicio necesita la URL del otro, se define primero el nombre del proyecto en Vercel y se usa su dominio previsto.
+
+1. **Elegir el dominio del panel.** El dominio de producción de Vercel es `https://<nombre-del-proyecto>.vercel.app` (por ejemplo `https://zaru-panel.vercel.app`). Verificar en el navegador que no esté ocupado.
+2. **Backend en Render.** **New → Blueprint**, repositorio y rama `main`. Render toma `render.yaml` y pide las variables marcadas `sync: false`:
+
+   | Variable | Valor |
+   |---|---|
+   | `SUPABASE_URL` | Supabase → Project Settings → API |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API (secreta) |
+   | `ZARU_CLAVE_CIFRADO` | `openssl rand -base64 32`; si ya hay correos cifrados, la misma clave con la que se cifraron |
+   | `FRONTEND_URL` | Dominio del paso 1, con `https://` y sin `/` final |
+
+   `NODE_ENV=production` y `NODE_VERSION=22` ya vienen en el Blueprint. Al terminar, comprobar `https://<servicio>.onrender.com/api/v1/health`.
+3. **Panel en Vercel.** **Add New → Project**, mismo repositorio, nombre del paso 1 y **Root Directory** `frontend`. Variables:
+
+   | Variable | Valor |
+   |---|---|
+   | `VITE_SUPABASE_URL` | Supabase → Project Settings → API |
+   | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API (pública) |
+   | `VITE_API_URL` | URL de Render seguida de `/api/v1` |
+
+   Si Vercel asigna un dominio distinto al previsto, corregir `FRONTEND_URL` en Render y redesplegar el backend.
+4. **Supabase Auth.** Authentication → URL Configuration: `Site URL` con el dominio del panel y el mismo dominio en `Redirect URLs` (recuperación de contraseña).
+5. **Prueba de humo.** En GitHub → Settings → Secrets and variables → Actions → **Variables**, crear `URL_API_PRODUCCION` (URL de Render, sin `/api/v1`) y `URL_PANEL_PRODUCCION` (dominio del panel). Ejecutar el workflow *Prueba de humo en producción* manualmente para confirmar.
 
 En el plan gratuito de Render el servicio se suspende tras 15 minutos de inactividad; la primera petición posterior puede tardar alrededor de 30 segundos.
 
