@@ -22,7 +22,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-09 Visualizar el dashboard operativo en tiempo real | ZARU-10 | 8 | Must | Yeliani | F3 | RF-F3-10, 12 | ESC-F3-07, 09 | — | Pendiente |
 | HU-10 Actualizar el estado operativo del vehículo | ZARU-11 | 5 | Must | Vanessa | F3 | RF-F3-05 a 09 | ESC-F3-03 a 06 | — | Pendiente |
 | HU-11 Recibir alertas de vehículos sin actualizar | ZARU-12 | 3 | Could | Yeliani | F3 | RF-F3-11 | ESC-F3-07 | — | Pendiente |
-| HU-12 Crear y gestionar promociones | ZARU-13 | 5 | Should | María José | F4 | RF-F4-01 a 06 | ESC-F4-01 a 04 | — | Pendiente |
+| HU-12 Crear y gestionar promociones | ZARU-13 | 5 | Should | María José | F4 | RF-F4-01 a 06 | ESC-F4-01 a 04 | `tests/unit/promociones.test.js`, `tests/integration/promociones.test.js`, `database/pruebas/09_promociones.sql` | En desarrollo |
 | HU-13 Personalizar el branding de la sede | ZARU-14 | 5 | Should | María José | F4 | RF-F4-07 a 09 | ESC-F4-05, 06 | `tests/unit/branding.test.js`, `tests/integration/branding.test.js`, `database/pruebas/08_branding.sql` | En desarrollo |
 | HU-14 Recuperar la contraseña del panel administrativo | ZARU-66 | 2 | Should | Yeliani | F1 | RF-F1-12 | — | — | Pendiente |
 | HU-15 Configurar la garantía Rain Insure en los servicios | ZARU-67 | 3 | Could | Silvana | F2 | RF-F2-16 | ESC-F2-08 | — | Pendiente |
