@@ -35,7 +35,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | CA | Resultado | Evidencia |
 |---|---|---|
 | CA1 | Cumple | Al cambiar los colores y elegir un logo PNG, la vista previa se actualizó al instante sin guardar. |
-| CA2 | Pendiente | Falta aplicar en Supabase la migración `20261101190000_hu13_branding_logos` (bucket `logos`). La vista del cliente final corresponde a HU-18. |
+| CA2 | Cumple en el panel | Migración `20261101190000_hu13_branding_logos` aplicada en Supabase el 1 de noviembre de 2026 (verificados el bucket `logos` con 2 MB y PNG/JPG, las 3 políticas de Storage y los 2 checks de color). Se subió un logo, se guardó y, tras recargar, aparece en el menú lateral del panel y en Storage. La vista del cliente final corresponde a HU-18. |
 | CA3 | Cumple en el panel | El navegador rechazó un `.txt` renombrado a `falso.png`, un PDF y un PNG de más de 2 MB con el mensaje "PNG o JPG de máximo 2 MB". El rechazo de la API (`400`) está cubierto por `tests/unit/branding.test.js`. |
 
 ## Épica 4 — Arquitectura y backend (ZARU-48) · Sprint 1
