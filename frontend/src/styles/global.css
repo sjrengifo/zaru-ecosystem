@@ -904,6 +904,27 @@ textarea {
 .boton-pequeno { min-height: 36px; padding: 6px 12px; font-size: 14px; }
 .tabla-acciones .boton-pequeno { margin-left: 4px; }
 
+/* ---------- HU-08 · Ingreso de vehículo ---------- */
+.campo-con-accion { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.campo-con-accion .campo { margin: 0; }
+.campo-con-accion > .boton { margin-bottom: 0; }
+.resumen-orden {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  background: var(--color-fondo);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}
+.resumen-orden > div { display: flex; justify-content: space-between; gap: 12px; }
+.resumen-orden .resumen-total {
+  padding-top: 8px;
+  font-size: 18px;
+  border-top: 1px solid var(--color-borde);
+}
+.resumen-orden p { margin: 0; }
+
 @media (max-width: 480px) {
   .campos-fila { grid-template-columns: 1fr; gap: 0; }
+  .campo-con-accion { grid-template-columns: 1fr; align-items: stretch; }
 }
