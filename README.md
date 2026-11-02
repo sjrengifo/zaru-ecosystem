@@ -60,7 +60,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | Capa | Tecnología | Versión |
 |---|---|---|
 | Frontend | React, React Router, Vite | React 18 · Vite 5 |
-| Backend | Node.js, Express | Node ≥ 20 · Express 4 |
+| Backend | Node.js, Express | Node ≥ 22 · Express 4 |
 | Base de datos | PostgreSQL (Supabase) | — |
 | Autenticación | Supabase Auth (JWT) | — |
 | Tiempo real | Supabase Realtime (`postgres_changes`) | — |
@@ -79,7 +79,9 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | Proyecto Supabase | `zaru` (organización `zaru`) |
 | Región | `us-east-1` |
 | URL | `https://djutvsulfduzuylvaten.supabase.co` |
-| Esquema versionado | [`database/schema.sql`](database/schema.sql) |
+| Migraciones (fuente de verdad) | [`supabase/migrations/`](supabase/migrations) |
+| Esquema de referencia | [`database/schema.sql`](database/schema.sql) (generado desde las migraciones) |
+| Documentación del modelo | [`docs/base-de-datos.md`](docs/base-de-datos.md) |
 | Datos de prueba | [`database/seed.sql`](database/seed.sql) |
 
 ### Entidades
@@ -95,18 +97,27 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `ordenes` | Orden de servicio y su estado (`recibido` → `en_lavado` → `listo` → `entregado`) | HU-08, HU-10 |
 | `orden_servicios` | Servicios de cada orden con el precio y la duración vigentes al momento de crearla | HU-07, HU-08 |
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
+| `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
+| `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
+| `politicas_datos` | Versiones de la política de tratamiento de datos; una versión publicada no se modifica ([texto v1.0](docs/legal/politica-tratamiento-datos-v1.0.md), [texto v1.1](docs/legal/politica-tratamiento-datos-v1.1.md)) | HU-51 |
+| `consentimientos` | Evidencia inmutable de cada autorización o revocación: fecha, hora, versión de la política, canal, IP y usuario | HU-51, HU-30 |
 
 ### Seguridad multi-tenant
 
 - Todas las tablas de negocio incluyen `establecimiento_id`.
 - RLS está habilitado en todas las tablas. Las políticas de lectura restringen las filas al establecimiento del usuario autenticado mediante la función `privado.mi_establecimiento()`.
 - Las funciones de seguridad residen en el esquema `privado`, que no se expone en la API REST de Supabase.
-- Las escrituras se realizan exclusivamente desde el backend con la clave `service_role`, filtrando siempre por el establecimiento del usuario (`req.usuario.establecimientoId`).
+- Las escrituras se realizan exclusivamente desde el backend con la clave `service_role`. Los controladores acceden a los datos solo mediante `req.tenant` ([`backend/src/shared/tenant.js`](backend/src/shared/tenant.js)), que aplica automáticamente el filtro por el establecimiento de la sesión, ignora cualquier `establecimiento_id` enviado en la petición y responde `404` igual para un recurso inexistente que para uno de otro establecimiento (HU-41). Una prueba en CI impide consultar la base directamente desde un controlador.
+- La base impide relacionar datos de establecimientos distintos mediante llaves foráneas compuestas `(id, establecimiento_id)` y triggers en las tablas puente.
 - La tabla `ordenes` está publicada en `supabase_realtime` para el dashboard operativo.
+
+### Cifrado y secretos
+
+Todo el tráfico usa HTTPS: la API rechaza HTTP en producción y Supabase exige TLS 1.2 o superior. Los datos están cifrados en reposo (AES-256) y el correo de los clientes se cifra además a nivel de campo. Los secretos viven solo en el gestor de cada ambiente y en `.env` (ignorado por git), y CI escanea todo el historial con gitleaks. Detalle en [`docs/seguridad/cifrado-y-secretos.md`](docs/seguridad/cifrado-y-secretos.md) (HU-50).
 
 ### Gestión de cambios
 
-Todo cambio de esquema debe aplicarse como migración en Supabase y reflejarse en `database/schema.sql` dentro del mismo Pull Request, de forma que el repositorio sea siempre la fuente de verdad del modelo de datos.
+Todo cambio de esquema se escribe como un archivo nuevo en `supabase/migrations/` (`AAAAMMDDHHMMSS_descripcion.sql`) y se aplica igual en cualquier ambiente. Una migración aplicada nunca se edita. En el mismo Pull Request se regenera `database/schema.sql` y se ejecutan las pruebas de `database/pruebas/` (ver [`docs/base-de-datos.md`](docs/base-de-datos.md)).
 
 ---
 
@@ -129,7 +140,8 @@ zaru-ecosystem/
 │
 ├── backend/                      API REST (Node.js + Express)
 │   ├── src/
-│   │   ├── routes/               Definición de endpoints por recurso
+│   │   ├── routes/               Definición de endpoints por recurso (versión 1)
+│   │   ├── schemas/              Validación de entradas con zod
 │   │   ├── controllers/          Lógica de negocio por recurso
 │   │   ├── middlewares/          Autenticación, autorización por rol y manejo de errores
 │   │   ├── config/supabase.js    Cliente de Supabase con service_role
@@ -137,12 +149,14 @@ zaru-ecosystem/
 │   │   └── index.js              Arranque del servidor
 │   └── .env.example
 │
+├── supabase/migrations/          Migraciones versionadas del esquema (fuente de verdad)
 ├── database/
-│   ├── schema.sql                Esquema, índices, RLS y Realtime
-│   └── seed.sql                  Datos de prueba
+│   ├── schema.sql                Esquema de referencia generado desde las migraciones
+│   ├── seed.sql                  Datos de prueba
+│   └── pruebas/                  Aplicación de migraciones, integridad, carga y rendimiento
 │
 ├── specs/backend/                Plan de desarrollo del backend (Spec Driven Development)
-├── docs/CONTRIBUIR.md            Convenciones de ramas, commits y Pull Requests
+├── docs/                         Convenciones, base de datos y decisiones de arquitectura
 ├── .github/                      Workflow de CI y plantilla de Pull Request
 └── render.yaml                   Blueprint de despliegue del backend en Render
 ```
@@ -183,6 +197,7 @@ cp .env.example .env
 | `PORT` | Puerto de la API (por defecto `4000`) |
 | `SUPABASE_URL` | URL del proyecto Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave `service_role`. **Confidencial**: no debe incluirse en el frontend ni en el repositorio |
+| `ZARU_CLAVE_CIFRADO` | Clave de 32 bytes para cifrar datos personales a nivel de campo (`openssl rand -base64 32`). **Confidencial**: una por ambiente; si se pierde, los correos cifrados no se recuperan |
 | `FRONTEND_URL` | Origen permitido por CORS |
 
 **`frontend/.env`**
@@ -191,7 +206,7 @@ cp .env.example .env
 |---|---|
 | `VITE_SUPABASE_URL` | URL del proyecto Supabase |
 | `VITE_SUPABASE_ANON_KEY` | Clave pública (`anon`); el acceso a los datos está protegido por RLS |
-| `VITE_API_URL` | URL base de la API (por defecto `http://localhost:4000/api`) |
+| `VITE_API_URL` | URL base de la API (por defecto `http://localhost:4000/api/v1`) |
 
 Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. La clave `service_role` se distribuye por un canal privado.
 
@@ -201,10 +216,13 @@ Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. 
 |---|---|---|
 | `npm run dev` | `backend/` | API en modo desarrollo con recarga automática — `http://localhost:4000` |
 | `npm start` | `backend/` | API en modo producción |
+| `npm run lint:openapi` | `backend/` | Valida el contrato OpenAPI |
+| `npm run cifrar:correos` | `backend/` | Cifra los correos de clientes que aún estén en texto plano (HU-50) |
+| `npm test` | `backend/` | Pruebas unitarias y de integración (Vitest). Las de integración requieren `.env` y `.env.spike.local`; sin ellos se omiten |
 | `npm run dev` | `frontend/` | Servidor de desarrollo de Vite — `http://localhost:5173` |
 | `npm run build` | `frontend/` | Build de producción en `frontend/dist/` |
 
-Verificación de la API: `GET http://localhost:4000/api/health`.
+Verificación de la API: `GET http://localhost:4000/api/v1/health`. Documentación: `http://localhost:4000/api/docs`.
 
 ### Usuarios de prueba
 
@@ -214,18 +232,26 @@ El acceso al panel requiere un usuario en Supabase Auth con un registro asociado
 
 ## 7. API
 
-Base: `/api`. Todos los endpoints, salvo `/health`, requieren el encabezado `Authorization: Bearer <JWT de Supabase>`. Las respuestas de error tienen la forma `{ "error": "mensaje" }`.
+Base: `/api/v1`. Todos los endpoints, salvo `/health`, requieren el encabezado `Authorization: Bearer <JWT de Supabase>`.
+
+- **Documentación:** `GET /api/docs` (Swagger UI) y `GET /api/openapi.json`. El contrato vive en [`backend/openapi/openapi.yaml`](backend/openapi/openapi.yaml); una prueba verifica que todas las rutas estén documentadas y CI valida el contrato con `npm run lint:openapi`.
+- **Errores:** formato único `{ "error": { "codigo", "mensaje", "detalles"?, "requestId" } }`. Los datos inválidos responden `400 VALIDACION` con un elemento en `detalles` por cada campo a corregir. Cada respuesta incluye `X-Request-Id`.
+- **Versiones:** `/api` sin versión sigue funcionando para las aplicaciones ya desplegadas y responde con `Deprecation: true` y `Link: </api/v1>; rel="successor-version"`. Una versión nueva se publica en `/api/v2` sin retirar las anteriores.
 
 | Método | Endpoint | Rol | Descripción | Estado |
 |---|---|---|---|---|
 | GET | `/health` | Público | Estado del servicio | Implementado |
-| GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes | Implementado |
+| GET | `/me` | Admin, Operario | Usuario, rol, establecimiento y vencimiento de la sesión | Implementado |
+| GET | `/politicas-datos/vigente` | Público | Política de tratamiento de datos vigente (versión y texto) | Implementado |
+| GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes por nombre, teléfono o placa | Implementado |
 | GET | `/clientes/:id` | Admin, Operario | Detalle de cliente con sus vehículos | Implementado |
-| POST | `/clientes` | Admin, Operario | Registrar cliente | Implementado |
+| POST | `/clientes` | Admin, Operario | Registrar cliente con autorización de datos y versión de la política (`politicaVersion`) | Implementado |
 | PUT | `/clientes/:id` | Admin, Operario | Actualizar cliente | Implementado |
-| GET | `/vehiculos?placa=` | Admin, Operario | Listar o buscar vehículos | Pendiente |
-| POST | `/vehiculos` | Admin, Operario | Registrar vehículo | Pendiente |
-| GET | `/vehiculos/:id/historial` | Admin, Operario | Historial de servicios | Pendiente |
+| DELETE | `/clientes/:id` | Admin | Eliminar los datos de un cliente a su solicitud (HU-52) | Implementado |
+| GET | `/clientes/:id/consentimientos` | Admin | Evidencia de autorización de tratamiento de datos | Implementado |
+| GET | `/vehiculos?placa=` | Admin, Operario | Listar o buscar vehículos | Implementado |
+| POST | `/vehiculos` | Admin, Operario | Registrar vehículo asociado a un cliente | Implementado |
+| GET | `/vehiculos/:id/historial` | Admin, Operario | Historial de servicios | Implementado |
 | GET | `/servicios` | Admin, Operario | Catálogo de servicios | Implementado |
 | POST / PUT | `/servicios`, `/servicios/:id` | Admin | Crear, editar o desactivar servicio | Pendiente |
 | GET | `/ordenes/activas` | Admin, Operario | Órdenes en curso para el dashboard | Pendiente |
@@ -268,7 +294,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 - **Ramas:** `main` (versión desplegada), `develop` (integración del sprint) y `feature/ZARU-<n>-<descripcion>` por historia de usuario.
 - **Commits:** prefijados con la clave de Jira, por ejemplo `ZARU-4: registro de clientes`.
 - **Pull Requests:** hacia `develop`, con al menos una aprobación y verificación de los criterios de aceptación. Al cierre de cada sprint, `develop` se integra en `main`.
-- **Integración continua:** GitHub Actions compila el frontend y valida el backend en cada Pull Request hacia `main` o `develop`.
+- **Integración continua:** GitHub Actions compila el frontend, valida el backend, ejecuta sus pruebas y escanea secretos con gitleaks en cada Pull Request hacia `main` o `develop`.
 
 Las convenciones completas están en [`docs/CONTRIBUIR.md`](docs/CONTRIBUIR.md).
 
@@ -283,7 +309,7 @@ El backend se desarrolla con **Spec Driven Development**. El roadmap por fases, 
 | Componente | Plataforma | Configuración |
 |---|---|---|
 | Base de datos | Supabase | Desplegada (`us-east-1`) |
-| Backend | Render | `render.yaml` (Blueprint), raíz `backend/`, health check `/api/health` |
+| Backend | Render | `render.yaml` (Blueprint), raíz `backend/`, health check `/api/v1/health` |
 | Frontend | Vercel | Raíz `frontend/`, build `npm run build`, salida `dist/` |
 
 El despliegue es continuo desde la rama `main`.
@@ -291,12 +317,12 @@ El despliegue es continuo desde la rama `main`.
 ### Backend (Render)
 
 1. Crear un servicio desde **New → Blueprint** seleccionando este repositorio.
-2. Definir `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y `FRONTEND_URL`.
+2. Definir `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ZARU_CLAVE_CIFRADO`, `FRONTEND_URL` (con `https://`) y `NODE_ENV=production`.
 
 ### Frontend (Vercel)
 
 1. Importar el repositorio con **Root Directory** `frontend`.
-2. Definir `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `VITE_API_URL` (URL de Render seguida de `/api`).
+2. Definir `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `VITE_API_URL` (URL de Render seguida de `/api/v1`).
 3. Actualizar `FRONTEND_URL` en Render con el dominio asignado por Vercel.
 
 En el plan gratuito de Render el servicio se suspende tras 15 minutos de inactividad; la primera petición posterior puede tardar alrededor de 30 segundos.

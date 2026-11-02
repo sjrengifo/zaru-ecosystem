@@ -13,10 +13,10 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 |---|---|---|---|---|---|---|---|---|---|
 | HU-01 Iniciar sesión en el panel administrativo | ZARU-2 | 5 | Must | Yeliani | F1 | RF-F1-01, 04, 06 | ESC-F1-01, 04 | — | En desarrollo |
 | HU-02 Gestionar usuarios operarios del establecimiento | ZARU-3 | 5 | Must | Yeliani | F1 | RF-F1-03, 05, 07, 08 | ESC-F1-03, 05, 06, 08 | — | Pendiente |
-| HU-03 Registrar cliente con autorización de datos | ZARU-4 | 3 | Must | Nikol | F2 | RF-F2-01 a 06 | ESC-F2-01 a 04 | — | Pendiente |
-| HU-04 Consultar y editar clientes | ZARU-5 | 2 | Should | Nikol | F2 | RF-F2-07, 08 | ESC-F2-05 | — | Pendiente |
-| HU-05 Registrar vehículo asociado a un cliente | ZARU-6 | 3 | Must | Nikol | F2 | RF-F2-11 a 14 | ESC-F2-06 | — | Pendiente |
-| HU-06 Consultar historial de servicios de un vehículo | ZARU-7 | 3 | Should | Nikol | F2 | RF-F2-15 | ESC-F2-07 | — | Pendiente |
+| HU-03 Registrar cliente con autorización de datos | ZARU-4 | 3 | Must | Nikol | F2 | RF-F2-01 a 06 | ESC-F2-01 a 04 | `tests/unit/clientes.test.js` · `tests/integration/habeas-data.test.js` | En desarrollo |
+| HU-04 Consultar y editar clientes | ZARU-5 | 2 | Should | Nikol | F2 | RF-F2-07, 08 | ESC-F2-05 | `tests/unit/clientes-consulta-edicion.test.js` · `tests/integration/clientes-consulta-edicion.test.js` | En desarrollo |
+| HU-05 Registrar vehículo asociado a un cliente | ZARU-6 | 3 | Must | Nikol | F2 | RF-F2-11 a 14 | ESC-F2-06 | `tests/unit/vehiculos.test.js` · `tests/integration/vehiculos.test.js` | En desarrollo |
+| HU-06 Consultar historial de servicios de un vehículo | ZARU-7 | 3 | Should | Nikol | F2 | RF-F2-15 | ESC-F2-07 | `tests/unit/historial-vehiculo.test.js` · `tests/integration/historial-vehiculo.test.js` | En desarrollo |
 | HU-07 Gestionar catálogo de servicios y precios | ZARU-8 | 3 | Must | Vanessa | F2 | RF-F2-16 a 18 | ESC-F2-08, 09 | — | Pendiente |
 | HU-08 Registrar ingreso de vehículo (orden de servicio) | ZARU-9 | 5 | Must | Vanessa | F3 | RF-F3-01 a 04 | ESC-F3-01, 02 | — | Pendiente |
 | HU-09 Visualizar el dashboard operativo en tiempo real | ZARU-10 | 8 | Must | Yeliani | F3 | RF-F3-10, 12 | ESC-F3-07, 09 | — | Pendiente |
@@ -45,7 +45,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-49 Realizar copias de seguridad diarias y restaurar la información | ZARU-56 | 5 | Should | Silvana | F8 | RF-F8-08 a 11 | ESC-F8-04 | — | Pendiente |
 | HU-50 Cifrar la información en tránsito y en reposo | ZARU-57 | 3 | Must | Samuel | F1, F8 | RNF-F1-02, 03, RF-F8-12, 13 | ESC-F8-05 | — | En desarrollo |
 | HU-51 Registrar la autorización del titular para el tratamiento de datos (Habeas Data) | ZARU-58 | 3 | Must | Samuel | F2 | RF-F2-01, 02, 04, 10 | ESC-F2-01, 02 | — | En desarrollo |
-| HU-52 Atender los derechos del titular sobre sus datos personales | ZARU-59 | 5 | Should | Nikol | F2, F5 | RF-F2-08, 09, RF-F5-16 a 18 | ESC-F2-10, ESC-F5-11 | — | Pendiente |
+| HU-52 Atender los derechos del titular sobre sus datos personales | ZARU-59 | 5 | Should | Nikol | F2, F5 | RF-F2-08, 09, RF-F5-16 a 18 | ESC-F2-10, ESC-F5-11 | `tests/unit/eliminar-cliente.test.js` · `tests/integration/eliminar-cliente.test.js` | En desarrollo |
 | HU-53 Activar el protocolo de respuesta ante incidentes de seguridad de datos | ZARU-60 | 5 | Should | Nikol | F1, F8 | RF-F1-10, 11, RF-F8-14 a 16 | ESC-F1-03, ESC-F8-06 | — | Pendiente |
 | HU-54 Procesar de forma idempotente las acciones sincronizadas desde el dispositivo | ZARU-61 | 3 | Could | Vanessa | F3 | RF-F3-13, 14 | ESC-F3-08 | — | Pendiente |
 | HU-55 Guardar y sincronizar las acciones realizadas sin conexión | ZARU-71 | 8 | Could | Vanessa | F3 (frontend) | — (consume RF-F3-14) | — | — | Pendiente |

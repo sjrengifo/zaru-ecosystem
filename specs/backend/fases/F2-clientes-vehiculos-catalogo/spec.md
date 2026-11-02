@@ -17,26 +17,26 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 
 | ID | Requisito | Origen |
 |---|---|---|
-| RF-F2-01 | Registrar un cliente exige nombre, celular (10 dígitos) y la autorización de tratamiento de datos; el correo es opcional. | HU-03 CA1, HU-51 CA1 |
+| RF-F2-01 | Registrar un cliente exige nombre, celular (10 dígitos), correo y la autorización de tratamiento de datos. El correo es obligatorio desde la política 1.1 porque es un canal de notificación (HU-46), y no se puede vaciar al editar. | HU-03 CA1, HU-51 CA1 |
 | RF-F2-02 | Sin autorización de tratamiento de datos, el registro se rechaza y **no se almacena ningún dato personal**. | HU-03 CA2, HU-51 CA3 |
 | RF-F2-03 | Al registrar, se reciben dos autorizaciones adicionales independientes y desmarcadas por defecto: notificaciones del servicio y comunicaciones comerciales. | HU-30 CA1 |
 | RF-F2-04 | Cada autorización otorgada o revocada se guarda como evidencia inmutable con fecha, hora, canal, IP y versión de la política vigente. | HU-30 CA4, HU-51 CA2 |
 | RF-F2-05 | El establecimiento consulta el historial completo de autorizaciones de un cliente para auditoría. | HU-30 CA4 |
 | RF-F2-06 | Si el celular ya existe en el establecimiento, el registro responde `409` con el id y nombre del cliente existente. | HU-03 CA3 |
-| RF-F2-07 | Listar clientes con búsqueda por nombre (parcial, sin tildes), celular o placa, con paginación. | HU-04 CA1 |
+| RF-F2-07 | Listar clientes con búsqueda por nombre (parcial, sin tildes), celular o placa. La paginación queda pendiente. | HU-04 CA1 |
 | RF-F2-08 | Actualizar nombre, celular y correo de un cliente; el cambio se refleja en todos los módulos. | HU-04 CA2, HU-52 CA2 |
-| RF-F2-09 | Anonimizar un cliente a solicitud del titular: se reemplazan sus datos personales de forma irreversible, se conservan las órdenes para estadísticas y se registra la gestión. | HU-52 CA3 |
+| RF-F2-09 | Eliminar un cliente a solicitud del titular: se borran de forma irreversible sus datos personales, vehículos, autorizaciones y notificaciones; se conservan las órdenes entregadas, sin vehículo, para estadísticas, y se registra la gestión. No se permite si tiene un servicio en curso. | HU-52 CA1 a CA3 |
 | RF-F2-10 | `GET /politicas-datos/vigente` devuelve la versión y URL de la política vigente. | HU-51 CA1 |
 
 ### Vehículos
 
 | ID | Requisito | Origen |
 |---|---|---|
-| RF-F2-11 | Registrar un vehículo asociado a un cliente con placa, tipo, marca y color; la placa se normaliza a mayúsculas sin espacios ni guiones. | HU-05 CA1 |
+| RF-F2-11 | Registrar un vehículo asociado a un cliente con placa, tipo (carro o moto), marca y color; placa y tipo son obligatorios, y la placa se normaliza a mayúsculas sin espacios ni guiones. | HU-05 CA1 |
 | RF-F2-12 | Formato de placa válido: carro `AAA000`, moto `AAA00A` o `AAA00`. | HU-05 CA1 |
 | RF-F2-13 | Una placa repetida en el establecimiento responde `409` indicando a qué cliente pertenece. | HU-05 CA2 |
 | RF-F2-14 | El detalle del cliente incluye todos sus vehículos. | HU-05 CA3 |
-| RF-F2-15 | El historial de un vehículo lista sus órdenes entregadas con fecha, servicios y valor, de la más reciente a la más antigua; si no hay, devuelve una lista vacía. | HU-06 CA1, CA2 |
+| RF-F2-15 | El historial de un vehículo lista sus órdenes entregadas con fecha, servicios y valor, de la más reciente a la más antigua; si no hay, devuelve una lista vacía. La paginación queda pendiente. | HU-06 CA1, CA2 |
 
 ### Catálogo de servicios
 
@@ -64,7 +64,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 **ESC-F2-02 — Registro sin autorización** (RF-F2-02 · HU-03 CA2, HU-51 CA3)
 - **Dado** que la autorización no se otorga
 - **Cuando** intento registrar el cliente
-- **Entonces** recibo `400` con el campo `autorizaciones.tratamientoDatos` y no existe ninguna fila nueva en `clientes`.
+- **Entonces** recibo `400` con el campo `autorizacionDatos` y no existe ninguna fila nueva en `clientes`.
 
 **ESC-F2-03 — Autorizaciones separadas** (RF-F2-03 · HU-30 CA1)
 - **Dado** un registro que solo otorga la autorización de tratamiento
@@ -74,7 +74,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 **ESC-F2-04 — Celular duplicado** (RF-F2-06 · HU-03 CA3)
 - **Dado** un cliente con celular 3001234567
 - **Cuando** registro otro cliente con el mismo celular
-- **Entonces** recibo `409` con `detalles.clienteExistente`.
+- **Entonces** recibo `409` con el id del cliente existente en `detalles[0].clienteId`, también si dos registros llegan al mismo tiempo.
 
 **ESC-F2-05 — Búsqueda** (RF-F2-07 · HU-04 CA1)
 - **Dado** el cliente "José Pérez" con el vehículo ABC123
@@ -89,7 +89,7 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 **ESC-F2-07 — Historial vacío** (RF-F2-15 · HU-06 CA2)
 - **Dado** un vehículo sin órdenes entregadas
 - **Cuando** consulto su historial
-- **Entonces** recibo `200` con `datos: []`.
+- **Entonces** recibo `200` con una lista vacía.
 
 **ESC-F2-08 — Precio histórico** (RF-F2-17 · HU-07 CA2)
 - **Dado** una orden con "Lavado básico" a 25 000
@@ -101,10 +101,10 @@ Permitir al establecimiento registrar y mantener a sus clientes y vehículos, y 
 - **Cuando** consulto `GET /servicios?activo=true`
 - **Entonces** no aparece.
 
-**ESC-F2-10 — Anonimización** (RF-F2-09 · HU-52 CA3)
-- **Dado** un cliente con órdenes
-- **Cuando** el administrador lo anonimiza
-- **Entonces** nombre, celular y correo quedan irreconocibles, las órdenes se conservan, y la gestión queda en `solicitudes_titular` y en `auditoria`.
+**ESC-F2-10 — Eliminación** (RF-F2-09 · HU-52 CA1, CA3)
+- **Dado** un cliente con órdenes entregadas
+- **Cuando** el administrador confirma su eliminación
+- **Entonces** se borran sus datos y vehículos, ya no aparece al buscar por nombre, teléfono o placa, las órdenes se conservan sin vehículo y la gestión queda en `auditoria` sin datos personales.
 
 ## 5. Fuera de alcance
 - Validación del celular por SMS (F6).

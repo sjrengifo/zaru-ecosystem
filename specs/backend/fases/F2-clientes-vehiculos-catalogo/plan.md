@@ -18,7 +18,7 @@ Migración `<ts>_clientes_y_datos_personales.sql`:
 | Extensión `pg_trgm` + `unaccent` | Índice `gin` sobre `unaccent(lower(nombre))` | RF-F2-07 |
 | Vista `consentimientos_vigentes` | Último registro por (`cliente_id`, `tipo`) | RF-F2-05 |
 | Función `crear_cliente_con_consentimiento(...)` | Inserta cliente y consentimientos en una transacción; falla si `tratamiento_datos` no está otorgado | RF-F2-02, RNF-F2-02 |
-| Función `anonimizar_cliente(id, usuario_id)` | Reemplaza datos personales por `anonimo-<hash>` y registra la solicitud | RF-F2-09 |
+| Función `eliminar_cliente(establecimiento, id)` | Borra al titular, sus vehículos, autorizaciones y notificaciones; conserva las órdenes entregadas sin vehículo | RF-F2-09 |
 
 Ambas funciones se crean en el esquema `privado` con `security definer` y permisos solo para `service_role`.
 
@@ -30,15 +30,15 @@ Ambas funciones se crean en el esquema `privado` con `security definer` y permis
 | GET | `/clientes` | admin, operario | `?buscar&pagina&tamano` | `Pagina<ClienteResumen>` | RF-F2-07 |
 | POST | `/clientes` | admin, operario | `{ nombre, celular, correo?, autorizaciones: { tratamientoDatos, notificacionesServicio, comerciales } }` | `201 Cliente` · `409` | RF-F2-01 a 06 |
 | GET | `/clientes/{id}` | admin, operario | — | `Cliente` + `vehiculos` + `autorizacionesVigentes` | RF-F2-14 |
-| PATCH | `/clientes/{id}` | admin, operario | `{ nombre?, celular?, correo? }` | `Cliente` | RF-F2-08 |
+| PUT | `/clientes/{id}` | admin, operario | `{ nombre?, celular?, correo? }` | `Cliente` | RF-F2-08 |
 | GET | `/clientes/{id}/consentimientos` | admin | — | `Consentimiento[]` | RF-F2-05 |
 | POST | `/clientes/{id}/consentimientos` | admin, operario | `{ tipo, otorgado }` | `201 Consentimiento` | RF-F2-04 |
-| POST | `/clientes/{id}/anonimizar` | admin | `{ motivo }` | `204` | RF-F2-09 |
+| DELETE | `/clientes/{id}` | admin | — | `204` · `409` si tiene un servicio en curso | RF-F2-09 |
 | GET | `/vehiculos` | admin, operario | `?placa&clienteId` | `Vehiculo[]` | RF-F2-11 |
 | POST | `/vehiculos` | admin, operario | `{ clienteId, placa, tipo, marca?, color? }` | `201 Vehiculo` · `409` | RF-F2-11 a 13 |
 | GET | `/vehiculos/{id}` | admin, operario | — | `Vehiculo` + `cliente` | RF-F2-14 |
 | PATCH | `/vehiculos/{id}` | admin, operario | `{ tipo?, marca?, color? }` | `Vehiculo` | RF-F2-11 |
-| GET | `/vehiculos/{id}/historial` | admin, operario | paginación | `Pagina<ServicioHistorial>` | RF-F2-15 |
+| GET | `/vehiculos/{id}/historial` | admin, operario | — | `ServicioHistorial[]` | RF-F2-15 |
 | GET | `/servicios` | admin, operario | `?activo` | `Servicio[]` | RF-F2-18 |
 | POST | `/servicios` | admin | `{ nombre, precio, duracionMin, incluyeRainInsure?, rainInsureDias? }` | `201 Servicio` | RF-F2-16 |
 | PATCH | `/servicios/{id}` | admin | campos parciales + `activo` | `Servicio` | RF-F2-17, 18 |

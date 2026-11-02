@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npm install
       - run: npm run build
 
@@ -30,6 +30,23 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npm install
       - run: node --check src/index.js
+      # El contrato OpenAPI debe ser válido (HU-43).
+      - run: npm run lint:openapi
+      # Unitarias siempre; las de integración se omiten si no hay credenciales de Supabase.
+      - run: npm test
+
+  # HU-50 CA3: falla si algún commit contiene claves, tokens o llaves privadas.
+  secretos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Revisa todo el historial (no solo los commits del push) con la configuración de .gitleaks.toml.
+      - name: gitleaks sobre todo el historial
+        run: >
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.21.2
+          detect --source /repo --config /repo/.gitleaks.toml --redact --no-banner -v

@@ -1,8 +1,16 @@
-// Punto de entrada: enciende el servidor.
-import app from './app.js';
+// Punto de entrada: valida la configuración y enciende el servidor.
+import { validarEntorno } from './config/env.js';
 
-const PORT = process.env.PORT || 4000;
+let env;
+try {
+  env = validarEntorno();
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
+}
 
-app.listen(PORT, () => {
-  console.log(`API de Zaru corriendo en http://localhost:${PORT}`);
+const { default: app } = await import('./app.js');
+
+app.listen(env.PORT, () => {
+  console.log(`API de Zaru corriendo en http://localhost:${env.PORT} (${env.NODE_ENV})`);
 });

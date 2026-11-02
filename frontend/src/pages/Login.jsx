@@ -9,7 +9,18 @@ export default function Login() {
   const { sesion } = useSesion();
   const [correo, setCorreo] = useState('');
   const [clave, setClave] = useState('');
-  const [error, setError] = useState('');
+  // HU-44 CA3: si el backend rechazó un token vencido, se explica por qué se volvió al login.
+  const [error, setError] = useState(() => {
+    try {
+      if (sessionStorage.getItem('zaru:sesion-vencida')) {
+        sessionStorage.removeItem('zaru:sesion-vencida');
+        return 'Tu sesión venció. Inicia sesión de nuevo.';
+      }
+    } catch {
+      // sin sessionStorage no hay aviso
+    }
+    return '';
+  });
   const [enviando, setEnviando] = useState(false);
 
   if (sesion) return <Navigate to="/" replace />;

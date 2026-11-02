@@ -3,7 +3,7 @@
 //       await api.post('/clientes', { nombre: 'Ana', ... });
 import { supabase } from '../lib/supabase.js';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
 async function peticion(metodo, ruta, cuerpo) {
   // Adjunta el token de la sesión para que el backend sepa quién eres.
@@ -20,7 +20,26 @@ async function peticion(metodo, ruta, cuerpo) {
   });
 
   const json = await respuesta.json().catch(() => ({}));
-  if (!respuesta.ok) throw new Error(json.error || 'Error en la petición');
+
+  // HU-44 CA3: token vencido o inválido → se cierra la sesión local y el panel vuelve al login.
+  if (respuesta.status === 401) {
+    try {
+      sessionStorage.setItem('zaru:sesion-vencida', '1');
+    } catch {
+      // sessionStorage puede no estar disponible (modo privado); el login se muestra igual.
+    }
+    await supabase.auth.signOut({ scope: 'local' });
+  }
+
+  // HU-43: formato de error estándar { error: { codigo, mensaje, detalles?, requestId } }.
+  if (!respuesta.ok) {
+    const error = new Error(json.error?.mensaje || 'Error en la petición');
+    error.status = respuesta.status;
+    error.codigo = json.error?.codigo;
+    error.detalles = json.error?.detalles ?? [];
+    error.requestId = json.error?.requestId;
+    throw error;
+  }
   return json;
 }
 
@@ -29,4 +48,5 @@ export const api = {
   post: (ruta, cuerpo) => peticion('POST', ruta, cuerpo),
   put: (ruta, cuerpo) => peticion('PUT', ruta, cuerpo),
   patch: (ruta, cuerpo) => peticion('PATCH', ruta, cuerpo),
+  delete: (ruta) => peticion('DELETE', ruta),
 };

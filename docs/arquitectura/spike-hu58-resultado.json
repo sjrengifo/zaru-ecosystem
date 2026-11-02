@@ -1,0 +1,111 @@
+{
+  "fecha": "2026-10-28T04:19:36.396Z",
+  "aprobadas": 19,
+  "total": 19,
+  "pruebas": [
+    {
+      "nombre": "Inicio de sesión de los dos administradores",
+      "ok": true
+    },
+    {
+      "nombre": "A solo ve filas propias en establecimientos",
+      "ok": true,
+      "detalle": "1 propias, 0 ajenas"
+    },
+    {
+      "nombre": "A solo ve filas propias en perfiles",
+      "ok": true,
+      "detalle": "1 propias, 0 ajenas"
+    },
+    {
+      "nombre": "A solo ve filas propias en clientes",
+      "ok": true,
+      "detalle": "1 propias, 0 ajenas"
+    },
+    {
+      "nombre": "A solo ve filas propias en vehiculos",
+      "ok": true,
+      "detalle": "1 propias, 0 ajenas"
+    },
+    {
+      "nombre": "A solo ve filas propias en ordenes",
+      "ok": true,
+      "detalle": "1 propias, 0 ajenas"
+    },
+    {
+      "nombre": "A no puede leer la orden del establecimiento B por su id",
+      "ok": true,
+      "detalle": "0 filas"
+    },
+    {
+      "nombre": "A no puede modificar la orden del establecimiento B",
+      "ok": true,
+      "detalle": "0 filas modificadas"
+    },
+    {
+      "nombre": "A no escribe directo en la base (ADR-01: solo el backend escribe)",
+      "ok": true,
+      "detalle": "42501"
+    },
+    {
+      "nombre": "B solo ve filas propias en establecimientos",
+      "ok": true,
+      "detalle": "1 propias, 0 ajenas"
+    },
+    {
+      "nombre": "B solo ve filas propias en perfiles",
+      "ok": true,
+      "detalle": "1 propias, 0 ajenas"
+    },
+    {
+      "nombre": "B solo ve filas propias en clientes",
+      "ok": true,
+      "detalle": "1 propias, 0 ajenas"
+    },
+    {
+      "nombre": "B solo ve filas propias en vehiculos",
+      "ok": true,
+      "detalle": "1 propias, 0 ajenas"
+    },
+    {
+      "nombre": "B solo ve filas propias en ordenes",
+      "ok": true,
+      "detalle": "1 propias, 0 ajenas"
+    },
+    {
+      "nombre": "B no puede leer la orden del establecimiento A por su id",
+      "ok": true,
+      "detalle": "0 filas"
+    },
+    {
+      "nombre": "B no puede modificar la orden del establecimiento A",
+      "ok": true,
+      "detalle": "0 filas modificadas"
+    },
+    {
+      "nombre": "B no escribe directo en la base (ADR-01: solo el backend escribe)",
+      "ok": true,
+      "detalle": "42501"
+    },
+    {
+      "nombre": "El establecimiento A recibe en tiempo real el cambio de su orden",
+      "ok": true,
+      "detalle": "296 ms"
+    },
+    {
+      "nombre": "El establecimiento B no recibe cambios de órdenes ajenas",
+      "ok": true,
+      "detalle": "0 eventos ajenos"
+    }
+  ],
+  "eventos": [
+    {
+      "recibidoPor": "A",
+      "tipo": "UPDATE",
+      "ordenId": "00000000-0000-0000-0000-0000000a0d58",
+      "establecimientoId": "00000000-0000-0000-0000-00000000a058",
+      "estado": "en_lavado",
+      "latenciaMs": 296
+    }
+  ]
+}

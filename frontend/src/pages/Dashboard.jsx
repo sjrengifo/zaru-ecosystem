@@ -53,7 +53,7 @@ export default function Dashboard() {
                 // TODO HU-10: botón para avanzar estado (máx. 2 clics)
                 // TODO HU-11: resaltar si supera la duración estimada
                 <div key={o.id} className="tarjeta tarjeta-vehiculo">
-                  <strong>{o.vehiculos?.placa}</strong>
+                  <strong>{o.vehiculos?.placa ?? 'Vehículo eliminado'}</strong>
                   <span className="texto-suave">
                     {new Date(o.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                   </span>

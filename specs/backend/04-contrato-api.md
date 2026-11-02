@@ -17,6 +17,7 @@ Este documento fija las convenciones y el catálogo de endpoints. El detalle for
 | Filtros | Parámetros de consulta en español: `?buscar=`, `?placa=`, `?desde=`, `?hasta=`, `?estado=` |
 | Identificador de petición | Encabezado de respuesta `X-Request-Id` |
 | Documentación | `GET /api/docs` (Swagger UI) y `GET /api/openapi.json` |
+| Versiones anteriores | `/api` sin versión equivale a `/api/v1` y responde con `Deprecation: true` y `Link: </api/v1>; rel="successor-version"` (HU-43 CA3) |
 
 ## 2. Formato de error
 
@@ -40,6 +41,7 @@ Este documento fija las convenciones y el catálogo de endpoints. El detalle for
 | `SIN_PERMISO` | 403 | Rol sin acceso a la función (HU-44 CA2) |
 | `NO_ENCONTRADO` | 404 | No existe **o pertenece a otro establecimiento** (HU-41 CA2) |
 | `CONFLICTO` | 409 | Duplicados (teléfono, placa) o transición de estado inválida |
+| `CARGA_DEMASIADO_GRANDE` | 413 | Cuerpo de la petición mayor a 1 MB |
 | `IDEMPOTENCIA_CONFLICTO` | 422 | Misma `Idempotency-Key` con cuerpo distinto |
 | `LIMITE_EXCEDIDO` | 429 | Rate limit (OTP, acceso público) |
 | `NO_IMPLEMENTADO` | 501 | Endpoint definido en el contrato pero aún no construido |
@@ -86,10 +88,10 @@ Este documento fija las convenciones y el catálogo de endpoints. El detalle for
 | GET | `/clientes` | admin, operario | HU-04 CA1 |
 | POST | `/clientes` | admin, operario | HU-03, HU-51 |
 | GET | `/clientes/{id}` | admin, operario | HU-04 |
-| PATCH | `/clientes/{id}` | admin, operario | HU-04 CA2 |
+| PUT | `/clientes/{id}` | admin, operario | HU-04 CA2 |
 | GET | `/clientes/{id}/consentimientos` | admin | HU-30 CA4 |
 | POST | `/clientes/{id}/consentimientos` | admin, operario | HU-30 |
-| POST | `/clientes/{id}/anonimizar` | admin | HU-52 CA3 |
+| DELETE | `/clientes/{id}` | admin | HU-52 CA1 a CA3 |
 | GET | `/vehiculos` | admin, operario | HU-05 |
 | POST | `/vehiculos` | admin, operario | HU-05 |
 | GET | `/vehiculos/{id}` | admin, operario | HU-05 |

@@ -8,13 +8,19 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
         value: production
+      # @supabase/supabase-js requiere Node 22 (WebSocket nativo).
+      - key: NODE_VERSION
+        value: "22"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # HU-50: clave de cifrado de campos (openssl rand -base64 32). Se define en el panel de Render, nunca aquí.
+      - key: ZARU_CLAVE_CIFRADO
         sync: false
       - key: FRONTEND_URL
         sync: false

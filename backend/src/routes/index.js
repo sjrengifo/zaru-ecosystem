@@ -1,4 +1,5 @@
-// Reúne todas las rutas de la API.
+// Rutas de la versión 1 de la API (HU-43 CA3). Se montan en /api/v1 (ver app.js).
+// Cada ruta nueva debe documentarse en backend/openapi/openapi.yaml: una prueba lo verifica.
 import { Router } from 'express';
 import { requiereSesion } from '../middlewares/auth.js';
 
@@ -9,23 +10,37 @@ import ordenesRoutes from './ordenes.routes.js';
 import promocionesRoutes from './promociones.routes.js';
 import usuariosRoutes from './usuarios.routes.js';
 import establecimientoRoutes from './establecimiento.routes.js';
+import * as me from '../controllers/me.controller.js';
+import * as politicas from '../controllers/politicas.controller.js';
+
+export const VERSION_API = '1.0.0';
+
+/** Módulos de la API: prefijo y router. Se exporta para verificar que todos estén documentados. */
+export const MODULOS = [
+  ['/clientes', clientesRoutes],               // HU-03, HU-04
+  ['/vehiculos', vehiculosRoutes],             // HU-05, HU-06
+  ['/servicios', serviciosRoutes],             // HU-07
+  ['/ordenes', ordenesRoutes],                 // HU-08, HU-10
+  ['/promociones', promocionesRoutes],         // HU-12
+  ['/usuarios', usuariosRoutes],               // HU-02
+  ['/establecimiento', establecimientoRoutes], // HU-13
+];
 
 const router = Router();
 
 // Ruta pública para comprobar que la API está viva.
 router.get('/health', (req, res) => {
-  res.json({ ok: true, servicio: 'zaru-api', fecha: new Date().toISOString() });
+  res.json({ ok: true, servicio: 'zaru-api', version: VERSION_API, fecha: new Date().toISOString() });
 });
+
+// HU-51 CA1: la política de tratamiento de datos es pública (la consulta también el cliente final).
+router.get('/politicas-datos/vigente', politicas.vigente);
 
 // De aquí en adelante, todo exige sesión iniciada.
 router.use(requiereSesion);
 
-router.use('/clientes', clientesRoutes);           // HU-03, HU-04
-router.use('/vehiculos', vehiculosRoutes);         // HU-05, HU-06
-router.use('/servicios', serviciosRoutes);         // HU-07
-router.use('/ordenes', ordenesRoutes);             // HU-08, HU-10
-router.use('/promociones', promocionesRoutes);     // HU-12
-router.use('/usuarios', usuariosRoutes);           // HU-02
-router.use('/establecimiento', establecimientoRoutes); // HU-13
+router.get('/me', me.obtener); // HU-44 CA1, HU-01: usuario, rol y establecimiento de la sesión
+
+for (const [prefijo, rutas] of MODULOS) router.use(prefijo, rutas);
 
 export default router;
