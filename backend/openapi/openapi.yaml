@@ -362,6 +362,15 @@ paths:
       tags: [Servicios]
       operationId: listarServicios
       summary: Catálogo de servicios del establecimiento
+      description: >-
+        HU-07. Servicios ordenados por nombre. Con `?activo=true` solo devuelve los disponibles para
+        nuevas órdenes (CA3); `?activo=false` devuelve solo los desactivados.
+      parameters:
+        - name: activo
+          in: query
+          description: Filtra por servicios activos o inactivos. Sin el parámetro devuelve todos.
+          schema: { type: boolean }
+          example: true
       responses:
         '200':
           description: Servicios ordenados por nombre.
@@ -370,27 +379,55 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Servicio' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
     post:
       tags: [Servicios]
       operationId: crearServicio
-      summary: Crear un servicio (solo administrador; pendiente HU-07)
+      summary: Crear un servicio (solo administrador)
+      description: HU-07 CA1. El nuevo servicio queda activo y disponible para órdenes nuevas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServicioNuevo' }
+            example: { nombre: Lavado básico, precio: 25000, duracionMin: 30 }
       responses:
+        '201':
+          description: Servicio creado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Servicio' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
 
   /servicios/{id}:
     parameters:
       - $ref: '#/components/parameters/Id'
-    put:
+    patch:
       tags: [Servicios]
       operationId: actualizarServicio
-      summary: Editar, activar o desactivar un servicio (solo administrador; pendiente HU-07)
+      summary: Editar, activar o desactivar un servicio (solo administrador)
+      description: >-
+        HU-07 CA1 a CA3. Se envían solo los campos a cambiar (al menos uno). Cambiar el precio no altera
+        órdenes pasadas, que conservan su precio y duración; desactivar solo impide usarlo en órdenes nuevas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServicioCambios' }
+            example: { precio: 30000 }
       responses:
+        '200':
+          description: Servicio actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Servicio' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /ordenes/activas:
     get:
@@ -868,6 +905,25 @@ components:
         duracion_min: { type: integer, minimum: 1 }
         activo: { type: boolean }
         created_at: { type: string, format: date-time }
+
+    ServicioNuevo:
+      type: object
+      required: [nombre, precio, duracionMin]
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 80 }
+        precio: { type: number, minimum: 0, maximum: 9999999999.99, multipleOf: 0.01 }
+        duracionMin: { type: integer, minimum: 1 }
+      additionalProperties: false
+
+    ServicioCambios:
+      type: object
+      minProperties: 1
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 80 }
+        precio: { type: number, minimum: 0, maximum: 9999999999.99, multipleOf: 0.01 }
+        duracionMin: { type: integer, minimum: 1 }
+        activo: { type: boolean }
+      additionalProperties: false
 
     Promocion:
       type: object
