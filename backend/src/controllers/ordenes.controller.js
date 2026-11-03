@@ -1,16 +1,16 @@
 // HU-08 y HU-10 — Lógica de órdenes.
 // HU-08: crear la orden con sus servicios y totales; el alta de cliente + vehículo ocurre en la
 // misma transacción de la base (función public.crear_orden).
-// TODO HU-10: avanzar estado (recibido → en_lavado → listo → entregado),
-//   actualizar "estado_desde", guardar fila en historial_estados con usuario y hora.
-//   Al quedar "entregado", guardar entregada_at (queda en el historial del vehículo).
-import { AppError } from '../shared/errores.js';
+// HU-10: avanzar o revertir el estado con una función SQL transaccional que actualiza
+//   "estado_desde", guarda historial_estados con usuario y hora, cierra con entregada_at y deja
+//   el evento de dominio para que HU-46 notifique al cliente.
+import { AppError, noEncontrado } from '../shared/errores.js';
 import { cifrar } from '../shared/cifrado.js';
 import { pendiente } from './pendiente.js';
 
 const COLUMNAS_DETALLE = [
   'id, estado, subtotal, descuento, total, codigo_seguimiento, entrega_estimada_at,',
-  'observaciones, created_at, entregada_at,',
+  'observaciones, created_at, entregada_at, version,',
   'vehiculo:vehiculos(id, placa, tipo, marca, color, cliente:clientes(id, nombre, telefono)),',
   'servicios:orden_servicios(precio, duracion_min, descuento, servicio:servicios(id, nombre)),',
   'promocion:promociones(id, nombre, descuento_pct)',
@@ -111,5 +111,44 @@ export async function crear(req, res, next) {
   }
 }
 
+/**
+ * HU-10: la función SQL usa P0001 para conflictos de negocio. La API los devuelve como 409;
+ * un recurso de otro establecimiento sigue respondiendo 404 igual que uno inexistente.
+ */
+function traducirErrorEstado(err) {
+  if (err instanceof AppError) return err;
+  if (err?.hint === 'NO_ENCONTRADO') return noEncontrado('Orden');
+  if (err?.code === 'P0001') return new AppError('CONFLICTO', err.message);
+  if (err?.code === '23514' && err.hint === 'usuario') {
+    return new AppError('SIN_PERMISO', 'El usuario no está activo en este establecimiento');
+  }
+  return err;
+}
+
+/** HU-10 CA1 a CA3: avanzar de estado o revertir el último cambio. */
+export async function cambiarEstado(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { estado, revertir } = req.body;
+
+    // Un id inválido o de otro establecimiento responde 404 sin revelar que existe (HU-41 CA2).
+    await req.tenant.obtener('ordenes', id, 'id', 'Orden');
+
+    try {
+      await req.tenant.rpc('cambiar_estado_orden', {
+        p_orden_id: id,
+        p_nuevo_estado: estado ?? null,
+        p_usuario_id: req.ctx.usuarioId,
+        p_revertir: revertir === true,
+      });
+    } catch (err) {
+      throw traducirErrorEstado(err);
+    }
+
+    res.json(detalle(await req.tenant.obtener('ordenes', id, COLUMNAS_DETALLE, 'Orden')));
+  } catch (err) {
+    next(err);
+  }
+}
+
 export const listarActivas = pendiente('HU-09');
-export const cambiarEstado = pendiente('HU-10');

@@ -3,8 +3,8 @@ import { describe, it, expect, vi } from 'vitest';
 
 process.env.ZARU_CLAVE_CIFRADO ||= Buffer.alloc(32).toString('base64');
 
-import { ordenNueva } from '../../src/schemas/ordenes.schemas.js';
-import { crear } from '../../src/controllers/ordenes.controller.js';
+import { cambioEstadoOrden, ordenNueva } from '../../src/schemas/ordenes.schemas.js';
+import { cambiarEstado, crear } from '../../src/controllers/ordenes.controller.js';
 import { AppError, noEncontrado } from '../../src/shared/errores.js';
 import { descifrar } from '../../src/shared/cifrado.js';
 
@@ -191,5 +191,90 @@ describe('POST /ordenes', () => {
 
     const { error } = await ejecutar(peticion(base, tenant));
     expect(error).toMatchObject({ codigo: 'CONFLICTO', status: 409 });
+  });
+});
+
+describe('esquema del cambio de estado', () => {
+  it('acepta un estado del flujo y la opción de revertir', () => {
+    expect(cambioEstadoOrden.parse({ estado: 'secado' })).toEqual({ estado: 'secado' });
+    expect(cambioEstadoOrden.parse({ revertir: true })).toEqual({ revertir: true });
+  });
+
+  it('exige un estado o revertir, pero no ambos', () => {
+    const errores = (datos) => cambioEstadoOrden.safeParse(datos).error?.issues.map((i) => [i.path.join('.'), i.message]);
+
+    expect(errores({})[0][0]).toBe('estado');
+    expect(errores({ estado: 'en_lavado', revertir: true })[0][1]).toContain('pero no ambos');
+    expect(errores({ estado: 'perdido' })[0][0]).toBe('estado');
+  });
+});
+
+describe('PATCH /ordenes/:id/estado', () => {
+  const peticionCambio = (cuerpo, tenant) => ({
+    tenant,
+    ctx: { usuarioId: 'p1' },
+    params: { id: ORDEN.id },
+    body: cambioEstadoOrden.parse(cuerpo),
+  });
+
+  async function ejecutarCambio(req) {
+    const res = { status: vi.fn(() => res), json: vi.fn() };
+    const next = vi.fn();
+    await cambiarEstado(req, res, next);
+    return { res, datos: res.json.mock.calls[0]?.[0], error: next.mock.calls[0]?.[0] };
+  }
+
+  it('CA1: avanza el estado y devuelve la orden actualizada', async () => {
+    const tenant = tenantCon();
+    const { res, datos, error } = await ejecutarCambio(peticionCambio({ estado: 'en_lavado' }, tenant));
+
+    expect(error).toBeUndefined();
+    expect(res.status).not.toHaveBeenCalled();
+    expect(datos).toMatchObject({ id: ORDEN.id, estado: 'recibido', codigoSeguimiento: ORDEN.codigo_seguimiento });
+    expect(tenant.obtener).toHaveBeenNthCalledWith(1, 'ordenes', ORDEN.id, 'id', 'Orden');
+    expect(tenant.rpc).toHaveBeenCalledWith('cambiar_estado_orden', {
+      p_orden_id: ORDEN.id,
+      p_nuevo_estado: 'en_lavado',
+      p_usuario_id: 'p1',
+      p_revertir: false,
+    });
+  });
+
+  it('CA1: permite revertir el último cambio', async () => {
+    const tenant = tenantCon();
+    const { error } = await ejecutarCambio(peticionCambio({ revertir: true }, tenant));
+
+    expect(error).toBeUndefined();
+    expect(tenant.rpc).toHaveBeenCalledWith('cambiar_estado_orden', {
+      p_orden_id: ORDEN.id,
+      p_nuevo_estado: null,
+      p_usuario_id: 'p1',
+      p_revertir: true,
+    });
+  });
+
+  it('RF-F3-05: una transición inválida responde 409', async () => {
+    const tenant = tenantCon({
+      rpc: async () => {
+        throw Object.assign(new Error('No se puede pasar una orden de recibido a entregado'), {
+          code: 'P0001',
+          hint: 'CONFLICTO',
+        });
+      },
+    });
+
+    const { error } = await ejecutarCambio(peticionCambio({ estado: 'entregado' }, tenant));
+    expect(error).toMatchObject({ codigo: 'CONFLICTO', status: 409 });
+  });
+
+  it('una orden de otro establecimiento responde 404 y no llama a la función', async () => {
+    const tenant = tenantCon();
+    tenant.obtener = vi.fn(async () => {
+      throw noEncontrado('Orden');
+    });
+
+    const { error } = await ejecutarCambio(peticionCambio({ estado: 'en_lavado' }, tenant));
+    expect(error).toMatchObject({ codigo: 'NO_ENCONTRADO', status: 404 });
+    expect(tenant.rpc).not.toHaveBeenCalled();
   });
 });

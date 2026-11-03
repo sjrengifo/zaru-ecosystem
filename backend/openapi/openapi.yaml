@@ -505,10 +505,37 @@ paths:
     patch:
       tags: [Órdenes]
       operationId: cambiarEstadoOrden
-      summary: Avanzar el estado de una orden (pendiente HU-10)
+      summary: Avanzar o revertir el estado de una orden
+      description: >-
+        HU-10 CA1 a CA3. Avanza por el flujo `recibido -> en_lavado -> (secado) -> listo ->
+        entregado`; `en_lavado` también puede pasar directo a `listo`. Cualquier otra transición
+        responde `409`. Cada cambio guarda estado anterior, nuevo, usuario y hora en el historial
+        y deja el evento `orden.estado_cambiado` para que HU-46 notifique al cliente. Al llegar a
+        `entregado` se guarda `entregada_at` y la orden pasa al historial del vehículo.
+        `{ "revertir": true }` deshace el último cambio durante los 60 segundos siguientes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrdenCambioEstado' }
+            examples:
+              avanzar: { summary: Pasar a secado, value: { estado: secado } }
+              revertir: { summary: Deshacer el último cambio, value: { revertir: true } }
       responses:
+        '200':
+          description: Orden actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Orden' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La transición no es válida, la orden ya cambió o pasó el tiempo de reversión.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /promociones:
     get:
@@ -1003,11 +1030,26 @@ components:
         duracionMin: { type: integer }
         descuento: { type: number, description: Descuento aplicado por la mejor promoci�n vigente. }
 
+    OrdenCambioEstado:
+      description: Indica un estado nuevo o la reversión del último cambio, pero no ambos.
+      oneOf:
+        - type: object
+          required: [estado]
+          additionalProperties: false
+          properties:
+            estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
+        - type: object
+          required: [revertir]
+          additionalProperties: false
+          properties:
+            revertir: { type: boolean, enum: [true] }
+
     Orden:
       type: object
       properties:
         id: { type: string, format: uuid }
-        estado: { type: string, enum: [recibido, en_lavado, listo, entregado] }
+        estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
+        version: { type: integer, minimum: 1, description: Se incrementa en cada cambio de estado. }
         subtotal: { type: number }
         descuento: { type: number }
         total: { type: number }
