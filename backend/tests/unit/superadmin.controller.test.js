@@ -98,7 +98,7 @@ describe('HU-57 · controlador de superadministración', () => {
     expect(res.body.establecimiento).toEqual(establecimiento);
     expect(res.body.invitacion).toEqual({ correo: 'admin@example.com', enviada: true });
     expect(inviteUserByEmail).toHaveBeenCalledWith('admin@example.com', expect.objectContaining({
-      redirectTo: 'http://localhost:5173/login',
+      redirectTo: 'http://localhost:5173/aceptar-invitacion',
     }));
     expect(llamadas).toContainEqual(['perfiles', 'insert', {
       id: USUARIO_ID,
