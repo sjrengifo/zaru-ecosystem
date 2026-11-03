@@ -58,6 +58,8 @@ tags:
     description: HU-02
   - name: Establecimiento
     description: HU-13
+  - name: Superadministración
+    description: HU-57
 security:
   - bearerPanel: []
 
@@ -610,6 +612,62 @@ paths:
                   requestId: 1f0c9a7e-5b2d-4c1e-8a3f-6d9e0b7c2a14
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /superadmin/establecimientos:
+    get:
+      tags: [Superadministración]
+      operationId: listarEstablecimientosAfiliados
+      summary: Listar establecimientos afiliados
+      description: Solo el superadministrador de plataforma. Actualiza primero los periodos de prueba vencidos.
+      responses:
+        '200': { description: Listado de establecimientos. }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+    post:
+      tags: [Superadministración]
+      operationId: registrarEstablecimientoAfiliado
+      summary: Registrar establecimiento y enviar invitación
+      description: Crea el tenant, asigna el plan y periodo de prueba (14 a 30 días), e invita al administrador inicial.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre, plan, correoAdministrador, diasPrueba]
+              properties:
+                nombre: { type: string, minLength: 2, maxLength: 120 }
+                plan: { type: string, enum: [basico, intermedio, empresarial] }
+                correoAdministrador: { type: string, format: email }
+                diasPrueba: { type: integer, minimum: 14, maximum: 30 }
+      responses:
+        '201': { description: Establecimiento creado e invitación enviada. }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '409': { description: No se pudo completar el alta o enviar la invitación. }
+
+  /superadmin/establecimientos/{id}/activar:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Superadministración]
+      operationId: activarEstablecimiento
+      summary: Activar un establecimiento
+      responses:
+        '200': { description: Establecimiento activado. }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /superadmin/establecimientos/{id}/suspender:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Superadministración]
+      operationId: suspenderEstablecimiento
+      summary: Suspender un establecimiento sin eliminar sus datos
+      responses:
+        '200': { description: Establecimiento suspendido. }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
 components:
   securitySchemes:
