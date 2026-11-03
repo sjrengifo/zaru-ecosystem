@@ -1,12 +1,11 @@
 // HU-01 · Iniciar sesión en el panel administrativo (ZARU-2)
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
-import { useSesion } from '../hooks/useSesion.js';
+import { api } from '../services/api.js';
 
 export default function Login() {
   const navegar = useNavigate();
-  const { sesion } = useSesion();
   const [correo, setCorreo] = useState('');
   const [clave, setClave] = useState('');
   // HU-44 CA3: si el backend rechazó un token vencido, se explica por qué se volvió al login.
@@ -23,18 +22,24 @@ export default function Login() {
   });
   const [enviando, setEnviando] = useState(false);
 
-  if (sesion) return <Navigate to="/" replace />;
-
   async function iniciarSesion(e) {
     e.preventDefault();
     setError('');
     setEnviando(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: correo, password: clave });
-    setEnviando(false);
-
-    // CA2: mensaje genérico, sin decir qué dato falló.
-    if (error) return setError('Correo o contraseña incorrectos');
-    navegar('/'); // CA1: lleva al dashboard
+    const { error: errorAuth } = await supabase.auth.signInWithPassword({ email: correo, password: clave });
+    if (errorAuth) {
+      setEnviando(false);
+      return setError('Correo o contraseña incorrectos');
+    }
+    try {
+      const perfil = await api.get('/me');
+      navegar(perfil.usuario.rol === 'superadmin' ? '/superadmin' : '/');
+    } catch {
+      await supabase.auth.signOut({ scope: 'local' });
+      setError('Tu usuario no tiene acceso habilitado. Si pertenece a un establecimiento, verifica su estado con el administrador.');
+    } finally {
+      setEnviando(false);
+    }
   }
 
   return (

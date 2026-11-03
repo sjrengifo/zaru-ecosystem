@@ -12,7 +12,8 @@
     "test:unit": "vitest run tests/unit",
     "test:integracion": "vitest run tests/integration",
     "lint:openapi": "redocly lint openapi/openapi.yaml",
-    "cifrar:correos": "node --env-file=.env scripts/cifrar-correos.mjs"
+    "cifrar:correos": "node --env-file=.env scripts/cifrar-correos.mjs",
+    "configurar:superadmin": "node --env-file-if-exists=.env scripts/configurar-superadmin.mjs"
   },
   "engines": {
     "node": ">=22"
@@ -22,6 +23,7 @@
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "helmet": "^8.3.0",
+    "multer": "^2.5.0",
     "swagger-ui-express": "^5.0.1",
     "yaml": "^2.9.1",
     "zod": "^3.25.76"

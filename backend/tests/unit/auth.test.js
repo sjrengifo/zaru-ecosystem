@@ -3,10 +3,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const getUser = vi.fn();
 const perfil = { data: null };
+const establecimiento = { data: { estado: 'activo', prueba_finaliza_at: null }, error: null };
 vi.mock('../../src/config/supabase.js', () => ({
   supabase: {
     auth: { getUser: (...a) => getUser(...a) },
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => perfil }) }) }),
+    from: (tabla) => {
+      const fuente = tabla === 'perfiles' ? perfil : establecimiento;
+      const consulta = {
+        select: () => consulta,
+        update: () => consulta,
+        eq: () => consulta,
+        maybeSingle: async () => fuente,
+        then: (resolve, reject) => Promise.resolve({ error: null }).then(resolve, reject),
+      };
+      return consulta;
+    },
   },
 }));
 const registrarAuditoria = vi.fn(async () => {});
@@ -33,6 +44,8 @@ beforeEach(() => {
   getUser.mockReset();
   registrarAuditoria.mockClear();
   perfil.data = { id: USUARIO, nombre: 'Ana', rol: 'operario', activo: true, establecimiento_id: EST };
+  establecimiento.data = { estado: 'activo', prueba_finaliza_at: null };
+  establecimiento.error = null;
 });
 
 describe('requiereSesion', () => {
@@ -62,6 +75,46 @@ describe('requiereSesion', () => {
     expect(err).toBeUndefined();
     expect(req.ctx).toEqual({ usuarioId: USUARIO, rol: 'operario', establecimientoId: EST, tokenExpira: new Date(exp * 1000).toISOString() });
     expect(req.tenant.establecimientoId).toBe(EST);
+  });
+
+  it('HU-57: el superadministrador global inicia sesión sin establecimiento ni acceso tenant', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: USUARIO } }, error: null });
+    perfil.data = { id: USUARIO, nombre: 'Superadmin', rol: 'superadmin', activo: true, establecimiento_id: null };
+
+    const { err, req } = await ejecutar(requiereSesion, { authorization: `Bearer ${tokenFalso(9999999999)}` });
+
+    expect(err).toBeUndefined();
+    expect(req.ctx).toMatchObject({ usuarioId: USUARIO, rol: 'superadmin', establecimientoId: null });
+    expect(req.tenant).toBeUndefined();
+  });
+
+  it('HU-57: rechaza un perfil superadmin que tenga establecimiento asignado', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: USUARIO } }, error: null });
+    perfil.data = { id: USUARIO, nombre: 'Superadmin', rol: 'superadmin', activo: true, establecimiento_id: EST };
+
+    const { err } = await ejecutar(requiereSesion, { authorization: `Bearer ${tokenFalso(9999999999)}` });
+
+    expect(err).toMatchObject({ codigo: 'SIN_PERMISO', status: 403 });
+  });
+
+  it('HU-57: bloquea a los usuarios de un establecimiento suspendido', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: USUARIO } }, error: null });
+    establecimiento.data = { estado: 'suspendido', prueba_finaliza_at: null };
+
+    const { err } = await ejecutar(requiereSesion, { authorization: `Bearer ${tokenFalso(9999999999)}` });
+
+    expect(err).toMatchObject({ codigo: 'NO_AUTENTICADO', status: 401 });
+    expect(err.message).toMatch(/suspendido/i);
+  });
+
+  it('HU-57: cambia una prueba vencida a pendiente de activación y bloquea el acceso', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: USUARIO } }, error: null });
+    establecimiento.data = { estado: 'prueba', prueba_finaliza_at: '2020-01-01T00:00:00.000Z' };
+
+    const { err } = await ejecutar(requiereSesion, { authorization: `Bearer ${tokenFalso(9999999999)}` });
+
+    expect(err).toMatchObject({ codigo: 'NO_AUTENTICADO', status: 401 });
+    expect(err.message).toMatch(/pendiente de activación/i);
   });
 
   it('un usuario desactivado recibe 403 aunque su token sea válido', async () => {
