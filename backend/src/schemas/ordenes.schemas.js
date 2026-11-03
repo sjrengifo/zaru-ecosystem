@@ -1,7 +1,9 @@
-// HU-08 — Registro de ingreso de un vehículo y sus servicios (HU-43 CA2).
+// HU-08 y HU-10 — Registro de ingreso de un vehículo y cambio de estado de la orden (HU-43 CA2).
 import { z } from 'zod';
 import { clienteNuevo } from './clientes.schemas.js';
 import { datosVehiculo } from './vehiculos.schemas.js';
+
+export const estadosOrden = ['recibido', 'en_lavado', 'secado', 'listo', 'entregado'];
 
 const servicioId = z
   .string({ required_error: 'Indica los servicios de la orden', invalid_type_error: 'Cada servicio debe ser un identificador' })
@@ -51,6 +53,37 @@ export const ordenNueva = z
         code: 'custom',
         path: ['vehiculoId'],
         message: 'Indica el vehículo registrado o los datos del vehículo nuevo',
+      });
+    }
+  });
+
+/** HU-10: avanzar al siguiente estado o revertir el último cambio (HU-28 CA3). */
+export const cambioEstadoOrden = z
+  .object({
+    estado: z
+      .enum(estadosOrden, {
+        required_error: 'Indica el estado al que quieres avanzar',
+        invalid_type_error: 'El estado no es válido',
+      })
+      .optional(),
+    revertir: z
+      .boolean({ invalid_type_error: 'El valor de revertir debe ser verdadero o falso' })
+      .optional(),
+  })
+  .superRefine(({ estado, revertir }, ctx) => {
+    if (revertir === true && estado) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['estado'],
+        message: 'Indica un estado nuevo o revertir el último cambio, pero no ambos',
+      });
+      return;
+    }
+    if (revertir !== true && !estado) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['estado'],
+        message: 'Indica el estado al que quieres avanzar',
       });
     }
   });
