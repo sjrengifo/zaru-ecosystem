@@ -51,6 +51,38 @@ export async function requiereSesion(req, res, next) {
     // HU-02 CA3: un usuario desactivado o sin perfil no puede entrar.
     if (!perfil || !perfil.activo) throw new AppError('SIN_PERMISO', 'Usuario sin acceso');
 
+    // El superadministrador es global y deliberadamente no tiene tenant ni req.tenant.
+    if (perfil.rol === 'superadmin') {
+      if (perfil.establecimiento_id !== null) throw new AppError('SIN_PERMISO', 'Perfil de superadministrador inválido');
+    } else {
+      if (!perfil.establecimiento_id) throw new AppError('SIN_PERMISO', 'Usuario sin establecimiento asignado');
+
+      const { data: establecimiento, error: errorEstablecimiento } = await supabase
+        .from('establecimientos')
+        .select('estado, prueba_finaliza_at')
+        .eq('id', perfil.establecimiento_id)
+        .maybeSingle();
+      if (errorEstablecimiento) throw errorEstablecimiento;
+      if (!establecimiento) throw new AppError('SIN_PERMISO', 'Establecimiento sin acceso');
+
+      // La expiración también se evalúa al autenticar, no depende de que alguien abra el listado.
+      let estado = establecimiento.estado;
+      if (estado === 'prueba' && establecimiento.prueba_finaliza_at && new Date(establecimiento.prueba_finaliza_at) <= new Date()) {
+        const { error } = await supabase.from('establecimientos')
+          .update({ estado: 'pendiente_activacion' })
+          .eq('id', perfil.establecimiento_id)
+          .eq('estado', 'prueba');
+        if (error) throw error;
+        estado = 'pendiente_activacion';
+      }
+      if (!['activo', 'prueba'].includes(estado)) {
+        throw new AppError('NO_AUTENTICADO', estado === 'suspendido'
+          ? 'El establecimiento está suspendido. Contacta al administrador de la plataforma.'
+          : 'El periodo de prueba finalizó. El establecimiento está pendiente de activación.');
+      }
+      req.tenant = crearAccesoTenant(supabase, { establecimientoId: perfil.establecimiento_id });
+    }
+
     req.ctx = {
       usuarioId: perfil.id,
       rol: perfil.rol,
@@ -58,7 +90,6 @@ export async function requiereSesion(req, res, next) {
       tokenExpira: expiracionDelToken(token),
     };
     req.usuario = { id: perfil.id, nombre: perfil.nombre, rol: perfil.rol, establecimientoId: perfil.establecimiento_id };
-    req.tenant = crearAccesoTenant(supabase, req.ctx);
     next();
   } catch (err) {
     next(err);

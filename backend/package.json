@@ -12,7 +12,8 @@
     "test:unit": "vitest run tests/unit",
     "test:integracion": "vitest run tests/integration",
     "lint:openapi": "redocly lint openapi/openapi.yaml",
-    "cifrar:correos": "node --env-file=.env scripts/cifrar-correos.mjs"
+    "cifrar:correos": "node --env-file=.env scripts/cifrar-correos.mjs",
+    "configurar:superadmin": "node --env-file-if-exists=.env scripts/configurar-superadmin.mjs"
   },
   "engines": {
     "node": ">=22"

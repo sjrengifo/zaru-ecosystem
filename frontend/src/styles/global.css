@@ -907,3 +907,30 @@ textarea {
 @media (max-width: 480px) {
   .campos-fila { grid-template-columns: 1fr; gap: 0; }
 }
+
+/* ---------- HU-57 · Superadministración ---------- */
+.superadmin { display: grid; gap: var(--espacio); max-width: 1500px; }
+.superadmin .encabezado { align-items: flex-start; }
+.superadmin .encabezado p { margin: 6px 0 0; }
+.superadmin-form { display: grid; gap: 12px; }
+.superadmin-form h3 { margin: 0; }
+.superadmin-form select {
+  display: block; width: 100%; min-height: 44px; margin: 6px 0 var(--espacio);
+  padding: 10px 12px; border: 1px solid var(--color-borde); border-radius: var(--radio);
+  background: var(--color-superficie); color: var(--color-texto); font: inherit;
+}
+.superadmin-acciones { display: flex; justify-content: flex-end; }
+.superadmin-tabla-encabezado { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.superadmin-tabla-encabezado h3 { margin: 0; }
+.estado-establecimiento { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.estado-prueba { color: var(--color-primario-hover); background: var(--color-primario-suave); }
+.estado-activo { color: var(--color-exito); background: var(--color-exito-fondo); }
+.estado-pendiente_activacion { color: var(--color-advertencia); background: var(--color-advertencia-fondo); }
+.estado-suspendido { color: var(--color-error); background: var(--color-error-fondo); }
+.superadmin-salir { justify-self: end; }
+.aviso-exito { padding: 10px 12px; color: var(--color-exito); background: var(--color-exito-fondo); border: 1px solid #bbf7d0; border-radius: var(--radio); }
+@media (max-width: 600px) {
+  .superadmin .encabezado { align-items: stretch; }
+  .superadmin .encabezado .boton { width: 100%; }
+  .superadmin-acciones .boton { width: 100%; }
+}
