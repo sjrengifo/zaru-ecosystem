@@ -1,67 +1,195 @@
-// HU-08, HU-09, HU-10, HU-11 · Dashboard operativo en tiempo real (ZARU-9 a ZARU-12)
-import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase.js';
-
-const ESTADOS = [
-  { id: 'recibido', titulo: 'Recibido' },
-  { id: 'en_lavado', titulo: 'En lavado' },
-  { id: 'listo', titulo: 'Listo' },
-  { id: 'entregado', titulo: 'Entregado' },
-];
+// HU-08, HU-09 y HU-10 · Dashboard operativo en tiempo real (ZARU-10).
+// Reutiliza el alta de ingreso (HU-08) y el avance de estado (HU-10) que ya
+// existían; HU-09 añade el tablero de cuatro columnas, los indicadores del día
+// y la sincronización con Supabase Realtime.
+import { useCallback, useState } from 'react';
+import { api } from '../services/api.js';
+import { formatoMoneda } from '../lib/formato.js';
+import { useDashboardOrdenes } from '../hooks/useDashboardOrdenes.js';
+import {
+  COLUMNAS_TABLERO,
+  ESTADOS_ORDEN,
+  SIGUIENTE_ESTADO,
+  agruparPorColumna,
+  horaBogota,
+  vehiculosAtendidosHoy,
+  vehiculosIngresadosHoy,
+} from '../lib/dashboard.js';
+import ColumnaKanban from '../components/ColumnaKanban.jsx';
+import IndicadoresDashboard from '../components/IndicadoresDashboard.jsx';
+import FormularioIngreso from '../components/FormularioIngreso.jsx';
+import Notificacion from '../components/Notificacion.jsx';
 
 export default function Dashboard() {
-  const [ordenes, setOrdenes] = useState([]);
+  const {
+    ordenes,
+    cargando,
+    actualizando,
+    error,
+    errorConexion,
+    conectado,
+    ultimaActualizacion,
+    refrescar,
+    reintentar,
+  } = useDashboardOrdenes();
 
-  async function cargarOrdenes() {
-    // TODO HU-09: cambiar por api.get('/ordenes/activas') cuando el backend esté listo.
-    const { data } = await supabase
-      .from('ordenes')
-      .select('id, estado, created_at, vehiculos(placa)')
-      .order('created_at');
-    setOrdenes(data || []);
+  const [ingresando, setIngresando] = useState(false);
+  const [avanzando, setAvanzando] = useState(null);
+  const [confirmacion, setConfirmacion] = useState(null);
+  const [errorAccion, setErrorAccion] = useState('');
+  const cerrarConfirmacion = useCallback(() => setConfirmacion(null), []);
+
+  const grupos = agruparPorColumna(ordenes);
+  const atendidos = vehiculosAtendidosHoy(ordenes);
+  const ingresados = vehiculosIngresadosHoy(ordenes);
+
+  function alIngresar(orden) {
+    setIngresando(false);
+    setConfirmacion({
+      id: Date.now(),
+      titulo: 'Vehículo ingresado',
+      detalle: `${orden.vehiculo?.placa ?? 'Vehículo'} · ${formatoMoneda(orden.total)} · Código ${orden.codigoSeguimiento}`,
+    });
+    refrescar();
   }
 
-  useEffect(() => {
-    cargarOrdenes();
+  async function avanzarEstado(orden) {
+    const siguiente = SIGUIENTE_ESTADO[orden.estado];
+    if (!siguiente || avanzando) return;
 
-    // HU-09 CA2: escuchar cambios en tiempo real, sin recargar la página.
-    const canal = supabase
-      .channel('ordenes-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ordenes' }, cargarOrdenes)
-      .subscribe();
+    setAvanzando(orden.id);
+    setErrorAccion('');
+    try {
+      const actualizada = await api.patch(`/ordenes/${orden.id}/estado`, { estado: siguiente });
+      setConfirmacion({
+        id: Date.now(),
+        titulo: 'Estado actualizado',
+        detalle: `${actualizada.vehiculo?.placa ?? 'Vehículo'} · ${ESTADOS_ORDEN[actualizada.estado]}`,
+      });
+      // No se espera al evento de Realtime: si la conexión en vivo se cayó, el
+      // tablero igual queda al día con esta recarga puntual.
+      refrescar();
+    } catch (fallo) {
+      setErrorAccion(fallo.message || 'No se pudo actualizar el estado.');
+      if (fallo.status === 409) refrescar();
+    } finally {
+      setAvanzando(null);
+    }
+  }
 
-    return () => supabase.removeChannel(canal);
-  }, []);
+  const textoConexion = conectado ? 'En vivo' : cargando ? 'Conectando…' : 'Sin conexión en vivo';
 
   return (
-    <section>
+    <section className="dashboard">
       <div className="encabezado">
-        <h2>Dashboard</h2>
-        {/* TODO HU-08: abrir formulario de ingreso de vehículo */}
-        <button className="boton">+ Ingresar vehículo</button>
+        <div>
+          <h2>Dashboard operativo</h2>
+          <p className="dashboard-subtitulo">
+            Vehículos del día agrupados por estado, actualizados en tiempo real.
+          </p>
+        </div>
+
+        <div className="dashboard-acciones">
+          <span
+            className={`estado-conexion ${conectado ? 'conectado' : 'desconectado'}`}
+            role="status"
+            title="Estado de la conexión en tiempo real"
+          >
+            <span className="estado-conexion-punto" aria-hidden="true" />
+            {textoConexion}
+          </span>
+          <button
+            type="button"
+            className="boton"
+            onClick={() => {
+              setConfirmacion(null);
+              setIngresando(true);
+            }}
+          >
+            + Ingresar vehículo
+          </button>
+        </div>
       </div>
 
-      {/* TODO HU-09 CA3: resumen del día (vehículos atendidos e ingresos) */}
+      <div className="notificaciones" role="status">
+        {confirmacion && (
+          <Notificacion
+            key={confirmacion.id}
+            titulo={confirmacion.titulo}
+            detalle={confirmacion.detalle}
+            onCerrar={cerrarConfirmacion}
+          />
+        )}
+      </div>
 
-      <div className="tablero">
-        {ESTADOS.map((estado) => (
-          <div key={estado.id} className="columna">
-            <h3>{estado.titulo}</h3>
-            {ordenes
-              .filter((o) => o.estado === estado.id)
-              .map((o) => (
-                // TODO HU-10: botón para avanzar estado (máx. 2 clics)
-                // TODO HU-11: resaltar si supera la duración estimada
-                <div key={o.id} className="tarjeta tarjeta-vehiculo">
-                  <strong>{o.vehiculos?.placa ?? 'Vehículo eliminado'}</strong>
-                  <span className="texto-suave">
-                    {new Date(o.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              ))}
+      {ingresando && (
+        <FormularioIngreso onCreada={alIngresar} onCancelar={() => setIngresando(false)} />
+      )}
+
+      {error && (
+        <div className="aviso aviso-error" role="alert">
+          <p>{error}</p>
+          <button type="button" className="boton secundario" onClick={reintentar}>
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {errorConexion && (
+        <div className="aviso aviso-advertencia" role="status">
+          <p>{errorConexion}</p>
+          <button type="button" className="boton secundario" onClick={reintentar}>
+            Reconectar
+          </button>
+        </div>
+      )}
+
+      {errorAccion && (
+        <div className="aviso aviso-error" role="alert">
+          <p>{errorAccion}</p>
+        </div>
+      )}
+
+      <IndicadoresDashboard
+        atendidos={atendidos}
+        ingresados={ingresados}
+        cargando={cargando}
+        actualizando={actualizando}
+      />
+
+      {cargando ? (
+        <div className="tarjeta dashboard-cargando" role="status" aria-live="polite">
+          <span className="spinner spinner-oscuro" aria-hidden="true" />
+          <span>Cargando órdenes del establecimiento…</span>
+        </div>
+      ) : (
+        <>
+          <div className="tablero">
+            {COLUMNAS_TABLERO.map((columna) => (
+              <ColumnaKanban
+                key={columna.id}
+                columna={columna}
+                ordenes={grupos[columna.id]}
+                onAvanzar={avanzarEstado}
+                avanzando={avanzando}
+              />
+            ))}
           </div>
-        ))}
-      </div>
+
+          {ordenes.length === 0 && (
+            <p className="texto-suave dashboard-vacio">
+              Aún no hay órdenes activas ni entregas registradas hoy en este establecimiento.
+            </p>
+          )}
+
+          {ultimaActualizacion && (
+            <p className="dashboard-actualizado">
+              Última actualización: {horaBogota(ultimaActualizacion)}
+              {actualizando ? ' · Sincronizando…' : ''}
+            </p>
+          )}
+        </>
+      )}
     </section>
   );
 }

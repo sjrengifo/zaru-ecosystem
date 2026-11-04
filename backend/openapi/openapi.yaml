@@ -364,6 +364,15 @@ paths:
       tags: [Servicios]
       operationId: listarServicios
       summary: Catálogo de servicios del establecimiento
+      description: >-
+        HU-07. Servicios ordenados por nombre. Con `?activo=true` solo devuelve los disponibles para
+        nuevas órdenes (CA3); `?activo=false` devuelve solo los desactivados.
+      parameters:
+        - name: activo
+          in: query
+          description: Filtra por servicios activos o inactivos. Sin el parámetro devuelve todos.
+          schema: { type: boolean }
+          example: true
       responses:
         '200':
           description: Servicios ordenados por nombre.
@@ -372,27 +381,55 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Servicio' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
     post:
       tags: [Servicios]
       operationId: crearServicio
-      summary: Crear un servicio (solo administrador; pendiente HU-07)
+      summary: Crear un servicio (solo administrador)
+      description: HU-07 CA1. El nuevo servicio queda activo y disponible para órdenes nuevas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServicioNuevo' }
+            example: { nombre: Lavado básico, precio: 25000, duracionMin: 30 }
       responses:
+        '201':
+          description: Servicio creado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Servicio' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
 
   /servicios/{id}:
     parameters:
       - $ref: '#/components/parameters/Id'
-    put:
+    patch:
       tags: [Servicios]
       operationId: actualizarServicio
-      summary: Editar, activar o desactivar un servicio (solo administrador; pendiente HU-07)
+      summary: Editar, activar o desactivar un servicio (solo administrador)
+      description: >-
+        HU-07 CA1 a CA3. Se envían solo los campos a cambiar (al menos uno). Cambiar el precio no altera
+        órdenes pasadas, que conservan su precio y duración; desactivar solo impide usarlo en órdenes nuevas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServicioCambios' }
+            example: { precio: 30000 }
       responses:
+        '200':
+          description: Servicio actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Servicio' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /ordenes/activas:
     get:
@@ -405,12 +442,64 @@ paths:
 
   /ordenes:
     post:
-      tags: [Órdenes]
+      tags: [�rdenes]
       operationId: crearOrden
-      summary: Registrar el ingreso de un vehículo (pendiente HU-08)
+      summary: Registrar el ingreso de un veh�culo
+      description: >-
+        HU-08 (RF-F3-01 a RF-F3-04, CA1 y CA2). Crea la orden en `recibido` con los servicios y precios
+        del momento, aplica la mejor promoci�n vigente, calcula la entrega estimada y genera el c�digo de
+        seguimiento. Acepta un veh�culo registrado o crea cliente, consentimiento y veh�culo en la misma
+        transacci�n. Un veh�culo con una orden activa responde `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrdenNueva' }
+            examples:
+              registrado:
+                summary: Veh�culo ya registrado
+                value:
+                  vehiculoId: 11111111-1111-4111-8111-111111111111
+                  servicioIds: [22222222-2222-4222-8222-222222222222, 33333333-3333-4333-8333-333333333333]
+                  observaciones: Ray�n en la puerta
+              nuevo:
+                summary: Cliente y veh�culo nuevos
+                value:
+                  servicioIds: [22222222-2222-4222-8222-222222222222]
+                  nuevoVehiculo:
+                    cliente:
+                      nombre: Ana G�mez
+                      telefono: '3001234567'
+                      correo: ana@example.com
+                      autorizacionDatos: true
+                      politicaVersion: '1.1'
+                    vehiculo: { placa: XYZ987, tipo: carro, marca: Mazda, color: Rojo }
       responses:
+        '201':
+          description: Orden creada y lista para el dashboard.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Orden' }
+              example:
+                id: 55555555-5555-4555-8555-555555555555
+                estado: recibido
+                subtotal: 55000
+                descuento: 0
+                total: 55000
+                codigoSeguimiento: ABCDEFGHJK
+                entregaEstimadaAt: '2026-11-02T15:10:00.000Z'
+                observaciones: null
+                created_at: '2026-11-02T14:00:00.000Z'
+                entregada_at: null
+                vehiculo: { id: 11111111-1111-4111-8111-111111111111, placa: XYZ987, tipo: carro, marca: Mazda, color: Rojo, cliente: { id: c1, nombre: Ana G�mez, telefono: '3001234567' } }
+                servicios:
+                  - { id: 22222222-2222-4222-8222-222222222222, nombre: Lavado b�sico, precio: 25000, duracionMin: 30, descuento: 0 }
+                promocion: null
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
 
   /ordenes/{id}/estado:
     parameters:
@@ -418,10 +507,37 @@ paths:
     patch:
       tags: [Órdenes]
       operationId: cambiarEstadoOrden
-      summary: Avanzar el estado de una orden (pendiente HU-10)
+      summary: Avanzar o revertir el estado de una orden
+      description: >-
+        HU-10 CA1 a CA3. Avanza por el flujo `recibido -> en_lavado -> (secado) -> listo ->
+        entregado`; `en_lavado` también puede pasar directo a `listo`. Cualquier otra transición
+        responde `409`. Cada cambio guarda estado anterior, nuevo, usuario y hora en el historial
+        y deja el evento `orden.estado_cambiado` para que HU-46 notifique al cliente. Al llegar a
+        `entregado` se guarda `entregada_at` y la orden pasa al historial del vehículo.
+        `{ "revertir": true }` deshace el último cambio durante los 60 segundos siguientes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrdenCambioEstado' }
+            examples:
+              avanzar: { summary: Pasar a secado, value: { estado: secado } }
+              revertir: { summary: Deshacer el último cambio, value: { revertir: true } }
       responses:
+        '200':
+          description: Orden actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Orden' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La transición no es válida, la orden ya cambió o pasó el tiempo de reversión.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /promociones:
     get:
@@ -916,6 +1032,117 @@ components:
         marca: { type: [string, 'null'], maxLength: 40 }
         color: { type: [string, 'null'], maxLength: 30 }
 
+    VehiculoDatos:
+      type: object
+      required: [placa, tipo]
+      properties:
+        placa: { type: string, description: 'Carro: ABC123. Moto: ABC12D o ABC12. Se aceptan min�sculas, espacios y guiones.' }
+        tipo: { type: string, enum: [carro, moto] }
+        marca: { type: [string, 'null'], maxLength: 40 }
+        color: { type: [string, 'null'], maxLength: 30 }
+
+    OrdenNueva:
+      description: >-
+        Indica exactamente una forma de veh�culo: `vehiculoId` para uno registrado, o `nuevoVehiculo`
+        para crear cliente, consentimiento y veh�culo junto con la orden. Los servicios repetidos se
+        cuentan una vez.
+      oneOf:
+        - $ref: '#/components/schemas/OrdenConVehiculoRegistrado'
+        - $ref: '#/components/schemas/OrdenConVehiculoNuevo'
+
+    OrdenConVehiculoRegistrado:
+      type: object
+      required: [vehiculoId, servicioIds]
+      properties:
+        vehiculoId: { type: string, format: uuid }
+        servicioIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, format: uuid }
+        observaciones: { type: [string, 'null'], maxLength: 500 }
+
+    OrdenConVehiculoNuevo:
+      type: object
+      required: [nuevoVehiculo, servicioIds]
+      properties:
+        nuevoVehiculo:
+          type: object
+          required: [cliente, vehiculo]
+          properties:
+            cliente: { $ref: '#/components/schemas/ClienteNuevo' }
+            vehiculo: { $ref: '#/components/schemas/VehiculoDatos' }
+        servicioIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, format: uuid }
+        observaciones: { type: [string, 'null'], maxLength: 500 }
+
+    OrdenServicio:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        precio: { type: number, description: Precio copiado al crear la orden. }
+        duracionMin: { type: integer }
+        descuento: { type: number, description: Descuento aplicado por la mejor promoci�n vigente. }
+
+    OrdenCambioEstado:
+      description: Indica un estado nuevo o la reversión del último cambio, pero no ambos.
+      oneOf:
+        - type: object
+          required: [estado]
+          additionalProperties: false
+          properties:
+            estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
+        - type: object
+          required: [revertir]
+          additionalProperties: false
+          properties:
+            revertir: { type: boolean, enum: [true] }
+
+    Orden:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
+        version: { type: integer, minimum: 1, description: Se incrementa en cada cambio de estado. }
+        subtotal: { type: number }
+        descuento: { type: number }
+        total: { type: number }
+        codigoSeguimiento:
+          type: string
+          pattern: '^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{10}$'
+          description: C�digo p�blico de seguimiento, sin caracteres ambiguos.
+        entregaEstimadaAt: { type: string, format: date-time }
+        observaciones: { type: [string, 'null'], maxLength: 500 }
+        created_at: { type: string, format: date-time }
+        entregada_at: { type: [string, 'null'], format: date-time }
+        vehiculo:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            placa: { type: string }
+            tipo: { type: string, enum: [carro, moto] }
+            marca: { type: [string, 'null'] }
+            color: { type: [string, 'null'] }
+            cliente:
+              type: object
+              properties:
+                id: { type: string, format: uuid }
+                nombre: { type: string }
+                telefono: { type: string }
+        servicios:
+          type: array
+          items: { $ref: '#/components/schemas/OrdenServicio' }
+        promocion:
+          type: [object, 'null']
+          properties:
+            id: { type: string, format: uuid }
+            nombre: { type: string }
+            descuento_pct: { type: number }
+
     Servicio:
       type: object
       properties:
@@ -926,6 +1153,25 @@ components:
         duracion_min: { type: integer, minimum: 1 }
         activo: { type: boolean }
         created_at: { type: string, format: date-time }
+
+    ServicioNuevo:
+      type: object
+      required: [nombre, precio, duracionMin]
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 80 }
+        precio: { type: number, minimum: 0, maximum: 9999999999.99, multipleOf: 0.01 }
+        duracionMin: { type: integer, minimum: 1 }
+      additionalProperties: false
+
+    ServicioCambios:
+      type: object
+      minProperties: 1
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 80 }
+        precio: { type: number, minimum: 0, maximum: 9999999999.99, multipleOf: 0.01 }
+        duracionMin: { type: integer, minimum: 1 }
+        activo: { type: boolean }
+      additionalProperties: false
 
     Promocion:
       type: object

@@ -1,0 +1,35 @@
+// HU-09 — Consultas del tablero operativo.
+// Lee directamente de Supabase con la sesión del panel: las políticas RLS de
+// `ordenes`, `orden_servicios` y `vehiculos` limitan los resultados al
+// establecimiento del usuario. El establecimiento nunca se envía como filtro
+// de confianza; solo se usa en Realtime como defensa adicional.
+import { supabase } from '../lib/supabase.js';
+import { inicioDiaBogota } from '../lib/dashboard.js';
+
+// Columnas que necesita una tarjeta y los dos indicadores del día.
+const CAMPOS = [
+  'id, vehiculo_id, estado, created_at, total, codigo_seguimiento,',
+  'entrega_estimada_at, entregada_at,',
+  'vehiculos(placa),',
+  'orden_servicios(servicios(nombre))',
+].join(' ');
+
+/**
+ * Órdenes que pertenecen al tablero:
+ * - todas las que siguen en proceso (estado distinto de `entregado`), sin
+ *   importar cuándo ingresaron, para no perder trabajo en curso;
+ * - y las entregadas hoy, que alimentan la columna "Entregado" y el indicador.
+ *
+ * Una sola consulta evita el N+1 y el cruce de datos entre establecimientos.
+ */
+export async function listarOrdenesDelTablero() {
+  const desde = inicioDiaBogota();
+  const { data, error } = await supabase
+    .from('ordenes')
+    .select(CAMPOS)
+    .or(`estado.neq.entregado,and(estado.eq.entregado,entregada_at.gte.${desde})`)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}
