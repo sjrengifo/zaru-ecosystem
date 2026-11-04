@@ -4,6 +4,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
+import { useSesion } from '../hooks/useSesion.js';
 import { leerBranding, guardarBranding, borrarBranding } from '../lib/brandingGuardado.js';
 import { api } from '../services/api.js';
 
@@ -20,9 +21,11 @@ const MENU = [
 export default function Layout() {
   const { pathname } = useLocation();
   const navegacion = useRef(null);
+  const { usuario, establecimiento: establecimientoSesion, errorSesion } = useSesion();
   const [establecimiento, setEstablecimiento] = useState(leerBranding);
   const [cargado, setCargado] = useState(false);
   const [errorEstablecimiento, setErrorEstablecimiento] = useState('');
+  const nombreSede = establecimiento?.nombre ?? establecimientoSesion?.nombre;
 
   useEffect(() => {
     let vigente = true;
@@ -69,15 +72,19 @@ export default function Layout() {
   return (
     <div className="layout">
       <aside className="menu">
-        <h1 className="logo">
-          {establecimiento?.logo_url ? (
-            <img src={establecimiento.logo_url} alt={establecimiento.nombre} />
-          ) : establecimiento || cargado ? (
-            'Zaru'
-          ) : (
-            <span className="logo-espacio" aria-label="Cargando" /> // Reserva el lugar del logo mientras llega.
-          )}
-        </h1>
+        <div className="menu-marca">
+          <h1 className="logo">
+            {establecimiento?.logo_url ? (
+              <img src={establecimiento.logo_url} alt={establecimiento.nombre} />
+            ) : establecimiento || cargado ? (
+              'Zaru'
+            ) : (
+              <span className="logo-espacio" aria-label="Cargando" /> // Reserva el lugar del logo mientras llega.
+            )}
+          </h1>
+          {nombreSede && <span className="texto-suave">{nombreSede}</span>}
+        </div>
+
         <nav ref={navegacion}>
           {MENU.map((item) => (
             <NavLink key={item.ruta} to={item.ruta} end className="menu-item">
@@ -85,18 +92,35 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <button
-          className="boton secundario"
-          onClick={() => {
-            borrarBranding(); // Quien entre después en este equipo no ve el branding de esta sede.
-            supabase.auth.signOut();
-          }}
-        >
-          Cerrar sesión
-        </button>
+
+        <div className="menu-usuario">
+          {usuario && (
+            <>
+              <strong>{usuario.nombre}</strong>
+              <span className="texto-suave">
+                {usuario.rol === 'admin' ? 'Administrador' : 'Operario'}
+              </span>
+            </>
+          )}
+          <button
+            type="button"
+            className="boton secundario"
+            onClick={() => {
+              borrarBranding(); // Quien entre después en este equipo no ve el branding de esta sede.
+              supabase.auth.signOut();
+            }}
+          >
+            Cerrar sesión
+          </button>
+        </div>
       </aside>
 
       <main className="contenido">
+        {errorSesion && (
+          <p className="aviso aviso-advertencia" role="status">
+            {errorSesion}
+          </p>
+        )}
         <Outlet context={{ establecimiento, setEstablecimiento, errorEstablecimiento }} /> {/* Aquí se dibuja la página actual */}
       </main>
     </div>

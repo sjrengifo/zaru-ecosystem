@@ -1,4 +1,3 @@
-
 // Mapa de rutas: qué página se muestra en cada dirección (URL).
 import { Routes, Route, Navigate } from 'react-router-dom';
 import RutaProtegida from './components/RutaProtegida.jsx';
@@ -6,6 +5,8 @@ import Layout from './components/Layout.jsx';
 
 
 import Login from './pages/Login.jsx';
+import RecuperarContrasena from './pages/RecuperarContrasena.jsx';
+import RestablecerContrasena from './pages/RestablecerContrasena.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Clientes from './pages/Clientes.jsx';
 import Vehiculos from './pages/Vehiculos.jsx';
@@ -19,8 +20,10 @@ import AceptarInvitacion from './pages/AceptarInvitacion.jsx';
 export default function App() {
   return (
     <Routes>
-      {/* Pública */}
+      {/* Públicas */}
       <Route path="/login" element={<Login />} />
+      <Route path="/recuperar" element={<RecuperarContrasena />} />
+      <Route path="/restablecer" element={<RestablecerContrasena />} />
 
       <Route path="/superadmin" element={<RutaProtegida roles={['superadmin']}><Superadmin /></RutaProtegida>} />
 

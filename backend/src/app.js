@@ -23,7 +23,11 @@ app.use('/api', documentacion);
 
 // HSTS: los navegadores recuerdan por un año que solo deben usar HTTPS con este dominio.
 app.use(helmet({ strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true } }));
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', exposedHeaders: ['X-Request-Id', 'Deprecation', 'Link'] }));
+
+// El navegador envía el origen sin barra final; una FRONTEND_URL con "/" al final
+// haría que CORS rechazara todas las peticiones del panel.
+const origenFrontend = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+app.use(cors({ origin: origenFrontend, exposedHeaders: ['X-Request-Id', 'Deprecation', 'Link'] }));
 app.use(express.json({ limit: '1mb' }));
 
 // HU-43 CA3: versión actual.
