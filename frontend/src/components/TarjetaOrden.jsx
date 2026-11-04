@@ -2,6 +2,7 @@
 // Muestra los datos obligatorios (placa, servicio, hora de ingreso y estado) y
 // conserva la acción de HU-10 para avanzar la orden al siguiente estado.
 import { formatoMoneda } from '../lib/formato.js';
+import { correosPorEvento, etiquetaCorreo } from '../lib/avisoCorreo.js';
 import {
   ESTADOS_ORDEN,
   SIGUIENTE_ESTADO,
@@ -16,6 +17,8 @@ export default function TarjetaOrden({ orden, onAvanzar, avanzando, ahora }) {
   const estado = ESTADOS_ORDEN[orden.estado] ?? orden.estado;
   const siguiente = SIGUIENTE_ESTADO[orden.estado];
   const demora = calcularDemora(orden, ahora);
+  // HU-46: sin `cliente` no se calcula "Sin correo" (el tablero no trae el correo, ni cifrado); solo el estado del envío.
+  const correo = etiquetaCorreo({ estado: orden.estado, correos: correosPorEvento(orden.notificaciones) });
   const tieneInicioEstado = Boolean(
     orden.estado_desde || (orden.estado === 'recibido' && orden.created_at),
   );
@@ -49,6 +52,14 @@ export default function TarjetaOrden({ orden, onAvanzar, avanzando, ahora }) {
           <dt>Total</dt>
           <dd>{formatoMoneda(orden.total)}</dd>
         </div>
+        {correo && (
+          <div>
+            <dt>Correo</dt>
+            <dd>
+              <span className={`correo-etiqueta correo-etiqueta-${correo.tipo}`}>{correo.texto}</span>
+            </dd>
+          </div>
+        )}
         {orden.codigo_seguimiento && (
           <div>
             <dt>Código</dt>

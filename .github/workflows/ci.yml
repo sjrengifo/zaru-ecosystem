@@ -19,6 +19,8 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      # HU-46, HU-57 y HU-59: pruebas de lógica y componentes del panel.
+      - run: npm test
       - run: npm run build
 
   backend:

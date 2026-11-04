@@ -1,7 +1,7 @@
 // HU-02 CA2 — Política de rutas: el rol se comprueba aunque se escriba la URL directa.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { puedeAcceder, rolesDeRuta, rutaInicio, rutaNormalizada } from '../src/lib/rutas.js';
+import { destinoTrasLogin, puedeAcceder, rolesDeRuta, rutaInicio, rutaNormalizada } from '../src/lib/rutas.js';
 import { MENU } from '../src/lib/menu.js';
 
 const CONFIGURACION = ['/servicios', '/promociones', '/usuarios', '/branding', '/reportes'];
@@ -51,4 +51,17 @@ test('cada rol vuelve a su página inicial cuando intenta una ruta restringida',
   assert.equal(rutaInicio('superadmin'), '/superadmin');
   assert.equal(rutaInicio('admin'), '/');
   assert.equal(rutaInicio('operario'), '/');
+});
+
+test('tras iniciar sesión no se arrastra una ruta de otro rol (superadmin → admin)', () => {
+  assert.equal(destinoTrasLogin('admin', '/superadmin'), '/');
+  assert.equal(destinoTrasLogin('operario', '/usuarios'), '/');
+  assert.equal(destinoTrasLogin('superadmin', '/usuarios'), '/superadmin');
+});
+
+test('tras iniciar sesión sí se vuelve a la ruta pedida si el rol la permite', () => {
+  assert.equal(destinoTrasLogin('admin', '/reportes'), '/reportes');
+  assert.equal(destinoTrasLogin('operario', '/clientes'), '/clientes');
+  assert.equal(destinoTrasLogin('admin', undefined), '/');
+  assert.equal(destinoTrasLogin('admin', '/login'), '/');
 });

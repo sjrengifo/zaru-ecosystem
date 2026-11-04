@@ -374,6 +374,13 @@ label { display: block; font-size: 14px; }
 .estado-etiqueta-listo { color: #065f46; background: #d1fae5; border-color: #a7f3d0; }
 .estado-etiqueta-entregado { color: #374151; background: #f3f4f6; border-color: #e5e7eb; }
 
+/* HU-46: estado del correo al cliente en la tarjeta del tablero. */
+.correo-etiqueta { display: inline-block; padding: 1px 8px; border: 1px solid transparent; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.correo-etiqueta-exito { color: #065f46; background: #d1fae5; border-color: #a7f3d0; }
+.correo-etiqueta-pendiente { color: #1e40af; background: #dbeafe; border-color: #bfdbfe; }
+.correo-etiqueta-error { color: #991b1b; background: #fee2e2; border-color: #fecaca; }
+.correo-etiqueta-neutro { color: #374151; background: #f3f4f6; border-color: #e5e7eb; }
+
 .dashboard-cargando { display: flex; align-items: center; gap: 10px; color: var(--color-texto-suave); }
 .spinner-oscuro { border-color: var(--color-borde); border-top-color: var(--color-primario); }
 .dashboard-vacio { margin: 0; }
@@ -1248,7 +1255,7 @@ textarea {
 }
 
 /* ---------- HU-57 · Superadministración ---------- */
-.superadmin { display: grid; gap: var(--espacio); max-width: 1500px; }
+.superadmin { display: grid; gap: var(--espacio); box-sizing: border-box; width: 100%; max-width: 1400px; margin: 0 auto; padding: calc(var(--espacio) * 2); }
 .superadmin .encabezado { align-items: flex-start; }
 .superadmin .encabezado p { margin: 6px 0 0; }
 .superadmin-form { display: grid; gap: 12px; }
@@ -1369,4 +1376,215 @@ textarea {
 @media (max-width: 640px) {
   .reporte-filtros-campos .boton { width: 100%; }
   .reporte-campo { flex-basis: 100%; }
+}
+
+
+/* Estilos incorporados para HU-57, HU-59 y avisos de HU-46. */
+
+.menu-usuario-nombre { font-weight: 600; overflow-wrap: anywhere; }
+
+
+.rol-insignia { align-self: flex-start; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--color-primario-hover); background: var(--color-primario-suave); }
+
+
+.rol-operario { color: var(--color-texto-suave); background: var(--color-encabezado-tabla); }
+
+
+.aviso-acceso { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+
+.aviso-acceso .boton-icono { flex-shrink: 0; }
+
+
+.notificacion-advertencia { border-left-color: var(--color-advertencia); }
+
+
+.notificacion-advertencia .notificacion-icono { color: var(--color-advertencia); background: var(--color-advertencia-fondo); }
+
+
+
+/* ---------- HU-57 · Superadministración ---------- */
+/* ---------- HU-57 · Administración de la plataforma ---------- */
+.superadmin-pagina { min-height: 100vh; background: var(--color-fondo); }
+
+
+.superadmin-barra {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px calc(var(--espacio) * 2);
+  background: var(--color-superficie); border-bottom: 1px solid var(--color-borde);
+}
+
+
+.superadmin-marca { display: flex; align-items: baseline; gap: 12px; }
+
+
+.superadmin-marca .logo { margin: 0; font-size: 24px; font-weight: 700; }
+
+
+.superadmin-marca-texto { color: var(--color-texto-suave); font-size: 14px; }
+
+
+.superadmin-sesion { display: flex; align-items: center; gap: 12px; }
+
+
+
+.resumen-estados { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+
+
+.resumen-tarjeta {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 14px 16px; border: 1px solid var(--color-borde); border-left: 4px solid var(--color-borde);
+  border-radius: var(--radio); background: var(--color-superficie); font: inherit; text-align: left; cursor: pointer;
+}
+
+
+.resumen-tarjeta:hover { background: var(--color-primario-suave); }
+
+
+.resumen-tarjeta[aria-pressed='true'] { border-color: var(--color-primario); box-shadow: 0 0 0 1px var(--color-primario); }
+
+
+.resumen-numero { font-size: 26px; font-weight: 700; line-height: 1.1; }
+
+
+.resumen-texto { color: var(--color-texto-suave); font-size: 13px; }
+
+
+.resumen-prueba { border-left-color: var(--color-primario); }
+
+
+.resumen-activo { border-left-color: var(--color-exito); }
+
+
+.resumen-pendiente_activacion { border-left-color: #f59e0b; }
+
+
+.resumen-suspendido { border-left-color: var(--color-error); }
+
+
+.buscador { max-width: 420px; margin: 0; }
+
+
+.tabla-establecimientos td { vertical-align: top; }
+
+
+.celda-secundaria { display: block; margin-top: 2px; font-size: 12px; }
+
+
+.celda-estado, .celda-administrador { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+
+
+.celda-correo { overflow-wrap: anywhere; }
+
+
+.texto-advertencia { color: var(--color-advertencia); font-size: 13px; font-weight: 600; }
+
+
+.insignia { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+
+
+.insignia-pendiente { color: var(--color-advertencia); background: var(--color-advertencia-fondo); }
+
+
+.insignia-ok { color: var(--color-exito); background: var(--color-exito-fondo); }
+
+
+.plan-insignia { display: inline-block; padding: 2px 8px; border: 1px solid var(--color-borde); border-radius: 6px; font-size: 12px; font-weight: 600; }
+
+
+.plan-empresarial { border-color: var(--color-primario); color: var(--color-primario-hover); }
+
+
+.acciones-fila { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+
+
+.acciones-fila .boton-pequeno { margin-left: 0; }
+
+
+
+.formulario-establecimiento .grupo-opciones { margin: 0 0 var(--espacio); }
+
+
+.planes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+
+
+.plan-opcion {
+  position: relative; display: flex; flex-direction: column; gap: 4px;
+  padding: 12px; border: 1px solid var(--color-borde); border-radius: var(--radio); cursor: pointer;
+}
+
+
+.plan-opcion input { position: absolute; opacity: 0; pointer-events: none; }
+
+
+.plan-opcion.seleccionado { border-color: var(--color-primario); background: var(--color-primario-suave); box-shadow: 0 0 0 1px var(--color-primario); }
+
+
+.plan-opcion:has(input:focus-visible) { outline: 2px solid var(--color-primario); outline-offset: 2px; }
+
+
+.plan-nombre { font-weight: 600; }
+
+
+.plan-descripcion { color: var(--color-texto-suave); font-size: 12px; }
+
+
+.dias-prueba { display: flex; align-items: center; gap: 12px; }
+
+
+.dias-prueba input[type='range'] { flex: 1; margin: 0; padding: 0; accent-color: var(--color-primario); }
+
+
+.dias-prueba input[type='number'] { width: 80px; margin: 0; }
+
+
+.formulario-establecimiento .campo-ayuda, .formulario-establecimiento .mensaje-error { margin-top: 6px; }
+
+/* Ajustes responsive de los componentes HU-57/HU-59. */
+@media (max-width: 768px) {
+  .layout { flex-direction: column; }
+
+  /* El menú lateral pasa a ser una barra: logo y salir arriba, y las opciones se deslizan de lado. */
+  .menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px var(--espacio);
+    border-right: none;
+    border-bottom: 1px solid var(--color-borde);
+  }
+  .menu .logo { margin: 0; font-size: 24px; }
+  .menu nav {
+    position: relative;
+    order: 3;
+    flex: 0 0 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .menu nav::-webkit-scrollbar { display: none; }
+  .menu-item { display: flex; flex-shrink: 0; align-items: center; min-height: 44px; }
+  .menu-usuario { flex-direction: row; align-items: center; margin-left: auto; }
+  .menu-usuario-nombre { display: none; }
+  .contenido { padding: var(--espacio); }
+}
+
+@media (max-width: 900px) {
+  .resumen-estados { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .superadmin-barra { padding: 10px var(--espacio); }
+  .superadmin-marca-texto, .superadmin-sesion .texto-suave { display: none; }
+  .superadmin { padding: var(--espacio); }
+  .superadmin .encabezado { align-items: stretch; }
+  .superadmin .encabezado .boton { width: 100%; }
+  .resumen-estados { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .planes { grid-template-columns: 1fr; }
+  .superadmin-tabla-encabezado { flex-direction: column; align-items: stretch; }
+  .buscador { max-width: none; }
 }

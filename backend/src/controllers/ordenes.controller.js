@@ -9,8 +9,14 @@ import { cifrar } from '../shared/cifrado.js';
 import { programarNotificacion } from '../shared/notificaciones.js';
 
 /** HU-46: el aviso al cliente corre después de responder; un fallo nunca afecta la operación. */
-function avisarCliente(tenant, ordenId, tipo) {
-  programarNotificacion(tenant, ordenId, tipo).catch(() => {});
+async function avisarCliente(tenant, ordenId, tipo) {
+  try {
+    return await programarNotificacion(tenant, ordenId, tipo);
+  } catch (err) {
+    // CA3: un problema al preparar el aviso nunca revierte la orden.
+    console.error('[HU-46] No se pudo preparar el aviso:', err?.message ?? err);
+    return { estado: 'error', motivo: 'preparacion' };
+  }
 }
 
 const COLUMNAS_DETALLE = [
@@ -110,8 +116,9 @@ export async function crear(req, res, next) {
       throw await traducirError(err, req.tenant, { cliente, vehiculo });
     }
 
-    res.status(201).json(detalle(await req.tenant.obtener('ordenes', ordenId, COLUMNAS_DETALLE, 'Orden')));
-    avisarCliente(req.tenant, ordenId, 'ingreso'); // HU-46 CA1
+    const orden = detalle(await req.tenant.obtener('ordenes', ordenId, COLUMNAS_DETALLE, 'Orden'));
+    const notificacion = await avisarCliente(req.tenant, ordenId, 'ingreso'); // HU-46 CA1
+    res.status(201).json({ ...orden, notificacion });
   } catch (err) {
     next(err);
   }
@@ -152,8 +159,10 @@ export async function cambiarEstado(req, res, next) {
     }
 
     const orden = detalle(await req.tenant.obtener('ordenes', id, COLUMNAS_DETALLE, 'Orden'));
-    res.json(orden);
-    if (orden.estado === 'listo' && revertir !== true) avisarCliente(req.tenant, id, 'listo'); // HU-46 CA2
+    const notificacion = orden.estado === 'listo' && revertir !== true
+      ? await avisarCliente(req.tenant, id, 'listo')
+      : null;
+    res.json({ ...orden, ...(notificacion ? { notificacion } : {}) }); // HU-46 CA2
   } catch (err) {
     next(err);
   }

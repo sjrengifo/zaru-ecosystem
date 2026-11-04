@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../services/api.js';
 import { formatoMoneda } from '../lib/formato.js';
+import { mensajeCorreo } from '../lib/avisoCorreo.js';
 import { useDashboardOrdenes } from '../hooks/useDashboardOrdenes.js';
 import { useAhora } from '../hooks/useAhora.js';
 import {
@@ -84,10 +85,12 @@ export default function Dashboard() {
 
   function alIngresar(orden) {
     setIngresando(false);
+    const aviso = mensajeCorreo(orden.notificacion);
     setConfirmacion({
       id: Date.now(),
       titulo: 'Vehículo ingresado',
-      detalle: `${orden.vehiculo?.placa ?? 'Vehículo'} · ${formatoMoneda(orden.total)} · Código ${orden.codigoSeguimiento}`,
+      detalle: [`${orden.vehiculo?.placa ?? 'Vehículo'} · ${formatoMoneda(orden.total)} · Código ${orden.codigoSeguimiento}`, aviso?.texto].filter(Boolean).join(' · '),
+      tipo: aviso?.tipo ?? 'exito',
     });
     refrescar();
   }
@@ -100,10 +103,12 @@ export default function Dashboard() {
     setErrorAccion('');
     try {
       const actualizada = await api.patch(`/ordenes/${orden.id}/estado`, { estado: siguiente });
+      const aviso = mensajeCorreo(actualizada.notificacion);
       setConfirmacion({
         id: Date.now(),
         titulo: 'Estado actualizado',
-        detalle: `${actualizada.vehiculo?.placa ?? 'Vehículo'} · ${ESTADOS_ORDEN[actualizada.estado]}`,
+        detalle: [`${actualizada.vehiculo?.placa ?? 'Vehículo'} · ${ESTADOS_ORDEN[actualizada.estado]}`, aviso?.texto].filter(Boolean).join(' · '),
+        tipo: aviso?.tipo ?? 'exito',
       });
       // No se espera al evento de Realtime: si la conexión en vivo se cayó, el
       // tablero igual queda al día con esta recarga puntual.
@@ -156,6 +161,7 @@ export default function Dashboard() {
             key={confirmacion.id}
             titulo={confirmacion.titulo}
             detalle={confirmacion.detalle}
+            tipo={confirmacion.tipo}
             onCerrar={cerrarConfirmacion}
           />
         )}

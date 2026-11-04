@@ -5,9 +5,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { listarOrdenesDelTablero } from '../services/dashboard.js';
+import { hayCorreoEnCurso } from '../lib/avisoCorreo.js';
 import { useSesion } from './useSesion.js';
 
 const ESPERA_REFRESCO_MS = 250;
+const ESPERA_CORREO_MS = 3000;
 
 export function useDashboardOrdenes() {
   const { establecimiento } = useSesion();
@@ -76,6 +78,15 @@ export function useDashboardOrdenes() {
   useEffect(() => {
     cargar();
   }, [cargar, intento]);
+
+  // El correo se envía en segundo plano (HU-46) y `notificaciones` no emite eventos de Realtime: mientras
+  // alguno siga "pendiente/enviando" se vuelve a consultar. Cada consulta cambia `ordenes` y re-arma este
+  // temporizador, así que se detiene solo cuando el correo queda enviado o fallido.
+  useEffect(() => {
+    if (!hayCorreoEnCurso(ordenes)) return undefined;
+    const espera = setTimeout(refrescar, ESPERA_CORREO_MS);
+    return () => clearTimeout(espera);
+  }, [ordenes, refrescar]);
 
   useEffect(() => {
     let cancelado = false;

@@ -2,21 +2,32 @@
 // HU-13 CA2: aplica el logo y los colores guardados de la sede a todo el panel. Al recargar se usa la
 // última copia conocida (lib/brandingGuardado.js) para no mostrar primero el branding de Zaru.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSesion } from '../hooks/useSesion.js';
 import { leerBranding, guardarBranding, borrarBranding } from '../lib/brandingGuardado.js';
-import { menuParaRol } from '../lib/menu.js';
+import { menuPara, NOMBRE_ROL } from '../lib/permisos.js';
+import { usePerfil } from '../hooks/usePerfil.js';
 import { api } from '../services/api.js';
 
 export default function Layout() {
-  const { pathname } = useLocation();
+  const { pathname, state } = useLocation();
+  const navegar = useNavigate();
+  const [accesoDenegado, setAccesoDenegado] = useState(state?.accesoDenegado ?? null);
   const navegacion = useRef(null);
   const { usuario, establecimiento: establecimientoSesion, errorSesion } = useSesion();
+  const perfil = usePerfil();
+  const menu = menuPara(perfil);
   const [establecimiento, setEstablecimiento] = useState(leerBranding);
   const [cargado, setCargado] = useState(false);
   const [errorEstablecimiento, setErrorEstablecimiento] = useState('');
   const nombreSede = establecimiento?.nombre ?? establecimientoSesion?.nombre;
+
+  useEffect(() => {
+    if (!state?.accesoDenegado) return;
+    setAccesoDenegado(state.accesoDenegado);
+    navegar(pathname, { replace: true, state: null });
+  }, [state?.accesoDenegado, pathname, navegar]);
 
   useEffect(() => {
     let vigente = true;
@@ -77,7 +88,7 @@ export default function Layout() {
         </div>
 
         <nav ref={navegacion}>
-          {menuParaRol(usuario?.rol).map((item) => (
+          {menu.map((item) => (
             <NavLink key={item.ruta} to={item.ruta} end className="menu-item">
               {item.texto}
             </NavLink>
@@ -89,7 +100,7 @@ export default function Layout() {
             <>
               <strong>{usuario.nombre}</strong>
               <span className="texto-suave">
-                {usuario.rol === 'admin' ? 'Administrador' : 'Operario'}
+                {NOMBRE_ROL[usuario.rol] ?? usuario.rol}
               </span>
             </>
           )}
@@ -107,6 +118,12 @@ export default function Layout() {
       </aside>
 
       <main className="contenido">
+        {accesoDenegado && (
+          <div className="aviso aviso-advertencia aviso-acceso" role="alert">
+            <p>No tienes acceso a esa sección con tu rol. Te trajimos a tu página de inicio.</p>
+            <button type="button" className="boton-icono" aria-label="Cerrar aviso" onClick={() => setAccesoDenegado(null)}>×</button>
+          </div>
+        )}
         {errorSesion && (
           <p className="aviso aviso-advertencia" role="status">
             {errorSesion}

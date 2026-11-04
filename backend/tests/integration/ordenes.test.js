@@ -90,7 +90,6 @@ describe.skipIf(!hayEntornoIntegracion)(`Órdenes${hayEntornoIntegracion ? '' : 
   describe('ESC-F3-01: crear orden para un vehículo registrado (CA1)', () => {
     it('responde 201 con total, estado recibido, código de seguimiento y entrega estimada', async () => {
       const { data: vehiculo } = await admin.from('vehiculos').select('id').eq('placa', PLACA.ana).single();
-      const antes = Date.now() + 70 * 60 * 1000;
       const res = await crear({
         vehiculoId: vehiculo.id,
         servicioIds: [basico.id, motor.id],
@@ -114,9 +113,11 @@ describe.skipIf(!hayEntornoIntegracion)(`Órdenes${hayEntornoIntegracion ? '' : 
           { id: motor.id, nombre: `${ETIQUETA} Lavado de motor`, precio: 30000, duracionMin: 40, descuento: 0 },
         ]),
       );
+      // entrega y created_at salen del mismo now() de Postgres (misma transacción): su diferencia es exactamente
+      // la suma de duraciones (30 + 40 min) y no depende del reloj local, que puede estar desfasado del servidor.
       const entrega = new Date(res.body.entregaEstimadaAt).getTime();
-      expect(entrega).toBeGreaterThanOrEqual(antes - 5000);
-      expect(entrega).toBeLessThanOrEqual(Date.now() + 70 * 60 * 1000 + 5000);
+      const creada = new Date(res.body.created_at).getTime();
+      expect(entrega - creada).toBe(70 * 60 * 1000);
 
       ordenesCreadas.push(res.body.id);
       const { data: historial } = await admin.from('historial_estados').select('estado').eq('orden_id', res.body.id);

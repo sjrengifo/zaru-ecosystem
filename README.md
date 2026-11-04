@@ -199,8 +199,10 @@ cp .env.example .env
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave `service_role`. **Confidencial**: no debe incluirse en el frontend ni en el repositorio |
 | `ZARU_CLAVE_CIFRADO` | Clave de 32 bytes para cifrar datos personales a nivel de campo (`openssl rand -base64 32`). **Confidencial**: una por ambiente; si se pierde, los correos cifrados no se recuperan |
 | `FRONTEND_URL` | Origen permitido por CORS |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Servidor SMTP para los avisos por correo al cliente (HU-46). Ej.: Gmail `smtp.gmail.com`, puerto `465`, con una contraseña de aplicación. `SMTP_PASS` es **confidencial**. Si faltan, no se envían correos y el aviso queda registrado como `fallida` |
-| `CORREO_REMITENTE` | Remitente de los avisos, p. ej. `Zaru <avisos@tu-dominio.com>` |
+| `CORREO_PROVEEDOR` | Proveedor de HU-46: `consola` (desarrollo, por defecto), `smtp` o `resend` |
+| `CORREO_REMITENTE` | Remitente de los avisos, p. ej. `Zaru <notificaciones@tu-dominio.com>` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USUARIO`, `SMTP_CLAVE` | Configuración SMTP cuando `CORREO_PROVEEDOR=smtp`. La clave es **confidencial** |
+| `RESEND_API_KEY` | Clave **confidencial** cuando `CORREO_PROVEEDOR=resend` (requiere un dominio verificado en Resend) |
 
 **`frontend/.env`**
 
@@ -212,6 +214,10 @@ cp .env.example .env
 
 Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. La clave `service_role` se distribuye por un canal privado.
 
+Para HU-46, el proveedor `consola` permite probar el flujo sin enviar correos reales. En producción configura `CORREO_PROVEEDOR` como `smtp` o `resend` y agrega sus credenciales al entorno del backend. El correo se registra primero en la cola `notificaciones`; el envío ocurre en segundo plano y se reintenta hasta tres veces. No copies archivos `.env` entre carpetas ni los incluyas en commits.
+
+HU-57 incorpora el panel de superadministración para registrar establecimientos, invitar al administrador inicial, consultar periodos de prueba, activar, suspender y reenviar invitaciones. HU-59 centraliza los módulos permitidos por rol en el backend (`GET /me` y middleware `requiereModulo`) y usa esos permisos para filtrar el menú y proteger la navegación del frontend.
+
 ### Ejecución
 
 | Comando | Directorio | Descripción |
@@ -222,6 +228,7 @@ Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. 
 | `npm run cifrar:correos` | `backend/` | Cifra los correos de clientes que aún estén en texto plano (HU-50) |
 | `npm test` | `backend/` | Pruebas unitarias y de integración (Vitest). Las de integración requieren `.env` y `.env.spike.local`; sin ellos se omiten |
 | `npm run dev` | `frontend/` | Servidor de desarrollo de Vite — `http://localhost:5173` |
+| `npm test` | `frontend/` | Pruebas existentes con Node y pruebas HU-46/HU-57/HU-59 con Vitest |
 | `npm run build` | `frontend/` | Build de producción en `frontend/dist/` |
 
 Verificación de la API: `GET http://localhost:4000/api/v1/health`. Documentación: `http://localhost:4000/api/docs`.

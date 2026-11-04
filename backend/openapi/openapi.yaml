@@ -106,7 +106,7 @@ paths:
       tags: [Sesión]
       operationId: obtenerSesion
       summary: Datos de la sesión actual
-      description: Usuario, rol, establecimiento y vencimiento del token (HU-44 CA1).
+      description: Usuario, rol, establecimiento, permisos de módulos y vencimiento del token (HU-44, HU-57, HU-59).
       responses:
         '200':
           description: Sesión válida.
@@ -858,6 +858,17 @@ paths:
 
   /superadmin/establecimientos:
     get:
+      parameters:
+        - in: query
+          name: estado
+          schema:
+            type: string
+            enum: [prueba, activo, pendiente_activacion, suspendido]
+        - in: query
+          name: buscar
+          schema:
+            type: string
+            maxLength: 120
       tags: [Superadministración]
       operationId: listarEstablecimientosSuperadmin
       summary: Listar todos los establecimientos (solo superadministrador)
@@ -896,6 +907,30 @@ paths:
         '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /superadmin/establecimientos/{id}/reenviar-invitacion:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Superadministración]
+      operationId: reenviarInvitacionSuperadmin
+      summary: Reenviar la invitación al administrador inicial
+      description: HU-57 CA1. Solo reenvía la invitación si el administrador aún no la ha aceptado y el establecimiento no está suspendido.
+      responses:
+        '200':
+          description: Invitación reenviada.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [correo, enviada]
+                properties:
+                  correo: { type: string, format: email }
+                  enviada: { type: boolean, enum: [true] }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
         '409': { $ref: '#/components/responses/Conflicto' }
 
   /superadmin/establecimientos/{id}/activar:
@@ -1055,8 +1090,18 @@ components:
           properties:
             id: { type: string, format: uuid }
             nombre: { type: string }
-            rol: { type: string, enum: [admin, operario] }
-        establecimiento: { $ref: '#/components/schemas/Establecimiento' }
+            rol: { type: string, enum: [admin, operario, superadmin] }
+        establecimiento:
+          oneOf:
+            - { $ref: '#/components/schemas/Establecimiento' }
+            - { type: 'null' }
+        permisos:
+          type: object
+          properties:
+            modulos:
+              type: array
+              items: { type: string }
+            inicio: { type: string }
         sesion:
           type: object
           properties:
@@ -1455,6 +1500,15 @@ components:
         prueba_finaliza_at: { type: [string, 'null'], format: date-time }
         activado_at: { type: [string, 'null'], format: date-time }
         created_at: { type: [string, 'null'], format: date-time }
+        dias_restantes: { type: [integer, 'null'], minimum: 0 }
+        administrador:
+          oneOf:
+            - type: object
+              properties:
+                nombre: { type: string }
+                correo: { type: [string, 'null'], format: email }
+                invitacionAceptada: { type: [boolean, 'null'] }
+            - type: 'null'
 
     NuevoEstablecimientoSuperadmin:
       type: object

@@ -1,151 +1,207 @@
-// HU-46 — Notificaciones por correo al cliente.
+// HU-46 — Notificaciones por correo al cliente final.
 //
-// CA1: correo cuando se registra el ingreso del vehículo (HU-08).
-// CA2: correo cuando el vehículo pasa a "Listo" (HU-10).
-// CA3: si el cliente no tiene correo o el envío falla, la operación del establecimiento sigue igual:
-//      el controlador ya respondió y aquí ningún error se propaga.
+// Flujo (patrón outbox, tabla `notificaciones`):
+//   1. preparar: con la orden ya guardada, se arma el mensaje y se deja una fila "pendiente".
+//      Si el cliente no tiene correo o pidió no recibir avisos, no se crea nada y se informa el motivo.
+//   2. el controlador responde al operario SIN esperar el envío (CA3: la operación nunca se bloquea).
+//   3. enviar: en segundo plano se llama al proveedor (con tiempo máximo y hasta 3 intentos) y la fila
+//      queda "enviada" o "fallida" con el error, para consultarla después.
 //
-// Cada intento queda en la tabla `notificaciones` (HU-42) con su resultado. El destino se guarda
-// cifrado, igual que el correo del cliente (HU-50). La clave de deduplicación evita enviar dos
-// veces el mismo aviso de una orden (por ejemplo, si se revierte "Listo" y se vuelve a marcar).
-import { enviarCorreo as enviarPorSmtp } from './correo.js';
-import { cifrar, descifrar } from './cifrado.js';
+// Nada de este módulo lanza errores hacia el controlador: un fallo del correo jamás revierte ni
+// impide el cambio de estado de la orden (CA3).
+//
+// Todo acceso a datos pasa por el acceso del tenant (HU-41): la notificación queda en el mismo
+// establecimiento de la orden. El destino se guarda cifrado, igual que el correo del cliente (HU-50).
+import { cifrar, descifrar, estaCifrado } from './cifrado.js';
+import { proveedorCorreo, conTiempoMaximo, enmascararCorreo } from './correo.js';
+import { PLANTILLAS } from './plantillasCorreo.js';
 
-const COLUMNAS_ORDEN = [
-  'id, codigo_seguimiento, total, entrega_estimada_at,',
-  'vehiculo:vehiculos(placa, cliente:clientes(id, nombre, correo)),',
-  'servicios:orden_servicios(servicio:servicios(nombre))',
-].join(' ');
+export const EVENTOS = { RECIBIDA: 'orden.recibida', LISTA: 'orden.lista' };
+export const MAX_INTENTOS = 3;
+const ESPERAS_MS = [2_000, 4_000]; // antes del 2.º y del 3.er intento
 
-export const EVENTOS = {
-  ingreso: { evento: 'orden.ingreso', titulo: 'Recibimos tu vehículo' },
-  listo: { evento: 'orden.listo', titulo: 'Tu vehículo está listo' },
-};
+const COLUMNAS_ORDEN =
+  'id, estado, subtotal, descuento, total, created_at, vehiculos(placa, clientes(id, nombre, correo)), orden_servicios(precio, servicios(nombre))';
 
-const moneda = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-const hora = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', hour: 'numeric', minute: '2-digit' });
+const dormir = (ms) => new Promise((resolver) => setTimeout(resolver, ms));
+const resumen = (estado, extra = {}) => ({ canal: 'correo', estado, ...extra });
 
-function escapar(texto) {
-  return String(texto ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-}
-
-/** Asunto, texto plano y HTML del correo. Se exporta para probarlo sin enviar nada. */
-export function redactarCorreo(tipo, { establecimiento, cliente, placa, servicios, total, codigo, entregaEstimada }) {
-  const primerNombre = String(cliente ?? '').trim().split(/\s+/)[0] || 'Hola';
-  const lista = servicios.length ? servicios.join(', ') : 'Servicio';
-
-  const lineas = tipo === 'ingreso'
-    ? [
-      `${primerNombre}, recibimos tu vehículo ${placa} en ${establecimiento}.`,
-      `Servicios: ${lista}.`,
-      `Total: ${moneda.format(Number(total ?? 0))}.`,
-      ...(entregaEstimada ? [`Hora estimada de entrega: ${hora.format(new Date(entregaEstimada))}.`] : []),
-      `Código de seguimiento: ${codigo}.`,
-      'Te avisaremos por este medio cuando esté listo.',
-    ]
-    : [
-      `${primerNombre}, tu vehículo ${placa} ya está listo en ${establecimiento}.`,
-      'Puedes pasar a recogerlo cuando quieras.',
-      `Código de seguimiento: ${codigo}.`,
-    ];
-
-  return {
-    asunto: `${EVENTOS[tipo].titulo} · ${establecimiento}`,
-    texto: lineas.join('\n'),
-    html: [
-      '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1f2937">',
-      `<h2 style="margin:0 0 12px">${escapar(EVENTOS[tipo].titulo)}</h2>`,
-      ...lineas.map((linea) => `<p style="margin:0 0 8px">${escapar(linea)}</p>`),
-      `<p style="margin:16px 0 0;color:#6b7280;font-size:13px">${escapar(establecimiento)} · Zaru</p>`,
-      '</div>',
-    ].join(''),
-  };
+/** El cliente revocó expresamente los avisos del servicio (última evidencia de consentimientos, HU-51). */
+async function avisosRevocados(tenant, clienteId) {
+  const { data, error } = await tenant
+    .listar('consentimientos', 'otorgado, created_at')
+    .eq('cliente_id', clienteId)
+    .eq('tipo', 'notificaciones_servicio')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return data?.[0]?.otorgado === false;
 }
 
 /**
- * Envía el aviso de una orden y registra el resultado. Nunca lanza.
- * @param {object} tenant  req.tenant de la petición que originó el aviso
- * @param {string} ordenId
- * @param {'ingreso'|'listo'} tipo
- * @param {{ enviar?: Function }} [dependencias]  para las pruebas
- * @returns {Promise<{ estado: string, motivo?: string }>}
+ * Prepara el correo de un evento de la orden.
+ * @returns {Promise<{ resumen: object, enviar: () => Promise<object> }>}
+ *   `resumen` se devuelve al panel; `enviar` se ejecuta en segundo plano después de responder.
  */
-export async function notificarOrden(tenant, ordenId, tipo, { enviar = enviarPorSmtp } = {}) {
-  let registroId = null;
+export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {}) {
+  const sinEnvio = async () => null;
   try {
-    if (!EVENTOS[tipo]) return { estado: 'omitida', motivo: `Tipo de aviso desconocido: ${tipo}` };
+    const plantilla = PLANTILLAS[evento];
+    if (!plantilla) throw new Error(`Evento de correo desconocido: ${evento}`);
 
-    const orden = await tenant.obtener('ordenes', ordenId, COLUMNAS_ORDEN, 'Orden');
-    const cliente = orden.vehiculo?.cliente;
-    if (!cliente?.id) return { estado: 'omitida', motivo: 'La orden no tiene cliente' };
+    const { data: orden, error } = await tenant.listar('ordenes', COLUMNAS_ORDEN).eq('id', ordenId).maybeSingle();
+    if (error) throw error;
+    if (!orden) throw new Error('La orden no existe');
 
-    const { data: sede } = await tenant.listar('establecimientos', 'nombre').maybeSingle();
-    const correo = cliente.correo ? descifrar(cliente.correo) : null;
-    const contenido = redactarCorreo(tipo, {
-      establecimiento: sede?.nombre ?? 'tu car wash',
-      cliente: cliente.nombre,
-      placa: orden.vehiculo?.placa,
-      servicios: (orden.servicios ?? []).map((s) => s.servicio?.nombre).filter(Boolean),
-      total: orden.total,
-      codigo: orden.codigo_seguimiento,
-      entregaEstimada: orden.entrega_estimada_at,
+    const vehiculo = orden.vehiculos ?? {};
+    const cliente = vehiculo.clientes ?? null;
+    if (!cliente) return { resumen: resumen('omitida', { motivo: 'sin_cliente' }), enviar: sinEnvio };
+
+    // CA3: sin correo registrado no se envía nada y la operación sigue normal.
+    const correoGuardado = cliente.correo;
+    const correo = correoGuardado ? descifrar(correoGuardado)?.trim() : '';
+    if (!correo) return { resumen: resumen('omitida', { motivo: 'sin_correo' }), enviar: sinEnvio };
+
+    if (await avisosRevocados(tenant, cliente.id)) {
+      return { resumen: resumen('omitida', { motivo: 'revocado' }), enviar: sinEnvio };
+    }
+
+    const { data: establecimiento } = await tenant
+      .listar('establecimientos', 'nombre, logo_url, color_primario')
+      .maybeSingle();
+
+    const mensaje = plantilla({
+      establecimiento,
+      cliente,
+      orden,
+      vehiculo,
+      servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
     });
 
-    // CA3: sin correo no se intenta el envío, pero queda constancia.
-    if (!correo) {
-      await registrar(tenant, { orden, cliente, tipo, destino: null, contenido, estado: 'cancelada', error: 'El cliente no tiene correo registrado' });
-      return { estado: 'cancelada', motivo: 'El cliente no tiene correo registrado' };
+    let fila;
+    try {
+      fila = await tenant.crear('notificaciones', {
+        cliente_id: cliente.id,
+        orden_id: orden.id,
+        tipo: 'operativa',
+        evento,
+        canal: 'correo',
+        destino: estaCifrado(correoGuardado) ? correoGuardado : cifrar(correo),
+        contenido: { asunto: mensaje.asunto },
+        estado: 'pendiente',
+        clave_dedupe: `${orden.id}:${evento}:correo`,
+      }, 'id');
+    } catch (err) {
+      // RNF-F6-04: el mismo evento de la misma orden nunca genera un segundo correo.
+      if (err.codigo === 'CONFLICTO') return { resumen: resumen('duplicada'), enviar: sinEnvio };
+      throw err;
     }
 
-    const registro = await registrar(tenant, { orden, cliente, tipo, destino: correo, contenido, estado: 'enviando' });
-    if (!registro) return { estado: 'omitida', motivo: 'El aviso ya se había enviado' };
-    registroId = registro.id;
-
-    const resultado = await enviar({ para: correo, ...contenido });
-    const estado = resultado.enviado ? 'enviada' : 'fallida';
-    await tenant.actualizar('notificaciones', registroId, {
-      estado,
-      intentos: 1,
-      error: resultado.enviado ? null : resultado.motivo,
-    }, 'id', 'Notificación');
-    if (!resultado.enviado) console.warn(`[HU-46] No se envió el aviso "${tipo}" de la orden ${ordenId}: ${resultado.motivo}`);
-    return { estado, ...(resultado.motivo ? { motivo: resultado.motivo } : {}) };
+    const destino = enmascararCorreo(correo);
+    return {
+      resumen: resumen('pendiente', { id: fila.id, destino }),
+      enviar: () => enviarCorreo(tenant, { id: fila.id, para: correo, mensaje }, opciones),
+    };
   } catch (err) {
-    console.error(`[HU-46] Error al notificar la orden ${ordenId}:`, err?.message ?? err);
-    if (registroId) {
-      await tenant.actualizar('notificaciones', registroId, { estado: 'fallida', error: String(err?.message ?? err) }, 'id', 'Notificación')
-        .catch(() => {});
-    }
-    return { estado: 'fallida', motivo: err?.message ?? 'Error desconocido' };
+    console.error(`[HU-46] No se pudo preparar el correo ${evento} de la orden ${ordenId}:`, err.message);
+    return { resumen: resumen('error', { motivo: 'preparacion' }), enviar: sinEnvio };
   }
 }
 
-/** Inserta el registro del aviso. Devuelve null si ese aviso ya existía (clave de deduplicación). */
-async function registrar(tenant, { orden, cliente, tipo, destino, contenido, estado, error = null }) {
+/** Marca la fila sin propagar errores: el seguimiento nunca debe romper el envío. */
+async function marcar(tenant, id, cambios) {
   try {
-    return await tenant.crear('notificaciones', {
-      cliente_id: cliente.id,
-      orden_id: orden.id,
-      tipo: 'operativa',
-      evento: EVENTOS[tipo].evento,
-      canal: 'correo',
-      destino: destino ? cifrar(destino) : 'sin-correo',
-      contenido: { asunto: contenido.asunto, texto: contenido.texto },
-      estado,
-      error,
-      clave_dedupe: `${orden.id}:${tipo}`,
-    }, 'id');
+    await tenant.actualizar('notificaciones', id, cambios, 'id', 'Notificación');
   } catch (err) {
-    // Solo la llave única (23505) significa "ya enviado"; otros conflictos sí son errores.
-    if (err?.code === '23505' || (err?.codigo === 'CONFLICTO' && err?.message === 'El registro ya existe')) return null;
-    throw err;
+    console.error(`[HU-46] No se pudo actualizar la notificación ${id}:`, err.message);
   }
 }
 
 /**
- * Lanza el aviso sin bloquear la respuesta HTTP (CA3). Se usa después de responder.
- * Devuelve la promesa para que las pruebas puedan esperarla.
+ * Envía el correo con hasta MAX_INTENTOS intentos y deja el resultado en la fila.
+ * @returns {Promise<{ estado: 'enviada'|'fallida', intentos: number, error?: string }>}
  */
-export function programarNotificacion(tenant, ordenId, tipo) {
-  return notificarOrden(tenant, ordenId, tipo);
+export async function enviarCorreo(tenant, { id, para, mensaje }, opciones = {}) {
+  const proveedor = opciones.proveedor ?? proveedorCorreo();
+  const esperas = opciones.esperasMs ?? ESPERAS_MS;
+  const tiempoMaximo = opciones.tiempoMaximoMs;
+  let ultimoError;
+
+  for (let intento = 1; intento <= MAX_INTENTOS; intento += 1) {
+    await marcar(tenant, id, { estado: 'enviando', intentos: intento });
+    try {
+      const { idProveedor } = await conTiempoMaximo(proveedor.enviar({ para, ...mensaje }), tiempoMaximo);
+      await marcar(tenant, id, {
+        estado: 'enviada',
+        error: null,
+        proximo_intento_at: null,
+        contenido: { asunto: mensaje.asunto, proveedor: proveedor.nombre, idProveedor: idProveedor ?? null },
+      });
+      return { estado: 'enviada', intentos: intento };
+    } catch (err) {
+      ultimoError = String(err?.message ?? err).slice(0, 500);
+      const espera = esperas[intento - 1];
+      if (intento < MAX_INTENTOS) {
+        await marcar(tenant, id, {
+          estado: 'pendiente',
+          error: ultimoError,
+          proximo_intento_at: new Date(Date.now() + (espera ?? 0)).toISOString(),
+        });
+        if (espera) await dormir(espera);
+      }
+    }
+  }
+
+  console.error(`[HU-46] Correo ${id} fallido tras ${MAX_INTENTOS} intentos: ${ultimoError}`);
+  await marcar(tenant, id, { estado: 'fallida', error: ultimoError, proximo_intento_at: null });
+  return { estado: 'fallida', intentos: MAX_INTENTOS, error: ultimoError };
+}
+
+/** Ejecuta el envío en segundo plano, después de que el controlador ya respondió. */
+export function enSegundoPlano(tarea) {
+  setImmediate(() => {
+    Promise.resolve()
+      .then(tarea)
+      .catch((err) => console.error('[HU-46] Error inesperado en el envío de correo:', err?.message ?? err));
+  });
+}
+
+
+/**
+ * Compatibilidad con los controladores existentes del proyecto actual.
+ * `ingreso` y `listo` se traducen al nuevo outbox; el envío siempre queda desacoplado.
+ */
+export async function programarNotificacion(tenant, ordenId, tipo) {
+  const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : EVENTOS.LISTA;
+  const preparado = await prepararCorreo(tenant, { evento, ordenId });
+  if (preparado.resumen.estado === 'pendiente') enSegundoPlano(preparado.enviar);
+  return preparado.resumen;
+}
+
+/** Adaptador para pruebas/integraciones antiguas que ejecutan el envío de forma síncrona. */
+export async function notificarOrden(tenant, ordenId, tipo, { enviar } = {}) {
+  const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : EVENTOS.LISTA;
+  const proveedor = enviar ? {
+    nombre: 'prueba',
+    async enviarCorreo({ para, ...mensaje }) {
+      const resultado = await enviar({ para, ...mensaje });
+      if (resultado?.enviado === false) throw new Error(resultado.motivo || 'El proveedor rechazó el envío');
+      return { idProveedor: resultado?.id ?? null };
+    },
+    async enviar({ para, ...mensaje }) {
+      const resultado = await enviar({ para, ...mensaje });
+      if (resultado?.enviado === false) throw new Error(resultado.motivo || 'El proveedor rechazó el envío');
+      return { idProveedor: resultado?.id ?? null };
+    },
+  } : undefined;
+  const preparado = await prepararCorreo(tenant, { evento, ordenId }, { proveedor, esperasMs: [] });
+  if (preparado.resumen.estado === 'pendiente') {
+    const resultado = await preparado.enviar();
+    return resultado.estado === 'enviada'
+      ? { estado: 'enviada' }
+      : { estado: 'fallida', motivo: resultado.error };
+  }
+  if (preparado.resumen.estado === 'omitida') return { estado: 'cancelada', motivo: preparado.resumen.motivo };
+  if (preparado.resumen.estado === 'duplicada') return { estado: 'omitida' };
+  return { estado: 'fallida', motivo: preparado.resumen.motivo ?? 'No se pudo preparar el correo' };
 }

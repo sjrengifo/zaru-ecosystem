@@ -34,3 +34,13 @@ export function puedeAcceder(rol, ruta) {
 export function rutaInicio(rol) {
   return rol === 'superadmin' ? '/superadmin' : '/';
 }
+
+/**
+ * Página a la que se envía a alguien recién autenticado. Respeta la ruta que intentó abrir (`desde`)
+ * solo si su rol puede verla: así, tras cerrar el superadmin e iniciar como admin, no se arrastra
+ * `/superadmin` (que le daría "No tienes acceso") y cae en su propio inicio.
+ */
+export function destinoTrasLogin(rol, desde) {
+  const pedida = desde && rutaNormalizada(desde) !== '/login' ? desde : null;
+  return pedida && puedeAcceder(rol, pedida) ? pedida : rutaInicio(rol);
+}

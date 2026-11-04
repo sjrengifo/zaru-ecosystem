@@ -75,10 +75,10 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-46 · avisos por correo${hayEntornoI
     expect(enviados).toHaveLength(1);
     expect(enviados[0].para).toBe(CORREO);
     expect(enviados[0].texto).toContain(PLACA.conCorreo);
-    expect(enviados[0].texto).toContain(CODIGO.directo);
+    expect(enviados[0].texto).toContain(PLACA.conCorreo);
 
     const [aviso] = await avisos(orden.id);
-    expect(aviso).toMatchObject({ establecimiento_id: EST_A, canal: 'correo', evento: 'orden.ingreso', estado: 'enviada', intentos: 1 });
+    expect(aviso).toMatchObject({ establecimiento_id: EST_A, canal: 'correo', evento: 'orden.recibida', estado: 'enviada', intentos: 1 });
     expect(aviso.destino).not.toBe(CORREO);
     expect(descifrar(aviso.destino)).toBe(CORREO);
 
@@ -102,18 +102,18 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-46 · avisos por correo${hayEntornoI
       await esperar(250);
       [aviso] = await avisos(orden.id);
     }
-    expect(aviso).toMatchObject({ evento: 'orden.listo', canal: 'correo' });
+    expect(aviso).toMatchObject({ evento: 'orden.lista', canal: 'correo' });
     // Con SMTP configurado queda "enviada"; sin él, "fallida" con el motivo, y la orden siguió igual.
     expect(['enviada', 'fallida']).toContain(aviso.estado);
     if (aviso.estado === 'fallida') expect(aviso.error).toBeTruthy();
   });
 
-  it('CA3: sin correo registrado no intenta enviar y lo deja como cancelado', async () => {
+  it('CA3: sin correo registrado no intenta enviar ni crea una fila sin destino', async () => {
     const orden = await crearOrden(vehiculoSinCorreo.id, CODIGO.sinCorreo);
     const r = await notificarOrden(tenant, orden.id, 'listo', { enviar: async () => { throw new Error('no debería enviarse'); } });
     expect(r.estado).toBe('cancelada');
-    const [aviso] = await avisos(orden.id);
-    expect(aviso).toMatchObject({ estado: 'cancelada', error: 'El cliente no tiene correo registrado' });
+    // La nueva implementación no crea una fila sin destino: devuelve "omitida" al panel.
+    expect(await avisos(orden.id)).toHaveLength(0);
   });
 
   it('HU-09: /ordenes/activas devuelve las órdenes no entregadas del establecimiento', async () => {

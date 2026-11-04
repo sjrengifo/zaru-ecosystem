@@ -5,9 +5,10 @@ import { Link, Navigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSesion } from '../hooks/useSesion.js';
 import { validarCorreo } from '../lib/validacionCorreo.js';
+import { destinoTrasLogin } from '../lib/rutas.js';
 
 export default function Login() {
-  const { sesion, cargando, errorSesion, recargar, recuperacion } = useSesion();
+  const { sesion, usuario, cargando, errorSesion, recargar, recuperacion } = useSesion();
   const ubicacion = useLocation();
 
   const [correo, setCorreo] = useState('');
@@ -31,11 +32,9 @@ export default function Login() {
 
   const [enviando, setEnviando] = useState(false);
 
-  // Recupera la ruta privada que el usuario intentó abrir.
-  const destino =
-    ubicacion.state?.desde && ubicacion.state.desde !== '/login'
-      ? ubicacion.state.desde
-      : '/';
+  // Recupera la ruta privada que el usuario intentó abrir, pero solo si su rol puede verla: la ruta
+  // guardada puede ser de otra sesión (p. ej. /superadmin) y daría un aviso de acceso denegado.
+  const destino = usuario ? destinoTrasLogin(usuario.rol, ubicacion.state?.desde) : '/';
 
   // Una sesión de recuperación solo puede ir a cambiar la contraseña.
   if (sesion && recuperacion) {

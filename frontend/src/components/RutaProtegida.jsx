@@ -3,6 +3,8 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useSesion } from '../hooks/useSesion.js';
 import { rutaInicio } from '../lib/rutas.js';
+import { usePerfil } from '../hooks/usePerfil.js';
+import { inicioDe, puedeVer } from '../lib/permisos.js';
 
 export default function RutaProtegida({
   children,
@@ -41,8 +43,21 @@ export default function RutaProtegida({
   }
 
   if (!roles.includes(usuario.rol)) {
-    return <Navigate to={rutaInicio(usuario.rol)} replace />;
+    return <Navigate to={rutaInicio(usuario.rol)} replace state={{ accesoDenegado: ubicacion.pathname }} />;
   }
 
+  return children;
+}
+
+
+/** HU-59: protege también la navegación directa a módulos no permitidos para el rol. */
+export function RequiereModulo({ modulo, children }) {
+  const perfil = usePerfil();
+  const ubicacion = useLocation();
+  if (!perfil) return <p className="centrado">Cargando…</p>;
+  if (!puedeVer(perfil, modulo)) {
+    const inicio = inicioDe(perfil);
+    return <Navigate to={inicio} replace state={{ accesoDenegado: ubicacion.pathname }} />;
+  }
   return children;
 }

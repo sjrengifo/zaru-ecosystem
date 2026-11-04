@@ -13,7 +13,9 @@ const CAMPOS = [
   'id, vehiculo_id, estado, estado_desde, created_at, total, codigo_seguimiento,',
   'entrega_estimada_at, entregada_at,',
   'vehiculos(placa),',
-  'orden_servicios(duracion_min, servicios(nombre))',
+  'orden_servicios(duracion_min, servicios(nombre)),',
+  // HU-46: solo evento/estado/fecha; nunca `destino` (correo cifrado) ni `error` (texto del proveedor).
+  'notificaciones(evento, estado, created_at)',
 ].join(' ');
 
 /**

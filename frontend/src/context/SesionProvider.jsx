@@ -90,7 +90,7 @@ export function SesionProvider({ children }) {
       const datos = await api.get('/me');
       if (!montado.current) return true;
       validadoRef.current = true;
-      setUsuario(datos.usuario);
+      setUsuario({ ...datos.usuario, permisos: datos.permisos });
       setEstablecimiento(datos.establecimiento);
       return true;
     } catch (err) {
