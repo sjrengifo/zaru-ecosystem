@@ -24,3 +24,14 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      # HU-46: avisos por correo al cliente. Se definen en el panel de Render; sin ellos no se envían correos.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: CORREO_REMITENTE
+        sync: false

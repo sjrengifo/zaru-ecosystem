@@ -6,7 +6,12 @@
 //   el evento de dominio para que HU-46 notifique al cliente.
 import { AppError, noEncontrado } from '../shared/errores.js';
 import { cifrar } from '../shared/cifrado.js';
-import { pendiente } from './pendiente.js';
+import { programarNotificacion } from '../shared/notificaciones.js';
+
+/** HU-46: el aviso al cliente corre después de responder; un fallo nunca afecta la operación. */
+function avisarCliente(tenant, ordenId, tipo) {
+  programarNotificacion(tenant, ordenId, tipo).catch(() => {});
+}
 
 const COLUMNAS_DETALLE = [
   'id, estado, subtotal, descuento, total, codigo_seguimiento, entrega_estimada_at,',
@@ -106,6 +111,7 @@ export async function crear(req, res, next) {
     }
 
     res.status(201).json(detalle(await req.tenant.obtener('ordenes', ordenId, COLUMNAS_DETALLE, 'Orden')));
+    avisarCliente(req.tenant, ordenId, 'ingreso'); // HU-46 CA1
   } catch (err) {
     next(err);
   }
@@ -145,10 +151,24 @@ export async function cambiarEstado(req, res, next) {
       throw traducirErrorEstado(err);
     }
 
-    res.json(detalle(await req.tenant.obtener('ordenes', id, COLUMNAS_DETALLE, 'Orden')));
+    const orden = detalle(await req.tenant.obtener('ordenes', id, COLUMNAS_DETALLE, 'Orden'));
+    res.json(orden);
+    if (orden.estado === 'listo' && revertir !== true) avisarCliente(req.tenant, id, 'listo'); // HU-46 CA2
   } catch (err) {
     next(err);
   }
 }
 
-export const listarActivas = pendiente('HU-09');
+/** HU-09: órdenes que siguen en el car wash (todo lo que no se ha entregado), de la más antigua a la más reciente. */
+export async function listarActivas(req, res, next) {
+  try {
+    const { data, error } = await req.tenant
+      .listar('ordenes', COLUMNAS_DETALLE)
+      .neq('estado', 'entregado')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    res.json((data ?? []).map(detalle));
+  } catch (err) {
+    next(err);
+  }
+}

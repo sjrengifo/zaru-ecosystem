@@ -5,11 +5,13 @@ import assert from 'node:assert/strict';
 import {
   COLUMNAS_TABLERO,
   agruparPorColumna,
+  calcularDemora,
   diaBogota,
   esDelDiaBogota,
   horaBogota,
   inicioDiaBogota,
   nombresServicios,
+  tiempoEnEstadoLegible,
   vehiculosAtendidosHoy,
   vehiculosIngresadosHoy,
 } from '../src/lib/dashboard.js';
@@ -76,6 +78,111 @@ test('vehículos ingresados cuenta las órdenes creadas hoy en cualquier estado'
 
   assert.equal(vehiculosIngresadosHoy(ordenes, REFERENCIA), 2);
   assert.equal(vehiculosIngresadosHoy([], REFERENCIA), 0);
+});
+
+// HU-11 — Alertas de vehículos sin actualizar.
+// Regla de producto: más de 30 segundos en el mismo estado.
+// Referencia fija: 3 de noviembre de 2026, 15:30:31 UTC.
+const REFERENCIA_DEMORA = new Date('2026-11-03T15:30:31.000Z');
+const ordenEnEstado = (estadoDesde, extra = {}) => ({
+  estado: 'en_lavado',
+  estado_desde: estadoDesde,
+  ...extra,
+});
+
+test('HU-11: no alerta a los 30 s exactos y sí a los 31 s', () => {
+  const aLos30 = calcularDemora(
+    ordenEnEstado('2026-11-03T15:30:01.000Z'),
+    REFERENCIA_DEMORA,
+  );
+  assert.equal(aLos30.transcurridoSeg, 30);
+  assert.equal(aLos30.demorada, false);
+
+  const aLos31 = calcularDemora(
+    ordenEnEstado('2026-11-03T15:30:00.000Z'),
+    REFERENCIA_DEMORA,
+  );
+  assert.equal(aLos31.transcurridoSeg, 31);
+  assert.equal(aLos31.demorada, true);
+});
+
+test('HU-11: en Recibido el conteo arranca al crear la orden si falta estado_desde', () => {
+  const recibida = {
+    estado: 'recibido',
+    created_at: '2026-11-03T15:30:00.000Z',
+  };
+  const demora = calcularDemora(recibida, REFERENCIA_DEMORA);
+
+  assert.equal(demora.demorada, true);
+  assert.equal(demora.transcurridoSeg, 31);
+});
+
+test('HU-11: en estados posteriores no se usa created_at como respaldo', () => {
+  const sinFechaDeEstado = {
+    estado: 'en_lavado',
+    created_at: '2026-11-03T15:00:00.000Z',
+  };
+
+  assert.equal(calcularDemora(sinFechaDeEstado, REFERENCIA_DEMORA).demorada, false);
+});
+
+test('HU-11: al actualizar el estado se reinicia el conteo y la alerta desaparece', () => {
+  const antes = ordenEnEstado('2026-11-03T15:29:00.000Z'); // 91 s
+  assert.equal(calcularDemora(antes, REFERENCIA_DEMORA).demorada, true);
+
+  // La función SQL guarda estado_desde = now() en el cambio correcto.
+  const actualizada = {
+    ...antes,
+    estado: 'listo',
+    estado_desde: '2026-11-03T15:30:20.000Z', // 11 s
+  };
+  const demora = calcularDemora(actualizada, REFERENCIA_DEMORA);
+
+  assert.equal(demora.demorada, false);
+  assert.equal(demora.transcurridoSeg, 11);
+});
+
+test('HU-11: el nuevo estado empieza a contar su propio tiempo y vuelve a alertar', () => {
+  const recienCambiada = ordenEnEstado('2026-11-03T15:30:20.000Z', { estado: 'listo' });
+
+  assert.equal(calcularDemora(recienCambiada, REFERENCIA_DEMORA).demorada, false);
+  assert.equal(
+    calcularDemora(recienCambiada, new Date('2026-11-03T15:30:50.000Z')).demorada,
+    false,
+  );
+  assert.equal(
+    calcularDemora(recienCambiada, new Date('2026-11-03T15:30:51.000Z')).demorada,
+    true,
+  );
+});
+
+test('HU-11: alerta aunque la orden no tenga servicios registrados', () => {
+  const sinServicios = {
+    estado: 'recibido',
+    created_at: '2026-11-03T15:30:00.000Z',
+  };
+
+  assert.equal(calcularDemora(sinServicios, REFERENCIA_DEMORA).demorada, true);
+});
+
+test('HU-11: sin fecha de estado no genera alertas', () => {
+  for (const orden of [ordenEnEstado(null), ordenEnEstado('fecha-inválida')]) {
+    assert.equal(calcularDemora(orden, REFERENCIA_DEMORA).demorada, false);
+  }
+});
+
+test('HU-11: una orden entregada ya no muestra alerta de demora', () => {
+  const entregada = ordenEnEstado('2026-10-01T10:00:00.000Z', { estado: 'entregado' });
+
+  assert.equal(calcularDemora(entregada, REFERENCIA_DEMORA).demorada, false);
+  assert.equal(calcularDemora(entregada, REFERENCIA_DEMORA).transcurridoSeg, 0);
+});
+
+test('HU-11: el tiempo en estado se muestra en unidades legibles', () => {
+  assert.equal(tiempoEnEstadoLegible(31), '31 s');
+  assert.equal(tiempoEnEstadoLegible(90), '1 min');
+  assert.equal(tiempoEnEstadoLegible(3_600), '1 h');
+  assert.equal(tiempoEnEstadoLegible(90_000), '1 d');
 });
 
 test('los nombres de servicio se muestran juntos y hay texto de respaldo', () => {
