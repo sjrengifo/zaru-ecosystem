@@ -1,133 +1,159 @@
-// HU-46: correos al cliente. No requiere Supabase ni un servidor SMTP: usa dobles de prueba.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+// HU-46 — Preparación y envío de correos al cliente (patrón outbox), sin Supabase real.
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { crearTenantFalso } from '../helpers/tenantFalso.js';
 
-process.env.ZARU_CLAVE_CIFRADO ||= Buffer.alloc(32).toString('base64');
+beforeAll(() => {
+  process.env.ZARU_CLAVE_CIFRADO = Buffer.alloc(32, 7).toString('base64');
+});
 
-import { configuracionCorreo, enviarCorreo } from '../../src/shared/correo.js';
-import { notificarOrden, redactarCorreo } from '../../src/shared/notificaciones.js';
-import { cifrar, descifrar } from '../../src/shared/cifrado.js';
-import { AppError } from '../../src/shared/errores.js';
+const { prepararCorreo, enviarCorreo, EVENTOS, MAX_INTENTOS } = await import('../../src/shared/notificaciones.js');
+const { cifrar, descifrar, estaCifrado } = await import('../../src/shared/cifrado.js');
+const { AppError } = await import('../../src/shared/errores.js');
 
-const SMTP = { SMTP_HOST: 'smtp.example.com', SMTP_PORT: '587', SMTP_USER: 'zaru', SMTP_PASS: 'x', CORREO_REMITENTE: 'Zaru <avisos@example.com>' };
-const ORDEN_ID = '55555555-5555-4555-8555-555555555555';
+const ORDEN_ID = '11111111-0000-4000-8000-000000000001';
+const CLIENTE_ID = '22222222-0000-4000-8000-000000000002';
 
-function ordenCon(correo) {
+function orden(correo) {
   return {
     id: ORDEN_ID,
-    codigo_seguimiento: 'ABCDEFGHJK',
-    total: 55000,
-    entrega_estimada_at: '2026-11-02T15:10:00.000Z',
-    vehiculo: { placa: 'XYZ987', cliente: { id: 'c1', nombre: 'Ana Gómez', correo } },
-    servicios: [{ servicio: { nombre: 'Lavado básico' } }, { servicio: { nombre: 'Encerado' } }],
+    estado: 'recibido',
+    subtotal: 30000,
+    descuento: 0,
+    total: 30000,
+    created_at: '2026-11-03T15:00:00Z',
+    vehiculos: { placa: 'XYZ987', clientes: { id: CLIENTE_ID, nombre: 'Luis Pérez', correo } },
+    orden_servicios: [{ precio: 30000, servicios: { nombre: 'Lavado premium' } }],
   };
 }
 
-function tenantFalso({ orden = ordenCon(cifrar('ana@example.com')), crear } = {}) {
-  return {
-    obtener: vi.fn(async () => orden),
-    listar: vi.fn(() => ({ maybeSingle: async () => ({ data: { nombre: 'Lavadero Demo' } }) })),
-    crear: vi.fn(crear ?? (async () => ({ id: 'n1' }))),
-    actualizar: vi.fn(async () => ({ id: 'n1' })),
-  };
+function tenantCon({ correo = cifrar('luis@correo.com'), revocado = false } = {}) {
+  const tenant = crearTenantFalso({
+    ordenes: [{ data: orden(correo), error: null }],
+    consentimientos: [{ data: revocado ? [{ otorgado: false }] : [], error: null }],
+    establecimientos: [{ data: { nombre: 'Lavadero Norte', color_primario: '#2563EB' }, error: null }],
+  });
+  tenant.crear.mockResolvedValue({ id: 'nnnnnnnn-0000-4000-8000-000000000003' });
+  return tenant;
 }
 
-beforeEach(() => vi.restoreAllMocks());
+const proveedorOk = () => ({ nombre: 'falso', enviar: vi.fn().mockResolvedValue({ idProveedor: 'p-1' }) });
 
-describe('envío SMTP', () => {
-  it('sin configuración completa no intenta enviar y explica el motivo', async () => {
-    expect(configuracionCorreo({ SMTP_HOST: 'smtp.example.com' })).toBeNull();
-    const crearTransporte = vi.fn();
-    const r = await enviarCorreo({ para: 'ana@example.com', asunto: 'a', texto: 't' }, { variables: {}, crearTransporte });
-    expect(r).toEqual({ enviado: false, motivo: 'El envío de correos no está configurado (SMTP)' });
-    expect(crearTransporte).not.toHaveBeenCalled();
-  });
+beforeEach(() => vi.spyOn(console, 'error').mockImplementation(() => {}));
 
-  it('usa el puerto 465 con TLS directo y el remitente configurado', async () => {
-    const sendMail = vi.fn(async () => ({ messageId: 'm-1' }));
-    const crearTransporte = vi.fn(() => ({ sendMail }));
-    const r = await enviarCorreo({ para: 'ana@example.com', asunto: 'Hola', texto: 't', html: '<p>t</p>' },
-      { variables: { ...SMTP, SMTP_PORT: '465' }, crearTransporte });
-    expect(r).toEqual({ enviado: true, id: 'm-1' });
-    expect(crearTransporte.mock.calls[0][0]).toMatchObject({ host: 'smtp.example.com', port: 465, secure: true });
-    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ from: SMTP.CORREO_REMITENTE, to: 'ana@example.com', subject: 'Hola' }));
-  });
+describe('HU-46 · preparar el correo', () => {
+  it('CA1: deja la notificación pendiente con destino cifrado, evento y clave anti-duplicados', async () => {
+    const tenant = tenantCon();
+    const { resumen, enviar } = await prepararCorreo(tenant, { evento: EVENTOS.RECIBIDA, ordenId: ORDEN_ID });
 
-  it('CA3: un rechazo del proveedor no lanza; devuelve el motivo', async () => {
-    const crearTransporte = () => ({ sendMail: async () => { throw new Error('535 credenciales inválidas'); } });
-    const r = await enviarCorreo({ para: 'ana@example.com', asunto: 'a', texto: 't' }, { variables: SMTP, crearTransporte });
-    expect(r.enviado).toBe(false);
-    expect(r.motivo).toContain('535 credenciales inválidas');
-  });
-});
-
-describe('contenido del correo', () => {
-  const datos = { establecimiento: 'Lavadero Demo', cliente: 'Ana Gómez', placa: 'XYZ987', servicios: ['Lavado básico'], total: 55000, codigo: 'ABCDEFGHJK', entregaEstimada: '2026-11-02T15:10:00.000Z' };
-
-  it('CA1: el aviso de ingreso trae placa, servicios, total y código de seguimiento', () => {
-    const c = redactarCorreo('ingreso', datos);
-    expect(c.asunto).toBe('Recibimos tu vehículo · Lavadero Demo');
-    expect(c.texto).toContain('XYZ987');
-    expect(c.texto).toContain('Lavado básico');
-    expect(c.texto).toMatch(/55\.000/);
-    expect(c.texto).toContain('ABCDEFGHJK');
-  });
-
-  it('CA2: el aviso de listo invita a recoger el vehículo', () => {
-    const c = redactarCorreo('listo', datos);
-    expect(c.asunto).toBe('Tu vehículo está listo · Lavadero Demo');
-    expect(c.texto).toContain('ya está listo');
-  });
-
-  it('escapa el HTML de los datos del cliente', () => {
-    expect(redactarCorreo('listo', { ...datos, cliente: '<b>Ana</b>' }).html).not.toContain('<b>Ana</b>');
-  });
-});
-
-describe('notificarOrden', () => {
-  it('CA1: envía al correo descifrado y registra el aviso con el destino cifrado', async () => {
-    const tenant = tenantFalso();
-    const enviar = vi.fn(async () => ({ enviado: true, id: 'm-1' }));
-    const r = await notificarOrden(tenant, ORDEN_ID, 'ingreso', { enviar });
-
-    expect(r).toEqual({ estado: 'enviada' });
-    expect(enviar.mock.calls[0][0]).toMatchObject({ para: 'ana@example.com' });
+    expect(resumen).toEqual({ canal: 'correo', estado: 'pendiente', id: 'nnnnnnnn-0000-4000-8000-000000000003', destino: 'l***@correo.com' });
     const [tabla, fila] = tenant.crear.mock.calls[0];
     expect(tabla).toBe('notificaciones');
-    expect(fila).toMatchObject({ cliente_id: 'c1', orden_id: ORDEN_ID, canal: 'correo', evento: 'orden.ingreso', estado: 'enviando', clave_dedupe: `${ORDEN_ID}:ingreso` });
-    expect(fila.destino).not.toBe('ana@example.com');
-    expect(descifrar(fila.destino)).toBe('ana@example.com');
-    expect(tenant.actualizar).toHaveBeenCalledWith('notificaciones', 'n1', { estado: 'enviada', intentos: 1, error: null }, 'id', 'Notificación');
+    expect(fila).toMatchObject({
+      cliente_id: CLIENTE_ID,
+      orden_id: ORDEN_ID,
+      tipo: 'operativa',
+      evento: 'orden.recibida',
+      canal: 'correo',
+      estado: 'pendiente',
+      clave_dedupe: `${ORDEN_ID}:orden.recibida:correo`,
+    });
+    expect(estaCifrado(fila.destino)).toBe(true); // HU-50: el correo no queda en texto plano
+    expect(descifrar(fila.destino)).toBe('luis@correo.com');
+    expect(fila.contenido.asunto).toContain('XYZ987');
+    expect(typeof enviar).toBe('function');
   });
 
-  it('CA3: sin correo no envía y deja constancia como cancelada', async () => {
-    const tenant = tenantFalso({ orden: ordenCon(null) });
-    const enviar = vi.fn();
-    const r = await notificarOrden(tenant, ORDEN_ID, 'listo', { enviar });
-    expect(r.estado).toBe('cancelada');
-    expect(enviar).not.toHaveBeenCalled();
-    expect(tenant.crear.mock.calls[0][1]).toMatchObject({ estado: 'cancelada', destino: 'sin-correo' });
+  it('un correo antiguo sin cifrar se cifra antes de guardarlo como destino', async () => {
+    const tenant = tenantCon({ correo: 'luis@correo.com' });
+    await prepararCorreo(tenant, { evento: EVENTOS.LISTA, ordenId: ORDEN_ID });
+    expect(estaCifrado(tenant.crear.mock.calls[0][1].destino)).toBe(true);
   });
 
-  it('CA3: si el envío falla, marca el aviso como fallido con el motivo', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const tenant = tenantFalso();
-    const r = await notificarOrden(tenant, ORDEN_ID, 'listo', { enviar: async () => ({ enviado: false, motivo: 'SMTP caído' }) });
-    expect(r).toEqual({ estado: 'fallida', motivo: 'SMTP caído' });
-    expect(tenant.actualizar).toHaveBeenCalledWith('notificaciones', 'n1', { estado: 'fallida', intentos: 1, error: 'SMTP caído' }, 'id', 'Notificación');
+  it('CA3: si el cliente no tiene correo no crea notificación y lo informa', async () => {
+    const tenant = tenantCon({ correo: null });
+    const { resumen, enviar } = await prepararCorreo(tenant, { evento: EVENTOS.LISTA, ordenId: ORDEN_ID });
+
+    expect(resumen).toEqual({ canal: 'correo', estado: 'omitida', motivo: 'sin_correo' });
+    expect(tenant.crear).not.toHaveBeenCalled();
+    await expect(enviar()).resolves.toBeNull();
   });
 
-  it('no repite un aviso ya registrado para la misma orden', async () => {
-    const tenant = tenantFalso({ crear: async () => { throw new AppError('CONFLICTO', 'El registro ya existe'); } });
-    const enviar = vi.fn();
-    const r = await notificarOrden(tenant, ORDEN_ID, 'listo', { enviar });
-    expect(r.estado).toBe('omitida');
-    expect(enviar).not.toHaveBeenCalled();
+  it('respeta la revocación expresa de avisos del servicio (HU-51)', async () => {
+    const tenant = tenantCon({ revocado: true });
+    const { resumen } = await prepararCorreo(tenant, { evento: EVENTOS.LISTA, ordenId: ORDEN_ID });
+    expect(resumen).toMatchObject({ estado: 'omitida', motivo: 'revocado' });
+    expect(tenant.crear).not.toHaveBeenCalled();
   });
 
-  it('CA3: un error inesperado nunca se propaga', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    const tenant = tenantFalso();
-    tenant.obtener.mockRejectedValueOnce(new Error('sin conexión'));
-    await expect(notificarOrden(tenant, ORDEN_ID, 'ingreso', { enviar: vi.fn() })).resolves.toMatchObject({ estado: 'fallida' });
+  it('el mismo evento de la misma orden no genera un segundo correo', async () => {
+    const tenant = tenantCon();
+    tenant.crear.mockRejectedValue(new AppError('CONFLICTO', 'El registro ya existe'));
+    const { resumen } = await prepararCorreo(tenant, { evento: EVENTOS.LISTA, ordenId: ORDEN_ID });
+    expect(resumen.estado).toBe('duplicada');
+  });
+
+  it('CA3: un error de la base al preparar nunca se propaga al controlador', async () => {
+    const tenant = crearTenantFalso({ ordenes: [{ data: null, error: new Error('conexión perdida') }] });
+    const { resumen } = await prepararCorreo(tenant, { evento: EVENTOS.LISTA, ordenId: ORDEN_ID });
+    expect(resumen).toEqual({ canal: 'correo', estado: 'error', motivo: 'preparacion' });
+  });
+
+  it('solo consulta datos del establecimiento de la sesión (usa req.tenant)', async () => {
+    const tenant = tenantCon();
+    await prepararCorreo(tenant, { evento: EVENTOS.RECIBIDA, ordenId: ORDEN_ID });
+    expect(tenant.consultas.map((c) => c.tabla)).toEqual(['ordenes', 'consentimientos', 'establecimientos']);
+  });
+});
+
+describe('HU-46 · enviar el correo', () => {
+  const mensaje = { asunto: 'Listo', html: '<p>ok</p>', texto: 'ok' };
+  const ID = 'nnnnnnnn-0000-4000-8000-000000000003';
+
+  it('CA1/CA2: envía al correo descifrado y marca la notificación como enviada', async () => {
+    const tenant = tenantCon();
+    const proveedor = proveedorOk();
+    const { enviar } = await prepararCorreo(tenant, { evento: EVENTOS.LISTA, ordenId: ORDEN_ID }, { proveedor });
+
+    await expect(enviar()).resolves.toEqual({ estado: 'enviada', intentos: 1 });
+    expect(proveedor.enviar).toHaveBeenCalledWith(expect.objectContaining({ para: 'luis@correo.com', asunto: expect.stringContaining('listo') }));
+    const ultimo = tenant.actualizar.mock.calls.at(-1);
+    expect(ultimo[2]).toMatchObject({ estado: 'enviada', error: null, contenido: { proveedor: 'falso', idProveedor: 'p-1' } });
+  });
+
+  it('reintenta ante un fallo temporal del proveedor', async () => {
+    const tenant = crearTenantFalso();
+    const proveedor = { nombre: 'falso', enviar: vi.fn().mockRejectedValueOnce(new Error('503')).mockResolvedValue({ idProveedor: 'p-2' }) };
+
+    const resultado = await enviarCorreo(tenant, { id: ID, para: 'a@b.co', mensaje }, { proveedor, esperasMs: [0, 0] });
+
+    expect(resultado).toEqual({ estado: 'enviada', intentos: 2 });
+    const estados = tenant.actualizar.mock.calls.map((c) => c[2].estado);
+    expect(estados).toEqual(['enviando', 'pendiente', 'enviando', 'enviada']);
+  });
+
+  it('CA3: si falla en todos los intentos queda "fallida" con el error, sin lanzar excepción', async () => {
+    const tenant = crearTenantFalso();
+    const proveedor = { nombre: 'falso', enviar: vi.fn().mockRejectedValue(new Error('SMTP rechazado')) };
+
+    const resultado = await enviarCorreo(tenant, { id: ID, para: 'a@b.co', mensaje }, { proveedor, esperasMs: [0, 0] });
+
+    expect(resultado).toMatchObject({ estado: 'fallida', intentos: MAX_INTENTOS, error: 'SMTP rechazado' });
+    expect(proveedor.enviar).toHaveBeenCalledTimes(MAX_INTENTOS);
+    expect(tenant.actualizar.mock.calls.at(-1)[2]).toMatchObject({ estado: 'fallida', error: 'SMTP rechazado' });
+  });
+
+  it('CA3: un proveedor colgado no deja el envío esperando para siempre', async () => {
+    const tenant = crearTenantFalso();
+    const proveedor = { nombre: 'lento', enviar: () => new Promise(() => {}) };
+    const resultado = await enviarCorreo(tenant, { id: ID, para: 'a@b.co', mensaje }, { proveedor, esperasMs: [0, 0], tiempoMaximoMs: 10 });
+    expect(resultado.estado).toBe('fallida');
+    expect(resultado.error).toContain('no respondió');
+  });
+
+  it('si no se puede actualizar la fila de seguimiento, el correo se envía igual', async () => {
+    const tenant = crearTenantFalso();
+    tenant.actualizar.mockRejectedValue(new Error('sin conexión'));
+    const proveedor = proveedorOk();
+    await expect(enviarCorreo(tenant, { id: ID, para: 'a@b.co', mensaje }, { proveedor })).resolves.toMatchObject({ estado: 'enviada' });
   });
 });

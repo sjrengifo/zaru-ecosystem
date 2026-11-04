@@ -20,8 +20,6 @@ function archivos(dir) {
 // Excepciones justificadas:
 // - auth.js: debe validar el token y resolver el perfil antes de crear req.tenant.
 // - superadmin.controller.js: realiza operaciones globales sobre establecimientos.
-// - usuarios.controller.js (HU-02): usa la Admin API de Auth para invitar y leer correos, e inserta
-//   el perfil con el id que devuelve Auth (req.tenant.crear no permite fijarlo).
 // - auditoria.js y politicas.js: utilidades compartidas.
 const PERMITIDOS = new Set([
   'config/supabase.js',
@@ -30,7 +28,6 @@ const PERMITIDOS = new Set([
   'shared/politicas.js',
   'middlewares/auth.js',
   'controllers/superadmin.controller.js',
-  'controllers/usuarios.controller.js',
 ]);
 
 describe('acceso a datos', () => {

@@ -93,16 +93,48 @@ export function crearAccesoTenant(db, ctx) {
       return Array.isArray(valores) ? data : data[0];
     },
 
-    /** Actualiza un registro del establecimiento. Lanza NO_ENCONTRADO si no le pertenece. */
-    async actualizar(tabla, id, cambios, columnas = '*', recurso) {
+    /**
+     * Inserta filas en una tabla de detalle que no tiene columna de establecimiento
+     * (orden_servicios, historial_estados). Antes comprueba que el registro padre sea del
+     * establecimiento de la sesión; los triggers de la base vuelven a validarlo (HU-42).
+     *   await req.tenant.crearDetalle('orden_servicios', { tabla: 'ordenes', id: orden.id, columna: 'orden_id' }, filas);
+     */
+    async crearDetalle(tabla, padre, valores, columnas = '*') {
+      if (!esUuid(padre?.id)) throw noEncontrado(padre?.recurso);
+      const { data: propio, error: errorPadre } = await db
+        .from(padre.tabla)
+        .select('id')
+        .eq('id', padre.id)
+        .eq(columna(padre.tabla), establecimientoId)
+        .maybeSingle();
+      lanzarSiError(errorPadre);
+      if (!propio) throw noEncontrado(padre.recurso);
+
+      const lista = (Array.isArray(valores) ? valores : [valores]).map((v) => ({
+        ...sinColumnasProtegidas(v),
+        [padre.columna]: padre.id,
+      }));
+      const { data, error } = await db.from(tabla).insert(lista).select(columnas);
+      lanzarSiError(error);
+      return Array.isArray(valores) ? data : data[0];
+    },
+
+    /**
+     * Actualiza un registro del establecimiento. Lanza NO_ENCONTRADO si no le pertenece.
+     * `donde` agrega condiciones de igualdad (p. ej. { estado: 'recibido' }) para evitar que dos
+     * usuarios cambien el mismo registro a la vez: si ya cambió, tampoco se encuentra.
+     */
+    async actualizar(tabla, id, cambios, columnas = '*', recurso, donde = {}) {
       if (!esUuid(id)) throw noEncontrado(recurso);
       const valores = sinColumnasProtegidas(cambios);
       if (Object.keys(valores).length === 0) throw new AppError('VALIDACION', 'No hay datos para actualizar');
-      const { data, error } = await db
+      let consulta = db
         .from(tabla)
         .update(valores)
         .eq('id', id)
-        .eq(columna(tabla), establecimientoId)
+        .eq(columna(tabla), establecimientoId);
+      for (const [campo, valor] of Object.entries(donde)) consulta = consulta.eq(campo, valor);
+      const { data, error } = await consulta
         .select(columnas)
         .maybeSingle();
       lanzarSiError(error);
