@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase.js';
 import { crearAccesoTenant } from '../shared/tenant.js';
 import { registrarAuditoria } from '../shared/auditoria.js';
 import { AppError } from '../shared/errores.js';
+import { rolesConModulo } from '../shared/permisos.js';
 
 /** Lee el campo `exp` del token sin verificarlo (la verificación la hace Supabase Auth). */
 function expiracionDelToken(token) {
@@ -114,3 +115,14 @@ export function requiereRol(...roles) {
 
 /** Atajo para las funciones exclusivas del administrador (HU-02 CA2). */
 export const soloAdmin = requiereRol('admin');
+
+/**
+ * HU-59 CA3: deja pasar solo a los roles que tienen el módulo (shared/permisos.js). Así la API y el
+ * menú del panel usan la misma lista; escribir la dirección a mano no da acceso.
+ *   router.use(requiereModulo('promociones'));
+ */
+export function requiereModulo(modulo) {
+  const roles = rolesConModulo(modulo);
+  if (!roles.length) throw new Error(`Módulo sin roles: ${modulo}`);
+  return requiereRol(...roles);
+}

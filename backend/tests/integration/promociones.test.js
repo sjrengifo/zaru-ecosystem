@@ -119,8 +119,8 @@ describe.skipIf(!hayEntornoIntegracion)(`Promociones${hayEntornoIntegracion ? ''
   });
 
   describe('roles y aislamiento', () => {
-    it('el operario consulta pero no crea ni edita (403)', async () => {
-      expect((await listar('todas', tokenOperario)).status).toBe(200);
+    it('HU-59 CA1: el operario no consulta, crea ni edita promociones (403)', async () => {
+      expect((await listar('todas', tokenOperario)).status).toBe(403);
       expect((await crear(nueva(), tokenOperario)).status).toBe(403);
     });
 

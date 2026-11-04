@@ -1,243 +1,151 @@
-// HU-08, HU-09 y HU-10 · Dashboard operativo en tiempo real (ZARU-10).
-// Reutiliza el alta de ingreso (HU-08) y el avance de estado (HU-10) que ya
-// existían; HU-09 añade el tablero de cuatro columnas, los indicadores del día
-// y la sincronización con Supabase Realtime.
+// HU-08, HU-09, HU-10 y HU-46 · Dashboard operativo en tiempo real (ZARU-9 a ZARU-11, ZARU-53)
+// - Ingreso de vehículo y avance de estado con un clic; al registrar el ingreso y al pasar a "Listo"
+//   la API envía el correo al cliente (HU-46 CA1, CA2).
+// - HU-46 CA3: el resultado del correo solo se informa; el operario sigue trabajando sin esperar.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { supabase } from '../lib/supabase.js';
 import { api } from '../services/api.js';
-import { formatoMoneda } from '../lib/formato.js';
-import { useDashboardOrdenes } from '../hooks/useDashboardOrdenes.js';
-import { useAhora } from '../hooks/useAhora.js';
-import {
-  COLUMNAS_TABLERO,
-  ESTADOS_ORDEN,
-  SIGUIENTE_ESTADO,
-  agruparPorColumna,
-  calcularDemora,
-  horaBogota,
-  vehiculosAtendidosHoy,
-  vehiculosIngresadosHoy,
-} from '../lib/dashboard.js';
-import ColumnaKanban from '../components/ColumnaKanban.jsx';
-import IndicadoresDashboard from '../components/IndicadoresDashboard.jsx';
-import FormularioIngreso from '../components/FormularioIngreso.jsx';
-import AlertaDemora from '../components/AlertaDemora.jsx';
+import { mensajeCorreo, etiquetaCorreo } from '../lib/avisoCorreo.js';
+import Modal from '../components/Modal.jsx';
 import Notificacion from '../components/Notificacion.jsx';
+import FormularioIngreso from '../components/FormularioIngreso.jsx';
+
+export const ESTADOS = [
+  { id: 'recibido', titulo: 'Recibido', accion: 'Pasar a lavado' },
+  { id: 'en_lavado', titulo: 'En lavado', accion: 'Marcar como listo' },
+  { id: 'listo', titulo: 'Listo', accion: 'Entregar' },
+];
+const SIGUIENTE = { recibido: 'en_lavado', en_lavado: 'listo', listo: 'entregado' };
+const RECARGA_CORREO_MS = 4000; // tiempo para ver el resultado del envío en segundo plano
+
+const hora = (fecha) => new Date(fecha).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
 export default function Dashboard() {
-  const {
-    ordenes,
-    cargando,
-    actualizando,
-    error,
-    errorConexion,
-    conectado,
-    ultimaActualizacion,
-    refrescar,
-    reintentar,
-  } = useDashboardOrdenes();
-  // HU-11: referencia compartida para que la alerta de demora aparezca sola.
-  const ahora = useAhora();
+  const [ordenes, setOrdenes] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [ingresoAbierto, setIngresoAbierto] = useState(false);
+  const [moviendo, setMoviendo] = useState(null);
+  const [aviso, setAviso] = useState(null);
+  const recargaPendiente = useRef(null);
+  const cerrarAviso = useCallback(() => setAviso(null), []);
 
-  const [ingresando, setIngresando] = useState(false);
-  const [avanzando, setAvanzando] = useState(null);
-  const [confirmacion, setConfirmacion] = useState(null);
-  const [errorAccion, setErrorAccion] = useState('');
-  const [alertaDemoraVisible, setAlertaDemoraVisible] = useState(false);
-  const ultimaAlertaRef = useRef(0);
-  const ultimaFirmaRef = useRef('');
-  const cerrarConfirmacion = useCallback(() => setConfirmacion(null), []);
-  const cerrarAlertaDemora = useCallback(() => setAlertaDemoraVisible(false), []);
-
-  const grupos = agruparPorColumna(ordenes);
-  const atendidos = vehiculosAtendidosHoy(ordenes);
-  const ingresados = vehiculosIngresadosHoy(ordenes);
-  // El reloj compartido recalcula cada segundo; así la notificación aparece
-  // apenas un vehículo supera los 30 s en su estado actual.
-  const demoradas = ordenes.filter((orden) => calcularDemora(orden, ahora).demorada);
-  const firmaDemoras = demoradas.map((orden) => orden.id).sort().join(',');
-
-  // Muestra la notificación cuando aparece una demora nueva y la repite cada
-  // 30 s mientras el vehículo siga sin actualizar. Al cambiar el estado de forma
-  // manual, `estado_desde` se reinicia y la notificación desaparece sola. En
-  // cada estado nuevo vuelve a contar y, si se demora, vuelve a avisar.
-  useEffect(() => {
-    if (!firmaDemoras) {
-      setAlertaDemoraVisible(false);
-      ultimaAlertaRef.current = 0;
-      ultimaFirmaRef.current = '';
-      return;
-    }
-    if (ingresando) return;
-
-    const ahoraMs = ahora.getTime();
-    const ids = firmaDemoras.split(',');
-    const anteriores = new Set(ultimaFirmaRef.current ? ultimaFirmaRef.current.split(',') : []);
-    const hayNueva = ids.some((id) => !anteriores.has(id));
-    const tocaRepetir = ahoraMs - ultimaAlertaRef.current >= 30_000;
-
-    if (hayNueva || tocaRepetir) {
-      setAlertaDemoraVisible(true);
-      ultimaAlertaRef.current = ahoraMs;
-    }
-    ultimaFirmaRef.current = firmaDemoras;
-  }, [firmaDemoras, ahora, ingresando]);
-
-  function alIngresar(orden) {
-    setIngresando(false);
-    setConfirmacion({
-      id: Date.now(),
-      titulo: 'Vehículo ingresado',
-      detalle: `${orden.vehiculo?.placa ?? 'Vehículo'} · ${formatoMoneda(orden.total)} · Código ${orden.codigoSeguimiento}`,
-    });
-    refrescar();
-  }
-
-  async function avanzarEstado(orden) {
-    const siguiente = SIGUIENTE_ESTADO[orden.estado];
-    if (!siguiente || avanzando) return;
-
-    setAvanzando(orden.id);
-    setErrorAccion('');
+  const cargarOrdenes = useCallback(async () => {
     try {
-      const actualizada = await api.patch(`/ordenes/${orden.id}/estado`, { estado: siguiente });
-      setConfirmacion({
-        id: Date.now(),
-        titulo: 'Estado actualizado',
-        detalle: `${actualizada.vehiculo?.placa ?? 'Vehículo'} · ${ESTADOS_ORDEN[actualizada.estado]}`,
-      });
-      // No se espera al evento de Realtime: si la conexión en vivo se cayó, el
-      // tablero igual queda al día con esta recarga puntual.
-      refrescar();
-    } catch (fallo) {
-      setErrorAccion(fallo.message || 'No se pudo actualizar el estado.');
-      if (fallo.status === 409) refrescar();
+      setOrdenes(await api.get('/ordenes/activas'));
+      setError('');
+    } catch (e) {
+      setError(e.message);
     } finally {
-      setAvanzando(null);
+      setCargando(false);
     }
+  }, []);
+
+  // El correo se envía después de responder: se vuelve a consultar para mostrar si salió o falló.
+  const recargarDespues = useCallback(() => {
+    clearTimeout(recargaPendiente.current);
+    recargaPendiente.current = setTimeout(cargarOrdenes, RECARGA_CORREO_MS);
+  }, [cargarOrdenes]);
+
+  useEffect(() => {
+    cargarOrdenes();
+    // HU-09 CA2: escuchar cambios en tiempo real, sin recargar la página.
+    const canal = supabase
+      .channel('ordenes-dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ordenes' }, cargarOrdenes)
+      .subscribe();
+    return () => {
+      clearTimeout(recargaPendiente.current);
+      supabase.removeChannel(canal);
+    };
+  }, [cargarOrdenes]);
+
+  function informar(titulo, notificacion) {
+    const correo = mensajeCorreo(notificacion);
+    setAviso({ id: Date.now(), titulo, detalle: correo?.texto, tipo: correo?.tipo === 'advertencia' ? 'advertencia' : 'exito' });
   }
 
-  const textoConexion = conectado ? 'En vivo' : cargando ? 'Conectando…' : 'Sin conexión en vivo';
+  async function avanzar(orden) {
+    const estado = SIGUIENTE[orden.estado];
+    setMoviendo(orden.id);
+    setError('');
+    try {
+      const resultado = await api.patch(`/ordenes/${orden.id}/estado`, { estado });
+      const titulo = estado === 'entregado'
+        ? `${orden.vehiculo?.placa} entregado`
+        : `${orden.vehiculo?.placa} pasó a ${ESTADOS.find((e) => e.id === estado)?.titulo}`;
+      informar(titulo, resultado.notificacion);
+      await cargarOrdenes();
+      if (resultado.notificacion?.estado === 'pendiente') recargarDespues();
+    } catch (e) {
+      setError(e.message);
+      await cargarOrdenes();
+    } finally {
+      setMoviendo(null);
+    }
+  }
 
   return (
-    <section className="dashboard">
+    <section>
       <div className="encabezado">
-        <div>
-          <h2>Dashboard operativo</h2>
-          <p className="dashboard-subtitulo">
-            Vehículos del día agrupados por estado, actualizados en tiempo real.
-          </p>
-        </div>
-
-        <div className="dashboard-acciones">
-          <span
-            className={`estado-conexion ${conectado ? 'conectado' : 'desconectado'}`}
-            role="status"
-            title="Estado de la conexión en tiempo real"
-          >
-            <span className="estado-conexion-punto" aria-hidden="true" />
-            {textoConexion}
-          </span>
-          <button
-            type="button"
-            className="boton"
-            onClick={() => {
-              setConfirmacion(null);
-              setIngresando(true);
-            }}
-          >
-            + Ingresar vehículo
-          </button>
-        </div>
+        <h2>Dashboard</h2>
+        <button className="boton" type="button" onClick={() => setIngresoAbierto(true)}>+ Ingresar vehículo</button>
       </div>
+
+      {error && <p className="aviso aviso-error" role="alert">{error}</p>}
+      {cargando && <p className="texto-suave">Cargando órdenes…</p>}
+
+      {ingresoAbierto && (
+        <Modal titulo="Ingresar vehículo" onCerrar={() => setIngresoAbierto(false)}>
+          <FormularioIngreso
+            onCancelar={() => setIngresoAbierto(false)}
+            onCreada={(orden) => {
+              setIngresoAbierto(false);
+              informar(`Ingreso de ${orden.vehiculo?.placa} registrado`, orden.notificacion);
+              cargarOrdenes();
+              if (orden.notificacion?.estado === 'pendiente') recargarDespues();
+            }}
+          />
+        </Modal>
+      )}
 
       <div className="notificaciones" role="status">
-        {confirmacion && (
-          <Notificacion
-            key={confirmacion.id}
-            titulo={confirmacion.titulo}
-            detalle={confirmacion.detalle}
-            onCerrar={cerrarConfirmacion}
-          />
-        )}
+        {aviso && <Notificacion key={aviso.id} titulo={aviso.titulo} detalle={aviso.detalle} tipo={aviso.tipo} onCerrar={cerrarAviso} />}
       </div>
 
-      {ingresando && (
-        <FormularioIngreso onCreada={alIngresar} onCancelar={() => setIngresando(false)} />
-      )}
-
-      {error && (
-        <div className="aviso aviso-error" role="alert">
-          <p>{error}</p>
-          <button type="button" className="boton secundario" onClick={reintentar}>
-            Reintentar
-          </button>
-        </div>
-      )}
-
-      {errorConexion && (
-        <div className="aviso aviso-advertencia" role="status">
-          <p>{errorConexion}</p>
-          <button type="button" className="boton secundario" onClick={reintentar}>
-            Reconectar
-          </button>
-        </div>
-      )}
-
-      {errorAccion && (
-        <div className="aviso aviso-error" role="alert">
-          <p>{errorAccion}</p>
-        </div>
-      )}
-
-      <IndicadoresDashboard
-        atendidos={atendidos}
-        ingresados={ingresados}
-        cargando={cargando}
-        actualizando={actualizando}
-      />
-
-      {cargando ? (
-        <div className="tarjeta dashboard-cargando" role="status" aria-live="polite">
-          <span className="spinner spinner-oscuro" aria-hidden="true" />
-          <span>Cargando órdenes del establecimiento…</span>
-        </div>
-      ) : (
-        <>
-          <div className="tablero">
-            {COLUMNAS_TABLERO.map((columna) => (
-              <ColumnaKanban
-                key={columna.id}
-                columna={columna}
-                ordenes={grupos[columna.id]}
-                onAvanzar={avanzarEstado}
-                avanzando={avanzando}
-                ahora={ahora}
-              />
-            ))}
-          </div>
-
-          {ordenes.length === 0 && (
-            <p className="texto-suave dashboard-vacio">
-              Aún no hay órdenes activas ni entregas registradas hoy en este establecimiento.
-            </p>
-          )}
-
-          {ultimaActualizacion && (
-            <p className="dashboard-actualizado">
-              Última actualización: {horaBogota(ultimaActualizacion)}
-              {actualizando ? ' · Sincronizando…' : ''}
-            </p>
-          )}
-        </>
-      )}
-
-      {alertaDemoraVisible && demoradas.length > 0 && (
-        <AlertaDemora
-          ordenes={demoradas}
-          ahora={ahora}
-          onCerrar={cerrarAlertaDemora}
-        />
-      )}
+      <div className="tablero">
+        {ESTADOS.map((estado) => {
+          const lista = ordenes.filter((o) => o.estado === estado.id);
+          return (
+            <div key={estado.id} className="columna" aria-label={estado.titulo}>
+              <h3>{estado.titulo} <span className="contador">{lista.length}</span></h3>
+              {lista.map((o) => {
+                const correo = etiquetaCorreo(o);
+                return (
+                  <article key={o.id} className="tarjeta tarjeta-vehiculo">
+                    <div className="tarjeta-vehiculo-fila">
+                      <strong className="placa">{o.vehiculo?.placa ?? 'Vehículo eliminado'}</strong>
+                      <span className="texto-suave">{hora(o.estadoDesde ?? o.creadaEn)}</span>
+                    </div>
+                    {o.cliente && <span className="texto-suave">{o.cliente.nombre}</span>}
+                    {correo && <span className={`etiqueta-correo etiqueta-${correo.tipo}`}>✉ {correo.texto}</span>}
+                    <button
+                      type="button"
+                      className="boton boton-pequeno"
+                      disabled={moviendo === o.id}
+                      aria-busy={moviendo === o.id}
+                      onClick={() => avanzar(o)}
+                    >
+                      {estado.accion}
+                    </button>
+                  </article>
+                );
+              })}
+              {!lista.length && !cargando && <p className="texto-suave columna-vacia">Sin vehículos</p>}
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
