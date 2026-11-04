@@ -437,21 +437,29 @@ paths:
     get:
       tags: [Órdenes]
       operationId: listarOrdenesActivas
-      summary: Órdenes activas para el dashboard (pendiente HU-09)
+      summary: Órdenes activas para el dashboard (HU-09)
+      description: Órdenes del establecimiento que aún no se han entregado, de la más antigua a la más reciente.
       responses:
+        '200':
+          description: Órdenes activas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Orden' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
 
   /ordenes:
     post:
-      tags: [�rdenes]
+      tags: [Órdenes]
       operationId: crearOrden
-      summary: Registrar el ingreso de un veh�culo
+      summary: Registrar el ingreso de un vehículo
       description: >-
         HU-08 (RF-F3-01 a RF-F3-04, CA1 y CA2). Crea la orden en `recibido` con los servicios y precios
-        del momento, aplica la mejor promoci�n vigente, calcula la entrega estimada y genera el c�digo de
-        seguimiento. Acepta un veh�culo registrado o crea cliente, consentimiento y veh�culo en la misma
-        transacci�n. Un veh�culo con una orden activa responde `409`.
+        del momento, aplica la mejor promoción vigente, calcula la entrega estimada y genera el código de
+        seguimiento. Acepta un vehículo registrado o crea cliente, consentimiento y vehículo en la misma
+        transacción. Un vehículo con una orden activa responde `409`.
       requestBody:
         required: true
         content:
@@ -459,18 +467,18 @@ paths:
             schema: { $ref: '#/components/schemas/OrdenNueva' }
             examples:
               registrado:
-                summary: Veh�culo ya registrado
+                summary: Vehículo ya registrado
                 value:
                   vehiculoId: 11111111-1111-4111-8111-111111111111
                   servicioIds: [22222222-2222-4222-8222-222222222222, 33333333-3333-4333-8333-333333333333]
-                  observaciones: Ray�n en la puerta
+                  observaciones: Rayón en la puerta
               nuevo:
-                summary: Cliente y veh�culo nuevos
+                summary: Cliente y vehículo nuevos
                 value:
                   servicioIds: [22222222-2222-4222-8222-222222222222]
                   nuevoVehiculo:
                     cliente:
-                      nombre: Ana G�mez
+                      nombre: Ana Gómez
                       telefono: '3001234567'
                       correo: ana@example.com
                       autorizacionDatos: true
@@ -493,9 +501,9 @@ paths:
                 observaciones: null
                 created_at: '2026-11-02T14:00:00.000Z'
                 entregada_at: null
-                vehiculo: { id: 11111111-1111-4111-8111-111111111111, placa: XYZ987, tipo: carro, marca: Mazda, color: Rojo, cliente: { id: c1, nombre: Ana G�mez, telefono: '3001234567' } }
+                vehiculo: { id: 11111111-1111-4111-8111-111111111111, placa: XYZ987, tipo: carro, marca: Mazda, color: Rojo, cliente: { id: c1, nombre: Ana Gómez, telefono: '3001234567' } }
                 servicios:
-                  - { id: 22222222-2222-4222-8222-222222222222, nombre: Lavado b�sico, precio: 25000, duracionMin: 30, descuento: 0 }
+                  - { id: 22222222-2222-4222-8222-222222222222, nombre: Lavado básico, precio: 25000, duracionMin: 30, descuento: 0 }
                 promocion: null
         '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
@@ -1177,15 +1185,15 @@ components:
       type: object
       required: [placa, tipo]
       properties:
-        placa: { type: string, description: 'Carro: ABC123. Moto: ABC12D o ABC12. Se aceptan min�sculas, espacios y guiones.' }
+        placa: { type: string, description: 'Carro: ABC123. Moto: ABC12D o ABC12. Se aceptan minúsculas, espacios y guiones.' }
         tipo: { type: string, enum: [carro, moto] }
         marca: { type: [string, 'null'], maxLength: 40 }
         color: { type: [string, 'null'], maxLength: 30 }
 
     OrdenNueva:
       description: >-
-        Indica exactamente una forma de veh�culo: `vehiculoId` para uno registrado, o `nuevoVehiculo`
-        para crear cliente, consentimiento y veh�culo junto con la orden. Los servicios repetidos se
+        Indica exactamente una forma de vehículo: `vehiculoId` para uno registrado, o `nuevoVehiculo`
+        para crear cliente, consentimiento y vehículo junto con la orden. Los servicios repetidos se
         cuentan una vez.
       oneOf:
         - $ref: '#/components/schemas/OrdenConVehiculoRegistrado'
@@ -1227,7 +1235,7 @@ components:
         nombre: { type: string }
         precio: { type: number, description: Precio copiado al crear la orden. }
         duracionMin: { type: integer }
-        descuento: { type: number, description: Descuento aplicado por la mejor promoci�n vigente. }
+        descuento: { type: number, description: Descuento aplicado por la mejor promoción vigente. }
 
     OrdenCambioEstado:
       description: Indica un estado nuevo o la reversión del último cambio, pero no ambos.
@@ -1255,7 +1263,7 @@ components:
         codigoSeguimiento:
           type: string
           pattern: '^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{10}$'
-          description: C�digo p�blico de seguimiento, sin caracteres ambiguos.
+          description: Código público de seguimiento, sin caracteres ambiguos.
         entregaEstimadaAt: { type: string, format: date-time }
         observaciones: { type: [string, 'null'], maxLength: 500 }
         created_at: { type: string, format: date-time }

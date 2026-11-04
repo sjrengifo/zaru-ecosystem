@@ -199,6 +199,8 @@ cp .env.example .env
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave `service_role`. **Confidencial**: no debe incluirse en el frontend ni en el repositorio |
 | `ZARU_CLAVE_CIFRADO` | Clave de 32 bytes para cifrar datos personales a nivel de campo (`openssl rand -base64 32`). **Confidencial**: una por ambiente; si se pierde, los correos cifrados no se recuperan |
 | `FRONTEND_URL` | Origen permitido por CORS |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Servidor SMTP para los avisos por correo al cliente (HU-46). Ej.: Gmail `smtp.gmail.com`, puerto `465`, con una contraseña de aplicación. `SMTP_PASS` es **confidencial**. Si faltan, no se envían correos y el aviso queda registrado como `fallida` |
+| `CORREO_REMITENTE` | Remitente de los avisos, p. ej. `Zaru <avisos@tu-dominio.com>` |
 
 **`frontend/.env`**
 
@@ -269,7 +271,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 
 ## 8. Trazabilidad con el backlog
 
-Épica 1 — Panel administrativo web (`ZARU-1`). Total estimado: **55 story points**.
+Épica 1 — Panel administrativo web (`ZARU-1`), historias del Sprint 1.
 
 | Jira | Historia | Puntos | MoSCoW | Frontend | Backend |
 |---|---|---|---|---|---|
@@ -283,9 +285,28 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 | ZARU-9 | HU-08 Orden de servicio | 5 | Must | `Dashboard.jsx` | `ordenes.routes.js` |
 | ZARU-10 | HU-09 Dashboard en tiempo real | 8 | Must | `Dashboard.jsx` | Supabase Realtime |
 | ZARU-11 | HU-10 Actualizar estado operativo | 5 | Must | `Dashboard.jsx` | `ordenes.routes.js` |
-| ZARU-12 | HU-11 Alertas de vehículos sin actualizar | 3 | Could | `Dashboard.jsx` | — |
+| ZARU-12 | HU-11 Alertas de vehículos sin actualizar | 3 | Could | `Dashboard.jsx` · `AlertaDemora.jsx` | — |
 | ZARU-13 | HU-12 Promociones | 5 | Should | `Promociones.jsx` | `promociones.routes.js` |
 | ZARU-14 | HU-13 Branding de la sede | 5 | Should | `Branding.jsx` | `establecimiento.routes.js` |
+| ZARU-66 | HU-14 Recuperar la contraseña | 2 | Should | `RecuperarContrasena.jsx` · `RestablecerContrasena.jsx` | Supabase Auth |
+| ZARU-68 | HU-16 Reportes de servicios y afluencia | 5 | Could | `Reportes.jsx` | `reportes.routes.js` |
+
+Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
+
+| Jira | Historia | Puntos | Implementación |
+|---|---|---|---|
+| ZARU-47 | HU-41 Aislamiento multi-tenant | 8 | `shared/tenant.js` · RLS y llaves compuestas |
+| ZARU-49 | HU-42 Base de datos | 8 | `supabase/migrations/` · `database/schema.sql` |
+| ZARU-50 | HU-43 API REST | 5 | `openapi/openapi.yaml` · `/api/v1` |
+| ZARU-51 | HU-44 Autenticación y roles | 5 | `middlewares/auth.js` · hook de claims |
+| ZARU-53 | HU-46 Notificaciones por correo | 3 | `shared/notificaciones.js` · `shared/correo.js` |
+| ZARU-54 | HU-47 Despliegue en la nube | 3 | `render.yaml` · Vercel · prueba de humo |
+| ZARU-57 | HU-50 Cifrado y secretos | 3 | `shared/cifrado.js` · `middlewares/https.js` · gitleaks |
+| ZARU-58 | HU-51 Autorización Habeas Data | 3 | `politicas_datos` · `consentimientos` |
+| ZARU-59 | HU-52 Eliminar datos del cliente | 3 | `ConfirmarEliminarCliente.jsx` · `clientes.routes.js` |
+| ZARU-63 | HU-57 Registrar establecimiento afiliado | 5 | `Superadmin.jsx` · `superadmin.routes.js` |
+| ZARU-64 | HU-58 Spike de arquitectura | 3 | `docs/arquitectura/spike-hu58.md` |
+| ZARU-65 | HU-59 Acceso según el rol | 3 | `lib/rutas.js` · `RutaProtegida.jsx` · `requiereRol` |
 
 ---
 

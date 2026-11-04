@@ -195,7 +195,7 @@ begin
       select 1 from ordenes o
       where o.vehiculo_id = v_vehiculo_id and o.estado <> 'entregado'
     ) then
-      raise exception 'Este veh��culo ya tiene un servicio en curso'
+      raise exception 'Este vehículo ya tiene un servicio en curso'
         using errcode = '23514', hint = 'vehiculoId';
     end if;
     raise;
