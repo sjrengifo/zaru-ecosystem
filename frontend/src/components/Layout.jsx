@@ -6,17 +6,8 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSesion } from '../hooks/useSesion.js';
 import { leerBranding, guardarBranding, borrarBranding } from '../lib/brandingGuardado.js';
+import { menuParaRol } from '../lib/menu.js';
 import { api } from '../services/api.js';
-
-const MENU = [
-  { ruta: '/', texto: 'Dashboard' },
-  { ruta: '/clientes', texto: 'Clientes' },
-  { ruta: '/vehiculos', texto: 'Vehículos' },
-  { ruta: '/servicios', texto: 'Servicios' },
-  { ruta: '/promociones', texto: 'Promociones' },
-  { ruta: '/usuarios', texto: 'Usuarios' },
-  { ruta: '/branding', texto: 'Branding' },
-];
 
 export default function Layout() {
   const { pathname } = useLocation();
@@ -86,7 +77,7 @@ export default function Layout() {
         </div>
 
         <nav ref={navegacion}>
-          {MENU.map((item) => (
+          {menuParaRol(usuario?.rol).map((item) => (
             <NavLink key={item.ruta} to={item.ruta} end className="menu-item">
               {item.texto}
             </NavLink>

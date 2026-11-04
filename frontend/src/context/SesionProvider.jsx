@@ -9,6 +9,7 @@ import {
   limpiarRecuperacion,
   marcarRecuperacion,
 } from '../lib/enlaceAuth.js';
+import { debeRevalidar } from '../lib/revalidacion.js';
 import { supabase } from '../lib/supabase.js';
 import { api } from '../services/api.js';
 
@@ -41,6 +42,11 @@ export function SesionProvider({ children }) {
   });
   const recuperacionRef = useRef(recuperacion);
   const montado = useRef(true);
+  // La pantalla de carga solo se muestra en la primera validación. Las revalidaciones
+  // posteriores (token renovado, foco en la pestaña) no desmontan la página ni el formulario.
+  const validadoRef = useRef(false);
+  // HU-02 CA3: al volver a la pestaña se comprueba /me, con un intervalo mínimo entre consultas.
+  const ultimaRevalidacion = useRef(0);
 
   // Valida la sesión contra el backend y resuelve perfil + establecimiento.
   // Devuelve false cuando la cuenta no tiene acceso (token inválido o perfil inactivo).
@@ -53,6 +59,7 @@ export function SesionProvider({ children }) {
         limpiarRecuperacion();
         if (montado.current) setRecuperacion(false);
       }
+      validadoRef.current = false;
       if (montado.current) {
         setUsuario(null);
         setEstablecimiento(null);
@@ -64,6 +71,7 @@ export function SesionProvider({ children }) {
     // HU-14: la sesión de recuperación solo sirve para cambiar la contraseña.
     // No se valida /me ni se carga el panel con ella.
     if (recuperacionRef.current) {
+      validadoRef.current = false;
       if (montado.current) {
         setUsuario(null);
         setEstablecimiento(null);
@@ -74,19 +82,21 @@ export function SesionProvider({ children }) {
     }
 
     if (montado.current) {
-      setCargando(true);
+      if (!validadoRef.current) setCargando(true);
       setErrorSesion('');
     }
 
     try {
       const datos = await api.get('/me');
       if (!montado.current) return true;
+      validadoRef.current = true;
       setUsuario(datos.usuario);
       setEstablecimiento(datos.establecimiento);
       return true;
     } catch (err) {
       // 401/403: token vencido, perfil inexistente o cuenta desactivada.
       if (err.status === 401 || err.status === 403) {
+        validadoRef.current = false;
         await supabase.auth.signOut().catch(() => {});
         if (montado.current) {
           setSesion(null);
@@ -97,10 +107,9 @@ export function SesionProvider({ children }) {
         return false;
       }
 
-      // Caída de red o de la API: no cerramos la sesión; RLS sigue protegiendo los datos.
+      // Caída de red o de la API: no cerramos la sesión ni borramos el perfil ya cargado.
+      // RLS sigue protegiendo los datos y el panel muestra el aviso sin perder lo escrito.
       if (montado.current) {
-        setUsuario(null);
-        setEstablecimiento(null);
         setErrorSesion('No se pudo validar la sesión con el servidor. Revisa tu conexión.');
       }
       return true;
@@ -129,10 +138,21 @@ export function SesionProvider({ children }) {
     return validarAcceso(actual);
   }, [validarAcceso]);
 
+  // Revalidación silenciosa al recuperar el foco o volver a la pestaña: si la cuenta
+  // fue desactivada, /me responde 403 y se cierra la sesión sin desmontar formularios.
+  const revalidarEnSegundoPlano = useCallback(async () => {
+    if (recuperacionRef.current) return;
+    const ahora = Date.now();
+    if (!debeRevalidar(ahora, ultimaRevalidacion.current)) return;
+    ultimaRevalidacion.current = ahora;
+    await recargar();
+  }, [recargar]);
+
   // HU-14: cierra la sesión temporal y limpia la marca al terminar o cancelar.
   const finalizarRecuperacion = useCallback(async () => {
     limpiarRecuperacion();
     recuperacionRef.current = false;
+    validadoRef.current = false;
     setRecuperacion(false);
     setSesion(null);
     setUsuario(null);
@@ -181,6 +201,22 @@ export function SesionProvider({ children }) {
       escucha.subscription.unsubscribe();
     };
   }, [aplicarSesion]);
+
+  useEffect(() => {
+    const alRecuperarFoco = () => {
+      void revalidarEnSegundoPlano();
+    };
+    const alCambiarVisibilidad = () => {
+      if (document.visibilityState === 'visible') void revalidarEnSegundoPlano();
+    };
+
+    window.addEventListener('focus', alRecuperarFoco);
+    document.addEventListener('visibilitychange', alCambiarVisibilidad);
+    return () => {
+      window.removeEventListener('focus', alRecuperarFoco);
+      document.removeEventListener('visibilitychange', alCambiarVisibilidad);
+    };
+  }, [revalidarEnSegundoPlano]);
 
   return (
     <SesionContext.Provider

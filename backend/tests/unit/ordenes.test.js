@@ -3,6 +3,9 @@ import { describe, it, expect, vi } from 'vitest';
 
 process.env.ZARU_CLAVE_CIFRADO ||= Buffer.alloc(32).toString('base64');
 
+// HU-46: el aviso al cliente se prueba en notificaciones.test.js; aquí se aísla para no tocar el tenant falso.
+vi.mock('../../src/shared/notificaciones.js', () => ({ programarNotificacion: vi.fn(async () => ({ estado: 'omitida' })) }));
+
 import { cambioEstadoOrden, ordenNueva } from '../../src/schemas/ordenes.schemas.js';
 import { cambiarEstado, crear } from '../../src/controllers/ordenes.controller.js';
 import { AppError, noEncontrado } from '../../src/shared/errores.js';
