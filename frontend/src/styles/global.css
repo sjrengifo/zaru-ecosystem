@@ -105,6 +105,20 @@ label { display: block; font-size: 14px; }
   gap: var(--espacio);
 }
 .menu nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.menu-marca { display: flex; flex-direction: column; gap: 4px; }
+.menu-usuario {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: var(--espacio);
+  border-top: 1px solid var(--color-borde);
+}
+.menu-usuario strong { font-size: 14px; }
+.aviso-advertencia {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
 .menu-item {
   padding: 8px 12px;
   border-radius: var(--radio);
@@ -134,16 +148,176 @@ label { display: block; font-size: 14px; }
 .login-form { width: 100%; max-width: 360px; }
 .login-form .boton { width: 100%; }
 
-/* ---------- Dashboard ---------- */
-.tablero {
+/* Indicador de carga del botón (HU-01, req. 1) */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: girar 0.7s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+
+/* ---------- Dashboard operativo (HU-09) ---------- */
+.dashboard { display: flex; flex-direction: column; gap: var(--espacio); }
+.dashboard-subtitulo { margin: 4px 0 0; color: var(--color-texto-suave); font-size: 14px; }
+.dashboard-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+.estado-conexion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-borde);
+  border-radius: 999px;
+  background: var(--color-superficie);
+  color: var(--color-texto-suave);
+  font-size: 12px;
+  font-weight: 600;
+}
+.estado-conexion-punto { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.estado-conexion.conectado {
+  color: #047857;
+  border-color: color-mix(in srgb, #047857 35%, #fff);
+  background: color-mix(in srgb, #047857 8%, #fff);
+}
+.estado-conexion.conectado .estado-conexion-punto { animation: latido 2s ease-in-out infinite; }
+@keyframes latido { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) {
+  .estado-conexion.conectado .estado-conexion-punto { animation: none; }
+}
+
+.indicadores {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--espacio);
 }
-.columna { display: flex; flex-direction: column; gap: 8px; }
-.tarjeta-vehiculo { display: flex; flex-direction: column; gap: 10px; }
-.tarjeta-vehiculo-datos { display: flex; flex-direction: column; gap: 2px; }
-.tarjeta-vehiculo .boton { width: 100%; }
+.indicador {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-left: 4px solid var(--color-primario);
+}
+.indicador-titulo {
+  margin: 0;
+  color: var(--color-texto-suave);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.indicador-valor { margin: 0; color: var(--color-primario); font-size: 34px; font-weight: 800; line-height: 1.1; }
+.indicador-nota { margin: 0; color: var(--color-texto-suave); font-size: 12.5px; line-height: 1.4; }
+
+.tablero {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--espacio);
+  align-items: start;
+}
+.columna {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 150px;
+  padding: 12px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: color-mix(in srgb, var(--color-superficie) 60%, var(--color-fondo));
+}
+.columna-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-borde);
+}
+.columna-titulo { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+.columna-cuenta {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--color-primario-suave);
+  color: var(--color-primario);
+  font-size: 13px;
+  font-weight: 700;
+}
+.columna-vacia {
+  margin: 0;
+  padding: 18px 8px;
+  border: 1px dashed var(--color-borde);
+  border-radius: var(--radio);
+  color: var(--color-texto-suave);
+  font-size: 13px;
+  text-align: center;
+}
+.columna-tarjetas { display: flex; flex-direction: column; gap: 10px; }
+
+/* Un color por columna, siempre acompañado por el título y la etiqueta de la tarjeta. */
+.columna-recibido { border-top: 3px solid var(--color-secundario); }
+.columna-en_lavado { border-top: 3px solid var(--color-primario); }
+.columna-listo { border-top: 3px solid #047857; }
+.columna-entregado { border-top: 3px solid var(--color-texto-suave); }
+
+.tarjeta-vehiculo { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.tarjeta-vehiculo-encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tarjeta-vehiculo-datos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  margin: 0;
+  font-size: 13px;
+}
+.tarjeta-vehiculo-datos > div { display: contents; }
+.tarjeta-vehiculo-datos dt { color: var(--color-texto-suave); }
+.tarjeta-vehiculo-datos dd { margin: 0; color: var(--color-texto); overflow-wrap: anywhere; }
+.tarjeta-vehiculo-accion { width: 100%; padding-inline: 10px; font-size: 13px; }
+
+.estado-etiqueta {
+  display: inline-block;
+  padding: 2px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.estado-etiqueta-recibido { color: #075985; background: #e0f2fe; border-color: #bae6fd; }
+.estado-etiqueta-en_lavado { color: #1e40af; background: #dbeafe; border-color: #bfdbfe; }
+.estado-etiqueta-secado { color: #9a3412; background: #ffedd5; border-color: #fed7aa; }
+.estado-etiqueta-listo { color: #065f46; background: #d1fae5; border-color: #a7f3d0; }
+.estado-etiqueta-entregado { color: #374151; background: #f3f4f6; border-color: #e5e7eb; }
+
+.dashboard-cargando { display: flex; align-items: center; gap: 10px; color: var(--color-texto-suave); }
+.spinner-oscuro { border-color: var(--color-borde); border-top-color: var(--color-primario); }
+.dashboard-vacio { margin: 0; }
+.dashboard-actualizado { margin: 0; color: var(--color-texto-suave); font-size: 12px; text-align: right; }
+
+@media (max-width: 1100px) {
+  .tablero { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .tablero { grid-template-columns: 1fr; }
+  .dashboard-acciones { width: 100%; }
+  .dashboard-acciones .boton { flex: 1; }
+  .dashboard-actualizado { text-align: left; }
+}
 
 /* ---------- Tablas ---------- */
 .tabla {
@@ -737,6 +911,18 @@ input[aria-invalid='true'] { border-color: var(--color-error); background: var(-
     border-bottom: 1px solid var(--color-borde);
   }
   .menu .logo { margin: 0; font-size: 24px; }
+  .menu-marca { flex-direction: row; align-items: baseline; gap: 8px; }
+  .menu-marca .texto-suave { font-size: 13px; }
+  .menu-usuario {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding-top: 0;
+    border-top: none;
+  }
+  .menu-usuario strong,
+  .menu-usuario .texto-suave { display: none; }
+  .menu-usuario .boton { margin: 0; }
   .menu nav {
     position: relative;
     order: 3;
@@ -760,6 +946,41 @@ input[aria-invalid='true'] { border-color: var(--color-error); background: var(-
   .boton-eliminar { flex-basis: 100%; }
   .eliminar-impacto > div { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* ---------- HU-14: recuperar y restablecer contraseña ---------- */
+.auth-form h1.logo { margin-bottom: 4px; }
+.auth-form > .texto-suave { margin: 0 0 var(--espacio); }
+.auth-titulo { margin: 0 0 var(--espacio); font-size: 20px; }
+.auth-intro { margin: 0 0 var(--espacio); line-height: 1.5; }
+.login-olvido {
+  display: inline-block;
+  margin: -4px 0 8px;
+  color: var(--color-primario);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.login-olvido:hover { color: var(--color-primario-hover); text-decoration: underline; }
+.boton-enlace {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+.auth-enlace {
+  display: block;
+  width: 100%;
+  margin: var(--espacio) 0 0;
+  text-align: center;
+}
+.auth-enlace:disabled { opacity: 0.6; cursor: wait; }
+.aviso-exito {
+  color: var(--color-exito);
+  border-color: var(--color-exito);
+  background: var(--color-exito-fondo);
+}
+.auth-form .aviso p + p { margin-top: 8px; }
 
 /* ---------- HU-13 · Branding de la sede ---------- */
 .branding {
