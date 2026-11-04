@@ -1,0 +1,10 @@
+# Hallazgos de gitleaks ya atendidos que permanecen en el historial de git.
+# Se ignoran por huella exacta (commit:archivo:regla:línea): cualquier secreto nuevo sigue fallando el CI.
+#
+# backend/env.spike.local se subió por error (el archivo válido es backend/.env.spike.local, ignorado por git).
+# Se dejó de versionar; SUPABASE_ANON_KEY es pública por diseño y SPIKE_PASSWORD solo es de los
+# usuarios de prueba del spike HU-58 y debe rotarse.
+5eaea7784388c84ec86e8a6a0ba2c5c930770e1b:backend/env.spike.local:generic-api-key:3
+5eaea7784388c84ec86e8a6a0ba2c5c930770e1b:backend/env.spike.local:generic-api-key:6
+d09cc59ff6f993c0dce99070858c93885051d14c:backend/env.spike.local:generic-api-key:3
+d09cc59ff6f993c0dce99070858c93885051d14c:backend/env.spike.local:generic-api-key:6
