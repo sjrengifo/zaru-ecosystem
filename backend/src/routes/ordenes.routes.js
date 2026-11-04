@@ -1,14 +1,14 @@
-// HU-08, HU-09, HU-10 y HU-46 — Rutas de órdenes de servicio (cada lavado).
-// HU-59 CA1: es el trabajo diario del operario, así que admin y operario tienen acceso.
+// HU-08 y HU-10 — Rutas de órdenes de servicio (cada lavado).
 import { Router } from 'express';
+import { requiereRol } from '../middlewares/auth.js';
 import { validar } from '../shared/validar.js';
-import { ordenNueva, cambioEstado } from '../schemas/ordenes.schemas.js';
+import { cambioEstadoOrden, ordenNueva } from '../schemas/ordenes.schemas.js';
 import * as ctrl from '../controllers/ordenes.controller.js';
 
 const router = Router();
 
-router.get('/activas', ctrl.listarActivas);                                      // dashboard (HU-09)
-router.post('/', validar({ body: ordenNueva }), ctrl.crear);                      // ingreso + correo (HU-08, HU-46 CA1)
-router.patch('/:id/estado', validar({ body: cambioEstado }), ctrl.cambiarEstado); // avanzar + correo "listo" (HU-10, HU-46 CA2)
+router.get('/activas', requiereRol('admin', 'operario'), ctrl.listarActivas); // para el dashboard (HU-09)
+router.post('/', requiereRol('admin', 'operario'), validar({ body: ordenNueva }), ctrl.crear); // ingreso de vehículo (HU-08)
+router.patch('/:id/estado', requiereRol('admin', 'operario'), validar({ body: cambioEstadoOrden }), ctrl.cambiarEstado); // avanzar estado (HU-10)
 
 export default router;

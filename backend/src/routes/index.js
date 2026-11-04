@@ -1,7 +1,7 @@
 // Rutas de la versión 1 de la API (HU-43 CA3). Se montan en /api/v1 (ver app.js).
 // Cada ruta nueva debe documentarse en backend/openapi/openapi.yaml: una prueba lo verifica.
 import { Router } from 'express';
-import { requiereSesion, requiereRol, requiereModulo } from '../middlewares/auth.js';
+import { requiereSesion, requiereRol } from '../middlewares/auth.js';
 
 import clientesRoutes from './clientes.routes.js';
 import vehiculosRoutes from './vehiculos.routes.js';
@@ -11,6 +11,7 @@ import promocionesRoutes from './promociones.routes.js';
 import usuariosRoutes from './usuarios.routes.js';
 import establecimientoRoutes from './establecimiento.routes.js';
 import superadminRoutes from './superadmin.routes.js';
+import reportesRoutes from './reportes.routes.js';
 import * as me from '../controllers/me.controller.js';
 import * as politicas from '../controllers/politicas.controller.js';
 
@@ -21,24 +22,13 @@ export const MODULOS = [
   ['/clientes', clientesRoutes],               // HU-03, HU-04
   ['/vehiculos', vehiculosRoutes],             // HU-05, HU-06
   ['/servicios', serviciosRoutes],             // HU-07
-  ['/ordenes', ordenesRoutes],                 // HU-08, HU-10, HU-46
+  ['/ordenes', ordenesRoutes],                 // HU-08, HU-10
   ['/promociones', promocionesRoutes],         // HU-12
   ['/usuarios', usuariosRoutes],               // HU-02
   ['/establecimiento', establecimientoRoutes], // HU-13
   ['/superadmin', superadminRoutes],             // HU-57
+  ['/reportes', reportesRoutes],                 // HU-16
 ];
-
-/**
- * HU-59: módulo del panel que protege cada prefijo (shared/permisos.js). Servicios y establecimiento
- * no aparecen porque su lectura la usan todos los roles; sus escrituras se protegen en cada router.
- */
-export const MODULO_DE_PREFIJO = {
-  '/clientes': 'clientes',
-  '/vehiculos': 'vehiculos',
-  '/ordenes': 'dashboard',
-  '/promociones': 'promociones',
-  '/usuarios': 'usuarios',
-};
 
 const router = Router();
 
@@ -64,10 +54,7 @@ router.use('/superadmin', superadminRoutes);
 // Un superadministrador no puede usar endpoints operativos, aunque conozca sus URLs.
 router.use(requiereRol('admin', 'operario'));
 for (const [prefijo, rutas] of MODULOS) {
-  if (prefijo === '/superadmin') continue;
-  const modulo = MODULO_DE_PREFIJO[prefijo];
-  if (modulo) router.use(prefijo, requiereModulo(modulo), rutas);
-  else router.use(prefijo, rutas);
+  if (prefijo !== '/superadmin') router.use(prefijo, rutas);
 }
 
 export default router;

@@ -1,33 +1,22 @@
 // Estructura común de las páginas privadas: menú lateral + contenido.
 // HU-13 CA2: aplica el logo y los colores guardados de la sede a todo el panel. Al recargar se usa la
 // última copia conocida (lib/brandingGuardado.js) para no mostrar primero el branding de Zaru.
-// HU-59 CA1/CA2: el menú muestra solo los módulos del rol. CA3: si se intentó abrir una sección
-// ajena, RutaProtegida/RequiereModulo traen al usuario aquí y se muestra el aviso.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
+import { useSesion } from '../hooks/useSesion.js';
 import { leerBranding, guardarBranding, borrarBranding } from '../lib/brandingGuardado.js';
-import { menuPara, NOMBRE_ROL } from '../lib/permisos.js';
-import { usePerfil } from '../hooks/usePerfil.js';
+import { menuParaRol } from '../lib/menu.js';
 import { api } from '../services/api.js';
 
 export default function Layout() {
-  const { pathname, state } = useLocation();
-  const navegar = useNavigate();
-  const perfil = usePerfil();
-  const menu = menuPara(perfil);
-  const [accesoDenegado, setAccesoDenegado] = useState(state?.accesoDenegado ?? null);
-
-  // El aviso se toma una vez y se limpia del historial: al recargar o volver no reaparece.
-  useEffect(() => {
-    if (!state?.accesoDenegado) return;
-    setAccesoDenegado(state.accesoDenegado);
-    navegar(pathname, { replace: true, state: null });
-  }, [state?.accesoDenegado, pathname, navegar]);
+  const { pathname } = useLocation();
   const navegacion = useRef(null);
+  const { usuario, establecimiento: establecimientoSesion, errorSesion } = useSesion();
   const [establecimiento, setEstablecimiento] = useState(leerBranding);
   const [cargado, setCargado] = useState(false);
   const [errorEstablecimiento, setErrorEstablecimiento] = useState('');
+  const nombreSede = establecimiento?.nombre ?? establecimientoSesion?.nombre;
 
   useEffect(() => {
     let vigente = true;
@@ -74,45 +63,54 @@ export default function Layout() {
   return (
     <div className="layout">
       <aside className="menu">
-        <h1 className="logo">
-          {establecimiento?.logo_url ? (
-            <img src={establecimiento.logo_url} alt={establecimiento.nombre} />
-          ) : establecimiento || cargado ? (
-            'Zaru'
-          ) : (
-            <span className="logo-espacio" aria-label="Cargando" /> // Reserva el lugar del logo mientras llega.
-          )}
-        </h1>
+        <div className="menu-marca">
+          <h1 className="logo">
+            {establecimiento?.logo_url ? (
+              <img src={establecimiento.logo_url} alt={establecimiento.nombre} />
+            ) : establecimiento || cargado ? (
+              'Zaru'
+            ) : (
+              <span className="logo-espacio" aria-label="Cargando" /> // Reserva el lugar del logo mientras llega.
+            )}
+          </h1>
+          {nombreSede && <span className="texto-suave">{nombreSede}</span>}
+        </div>
+
         <nav ref={navegacion}>
-          {menu.map((item) => (
+          {menuParaRol(usuario?.rol).map((item) => (
             <NavLink key={item.ruta} to={item.ruta} end className="menu-item">
               {item.texto}
             </NavLink>
           ))}
         </nav>
-        {perfil && (
-          <p className="menu-usuario">
-            <span className="menu-usuario-nombre">{perfil.nombre}</span>
-            <span className={`rol-insignia rol-${perfil.rol}`}>{NOMBRE_ROL[perfil.rol] ?? perfil.rol}</span>
-          </p>
-        )}
-        <button
-          className="boton secundario"
-          onClick={() => {
-            borrarBranding(); // Quien entre después en este equipo no ve el branding de esta sede.
-            supabase.auth.signOut();
-          }}
-        >
-          Cerrar sesión
-        </button>
+
+        <div className="menu-usuario">
+          {usuario && (
+            <>
+              <strong>{usuario.nombre}</strong>
+              <span className="texto-suave">
+                {usuario.rol === 'admin' ? 'Administrador' : 'Operario'}
+              </span>
+            </>
+          )}
+          <button
+            type="button"
+            className="boton secundario"
+            onClick={() => {
+              borrarBranding(); // Quien entre después en este equipo no ve el branding de esta sede.
+              supabase.auth.signOut();
+            }}
+          >
+            Cerrar sesión
+          </button>
+        </div>
       </aside>
 
       <main className="contenido">
-        {accesoDenegado && (
-          <div className="aviso aviso-advertencia aviso-acceso" role="alert">
-            <p>No tienes acceso a esa sección con tu rol. Te trajimos a tu página de inicio.</p>
-            <button type="button" className="boton-icono" aria-label="Cerrar aviso" onClick={() => setAccesoDenegado(null)}>×</button>
-          </div>
+        {errorSesion && (
+          <p className="aviso aviso-advertencia" role="status">
+            {errorSesion}
+          </p>
         )}
         <Outlet context={{ establecimiento, setEstablecimiento, errorEstablecimiento }} /> {/* Aquí se dibuja la página actual */}
       </main>

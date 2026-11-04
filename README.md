@@ -16,7 +16,6 @@ Proyecto desarrollado en el curso **Gerencia de Proyectos de TI** — Universida
 6. [Configuración del entorno local](#6-configuración-del-entorno-local)
 7. [API](#7-api)
 8. [Trazabilidad con el backlog](#8-trazabilidad-con-el-backlog)
-   - [HU-46, HU-57 y HU-59 (Épica 4)](#hu-46-hu-57-y-hu-59-épica-4)
 9. [Flujo de trabajo](#9-flujo-de-trabajo)
 10. [Despliegue](#10-despliegue)
 11. [Equipo](#11-equipo)
@@ -89,8 +88,8 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 
 | Tabla | Descripción | HU |
 |---|---|---|
-| `establecimientos` | Car wash afiliado (tenant), con logo y colores de marca, plan y estado (`prueba`, `activo`, `pendiente_activacion`, `suspendido`) | HU-13, HU-57 |
-| `perfiles` | Usuario del panel vinculado a `auth.users`, con rol `admin`, `operario` o `superadmin` (sin establecimiento) | HU-01, HU-02, HU-57 |
+| `establecimientos` | Car wash afiliado (tenant), con logo y colores de marca | HU-13 |
+| `perfiles` | Usuario del panel vinculado a `auth.users`, con rol `admin` u `operario` | HU-01, HU-02 |
 | `clientes` | Cliente final con autorización de tratamiento de datos (Ley 1581 de 2012) | HU-03, HU-04 |
 | `vehiculos` | Vehículos por cliente; placa única por establecimiento | HU-05 |
 | `servicios` | Catálogo de servicios con precio y duración estimada | HU-07 |
@@ -132,12 +131,10 @@ zaru-ecosystem/
 │   │   ├── components/           Componentes compartidos (Layout, RutaProtegida, …)
 │   │   ├── services/api.js       Cliente HTTP hacia la API (adjunta el JWT de sesión)
 │   │   ├── lib/supabase.js       Cliente de Supabase (Auth y Realtime)
-│   │   ├── hooks/                Hooks de React (useSesion, usePerfil, useRol)
-│   │   ├── lib/permisos.js       Módulos del panel por rol (HU-59)
+│   │   ├── hooks/                Hooks de React (useSesion)
 │   │   ├── styles/global.css     Estilos globales y tokens de diseño
 │   │   ├── App.jsx               Definición de rutas
 │   │   └── main.jsx              Punto de entrada
-│   ├── tests/                    Pruebas del panel (Vitest + Testing Library)
 │   ├── vercel.json               Reescrituras para SPA en Vercel
 │   └── .env.example
 │
@@ -146,12 +143,10 @@ zaru-ecosystem/
 │   │   ├── routes/               Definición de endpoints por recurso (versión 1)
 │   │   ├── schemas/              Validación de entradas con zod
 │   │   ├── controllers/          Lógica de negocio por recurso
-│   │   ├── middlewares/          Autenticación, autorización por rol/módulo y manejo de errores
-│   │   ├── shared/               Tenant, cifrado, permisos (HU-59), correo y notificaciones (HU-46)
+│   │   ├── middlewares/          Autenticación, autorización por rol y manejo de errores
 │   │   ├── config/supabase.js    Cliente de Supabase con service_role
 │   │   ├── app.js                Configuración de Express
 │   │   └── index.js              Arranque del servidor
-│   ├── tests/                    Pruebas unitarias y de integración (Vitest)
 │   └── .env.example
 │
 ├── supabase/migrations/          Migraciones versionadas del esquema (fuente de verdad)
@@ -172,8 +167,7 @@ zaru-ecosystem/
 
 ### Requisitos
 
-- Node.js 22 o superior (el backend usa `--env-file` y `process.loadEnvFile`)
-- npm 10 o superior
+- Node.js 20 o superior
 - Git
 - Acceso a las credenciales del proyecto Supabase
 
@@ -204,11 +198,9 @@ cp .env.example .env
 | `SUPABASE_URL` | URL del proyecto Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave `service_role`. **Confidencial**: no debe incluirse en el frontend ni en el repositorio |
 | `ZARU_CLAVE_CIFRADO` | Clave de 32 bytes para cifrar datos personales a nivel de campo (`openssl rand -base64 32`). **Confidencial**: una por ambiente; si se pierde, los correos cifrados no se recuperan |
-| `FRONTEND_URL` | Origen permitido por CORS y base del enlace de invitación (`/aceptar-invitacion`, HU-57) |
-| `CORREO_PROVEEDOR` | HU-46: `consola` (por defecto: no envía, escribe el mensaje en la terminal), `smtp` o `resend` |
-| `CORREO_REMITENTE` | Remitente de los correos, por ejemplo `Lavadero Zaru <notificaciones@tudominio.com>` |
-| `RESEND_API_KEY` | Obligatoria con `CORREO_PROVEEDOR=resend`. **Confidencial** |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USUARIO`, `SMTP_CLAVE` | Con `CORREO_PROVEEDOR=smtp` (por ejemplo Gmail: `smtp.gmail.com`, `465`, tu correo y una *contraseña de aplicación*). `SMTP_CLAVE` es **confidencial** |
+| `FRONTEND_URL` | Origen permitido por CORS |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Servidor SMTP para los avisos por correo al cliente (HU-46). Ej.: Gmail `smtp.gmail.com`, puerto `465`, con una contraseña de aplicación. `SMTP_PASS` es **confidencial**. Si faltan, no se envían correos y el aviso queda registrado como `fallida` |
+| `CORREO_REMITENTE` | Remitente de los avisos, p. ej. `Zaru <avisos@tu-dominio.com>` |
 
 **`frontend/.env`**
 
@@ -229,10 +221,7 @@ Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. 
 | `npm run lint:openapi` | `backend/` | Valida el contrato OpenAPI |
 | `npm run cifrar:correos` | `backend/` | Cifra los correos de clientes que aún estén en texto plano (HU-50) |
 | `npm test` | `backend/` | Pruebas unitarias y de integración (Vitest). Las de integración requieren `.env` y `.env.spike.local`; sin ellos se omiten |
-| `npm run test:unit` | `backend/` | Solo pruebas unitarias: no necesitan Supabase ni tocan datos reales |
-| `npm run test:integracion` | `backend/` | Solo pruebas de integración contra Supabase (crean y borran sus propios datos de prueba) |
 | `npm run dev` | `frontend/` | Servidor de desarrollo de Vite — `http://localhost:5173` |
-| `npm test` | `frontend/` | Pruebas del panel (Vitest + Testing Library, sin navegador ni backend) |
 | `npm run build` | `frontend/` | Build de producción en `frontend/dist/` |
 
 Verificación de la API: `GET http://localhost:4000/api/v1/health`. Documentación: `http://localhost:4000/api/docs`.
@@ -254,7 +243,7 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, requieren el encabezado `
 | Método | Endpoint | Rol | Descripción | Estado |
 |---|---|---|---|---|
 | GET | `/health` | Público | Estado del servicio | Implementado |
-| GET | `/me` | Admin, Operario, Superadmin | Usuario, rol, establecimiento, módulos permitidos (`permisos`, HU-59) y vencimiento de la sesión | Implementado |
+| GET | `/me` | Admin, Operario | Usuario, rol, establecimiento y vencimiento de la sesión | Implementado |
 | GET | `/politicas-datos/vigente` | Público | Política de tratamiento de datos vigente (versión y texto) | Implementado |
 | GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes por nombre, teléfono o placa | Implementado |
 | GET | `/clientes/:id` | Admin, Operario | Detalle de cliente con sus vehículos | Implementado |
@@ -267,19 +256,14 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, requieren el encabezado `
 | GET | `/vehiculos/:id/historial` | Admin, Operario | Historial de servicios | Implementado |
 | GET | `/servicios` | Admin, Operario | Catálogo de servicios | Implementado |
 | POST / PUT | `/servicios`, `/servicios/:id` | Admin | Crear, editar o desactivar servicio | Pendiente |
-| GET | `/ordenes/activas` | Admin, Operario | Órdenes en curso con el estado de sus correos (HU-46) | Implementado |
-| POST | `/ordenes` | Admin, Operario | Registrar ingreso y enviar correo de confirmación (HU-08, HU-46 CA1) | Implementado |
-| PATCH | `/ordenes/:id/estado` | Admin, Operario | Avanzar estado; al quedar `listo` envía el correo de aviso (HU-10, HU-46 CA2) | Implementado |
-| GET | `/promociones` | Admin | Listar promociones (el operario ya no las ve, HU-59 CA1) | Implementado |
+| GET | `/ordenes/activas` | Admin, Operario | Órdenes en curso para el dashboard | Pendiente |
+| POST | `/ordenes` | Admin, Operario | Crear orden de servicio | Pendiente |
+| PATCH | `/ordenes/:id/estado` | Admin, Operario | Avanzar estado de la orden | Pendiente |
+| GET | `/promociones` | Admin, Operario | Listar promociones | Pendiente |
 | POST / PUT | `/promociones`, `/promociones/:id` | Admin | Crear o editar promoción | Pendiente |
 | GET / POST / PUT | `/usuarios`, `/usuarios/:id` | Admin | Gestión de operarios | Pendiente |
 | GET | `/establecimiento` | Admin, Operario | Datos y branding del establecimiento | Implementado |
-| PUT | `/establecimiento/branding` | Admin | Actualizar logo y colores | Implementado |
-| GET | `/superadmin/establecimientos?estado=&buscar=` | Superadmin | Listado global con días de prueba restantes y administrador inicial (HU-57) | Implementado |
-| POST | `/superadmin/establecimientos` | Superadmin | Registrar establecimiento e invitar a su administrador (HU-57 CA1) | Implementado |
-| POST | `/superadmin/establecimientos/:id/activar` | Superadmin | Activar o habilitar (HU-57) | Implementado |
-| POST | `/superadmin/establecimientos/:id/suspender` | Superadmin | Suspender sin borrar datos, con motivo opcional (HU-57 CA3) | Implementado |
-| POST | `/superadmin/establecimientos/:id/reenviar-invitacion` | Superadmin | Reenviar la invitación si aún no se aceptó (HU-57) | Implementado |
+| PUT | `/establecimiento/branding` | Admin | Actualizar logo y colores | Pendiente |
 
 Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle la historia correspondiente.
 
@@ -287,7 +271,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 
 ## 8. Trazabilidad con el backlog
 
-Épica 1 — Panel administrativo web (`ZARU-1`). Total estimado: **55 story points**.
+Épica 1 — Panel administrativo web (`ZARU-1`), historias del Sprint 1.
 
 | Jira | Historia | Puntos | MoSCoW | Frontend | Backend |
 |---|---|---|---|---|---|
@@ -301,118 +285,28 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 | ZARU-9 | HU-08 Orden de servicio | 5 | Must | `Dashboard.jsx` | `ordenes.routes.js` |
 | ZARU-10 | HU-09 Dashboard en tiempo real | 8 | Must | `Dashboard.jsx` | Supabase Realtime |
 | ZARU-11 | HU-10 Actualizar estado operativo | 5 | Must | `Dashboard.jsx` | `ordenes.routes.js` |
-| ZARU-12 | HU-11 Alertas de vehículos sin actualizar | 3 | Could | `Dashboard.jsx` | — |
+| ZARU-12 | HU-11 Alertas de vehículos sin actualizar | 3 | Could | `Dashboard.jsx` · `AlertaDemora.jsx` | — |
 | ZARU-13 | HU-12 Promociones | 5 | Should | `Promociones.jsx` | `promociones.routes.js` |
 | ZARU-14 | HU-13 Branding de la sede | 5 | Should | `Branding.jsx` | `establecimiento.routes.js` |
+| ZARU-66 | HU-14 Recuperar la contraseña | 2 | Should | `RecuperarContrasena.jsx` · `RestablecerContrasena.jsx` | Supabase Auth |
+| ZARU-68 | HU-16 Reportes de servicios y afluencia | 5 | Could | `Reportes.jsx` | `reportes.routes.js` |
 
-### HU-46, HU-57 y HU-59 (Épica 4)
+Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
 
-Épica 4 — Arquitectura y backend (`ZARU-48`).
-
-| Jira | Historia | Puntos | MoSCoW | Frontend | Backend | Pruebas |
-|---|---|---|---|---|---|---|
-| ZARU-53 | HU-46 Enviar notificaciones por correo al cliente | 3 | Must | `Dashboard.jsx`, `FormularioIngreso.jsx`, `lib/avisoCorreo.js` | `ordenes.controller.js`, `shared/notificaciones.js`, `shared/correo.js`, `shared/plantillasCorreo.js` | `backend/tests/unit/{correo,notificaciones,ordenes,tenant-detalle}.test.js`, `frontend/tests/dashboard-correo.test.jsx` |
-| ZARU-63 | HU-57 Registrar y activar un establecimiento afiliado | 5 | Should | `Superadmin.jsx`, `FormularioEstablecimiento.jsx`, `lib/establecimientos.js` | `superadmin.controller.js`, `superadmin.routes.js`, `superadmin.schemas.js` | `backend/tests/unit/superadmin.*.test.js`, `backend/tests/integration/superadmin.test.js`, `frontend/tests/superadmin.test.jsx` |
-| ZARU-65 | HU-59 Mostrar a cada usuario solo lo que le corresponde según su rol | 3 | Should | `lib/permisos.js`, `RutaProtegida.jsx` (`RequiereModulo`), `Layout.jsx`, `App.jsx` | `shared/permisos.js`, `requiereModulo` en `middlewares/auth.js`, `routes/index.js`, `me.controller.js` | `backend/tests/unit/permisos-por-rol.test.js`, `frontend/tests/permisos-rutas.test.jsx` |
-
-#### HU-46 · Correos al cliente
-
-Cómo se cumplen los criterios:
-
-- **CA1 — correo al registrar el ingreso.** `POST /ordenes` crea la orden en `recibido` con los servicios activos elegidos, guarda precio y duración del momento (`orden_servicios`), registra el primer `historial_estados` y envía al cliente el correo *"Recibimos tu vehículo ABC123"* con la lista de servicios y el total. En el panel: botón **+ Ingresar vehículo** del Dashboard → buscar placa → marcar servicios → **Registrar ingreso**.
-- **CA2 — correo al pasar a "Listo".** `PATCH /ordenes/:id/estado` solo permite avanzar al estado siguiente (`recibido → en_lavado → listo → entregado`), deja el historial con usuario y hora y, al quedar `listo`, envía *"Tu vehículo ABC123 está listo para recoger"* con el valor a pagar. En el panel: botón **Marcar como listo** en la tarjeta (un clic).
-- **CA3 — nunca bloquea al operario.** El correo se envía **en segundo plano, después de responder** a la petición. Si el cliente no tiene correo, pidió no recibir avisos (`consentimientos` `notificaciones_servicio` revocado) o el proveedor falla, la orden queda guardada igual y la respuesta solo informa `notificacion: { estado: "omitida" | "error", motivo }`. El panel lo muestra como advertencia ("El cliente no tiene correo registrado: avísale por otro medio"), no como error.
-
-Diseño:
-
-- **Patrón outbox** sobre la tabla `notificaciones` (ya existía desde HU-42): cada correo queda como fila `pendiente → enviando → enviada | fallida`, con intentos, último error y `clave_dedupe = <orden>:<evento>:correo` para que el mismo aviso nunca salga dos veces.
-- **Reintentos:** hasta 3 intentos (esperas de 2 s y 4 s) con tiempo máximo de 10 s por intento. La política completa de 1-2-4 minutos y canal alterno es de HU-33 (F6).
-- **Seguridad:** el destino se guarda cifrado igual que el correo del cliente (HU-50), los logs muestran el correo enmascarado (`l***@correo.com`), las plantillas escapan todo dato de la base y usan el color y logo de la sede (HU-13). Todo acceso a datos pasa por `req.tenant` (HU-41).
-- **Proveedores** (`CORREO_PROVEEDOR`): `consola` en desarrollo y pruebas, `smtp` (nodemailer) o `resend`.
-- El tablero muestra en cada tarjeta el estado del correo (*Correo enviado · ingreso*, *Correo no enviado · listo*, *Sin correo*) y se actualiza solo unos segundos después del envío.
-- **No requiere migraciones nuevas.** Para HU-46 se implementaron también, en lo necesario, los endpoints de órdenes de HU-08, HU-09 y HU-10 que respondían `501`. Queda pendiente de HU-12 CA3 aplicar la promoción vigente al total (hoy `descuento = 0`).
-
-#### HU-57 · Mejoras al registro y activación de establecimientos
-
-- **Interfaz nueva del panel de plataforma** (`/superadmin`): barra superior con la sesión, tarjetas de resumen por estado que también filtran el listado, buscador por nombre o correo del administrador (sin distinguir tildes), aviso de pruebas que vencen en 3 días o menos, columna de administrador con *Invitación pendiente* / *Cuenta activa*, y vista adaptada a celular.
-- **Registro en ventana modal** con validación por campo antes de enviar, planes como tarjetas con descripción, periodo de prueba con control deslizante (14 a 30 días) y la fecha en que terminará; los errores que devuelve la API (por ejemplo, correo ya registrado) se muestran junto al campo.
-- **Confirmación con ventana modal** (en lugar de `window.confirm`) que explica el efecto: al suspender, los usuarios no pueden entrar pero los datos se conservan (CA3); permite registrar un **motivo** que queda en la auditoría.
-- **Reenviar invitación** (`POST /superadmin/establecimientos/:id/reenviar-invitacion`) cuando el administrador aún no la aceptó.
-- **Reglas de transición en la API:** solo se activa desde `prueba`, `pendiente_activacion` o `suspendido`, y solo se suspende desde `prueba`, `activo` o `pendiente_activacion` (`409` en otro caso). La actualización exige el estado leído, así dos superadministradores no se pisan.
-- **Auditoría** de registro, activación, suspensión y reenvío (`superadmin.establecimiento.*`).
-- El listado acepta `?estado=` y `?buscar=` e incluye `dias_restantes` y `administrador { nombre, correo, invitacionAceptada }`.
-- **Corrección:** `/aceptar-invitacion` ya no se muestra dentro del menú del panel; el administrador invitado define su contraseña en una pantalla propia.
-- Las migraciones de HU-57 (`20261103100000_hu57_rol_superadmin.sql` y `20261103100100_hu57_establecimientos_y_pruebas.sql`) deben estar aplicadas en Supabase (ver [Migraciones](#migraciones-de-base-de-datos-antes-del-merge-a-main)). Para crear el primer superadministrador: crear el usuario en Supabase Auth y ejecutar `npm run configurar:superadmin` en `backend/` con `ZARU_SUPERADMIN_USER_ID` y `ZARU_SUPERADMIN_NOMBRE`.
-
-#### HU-59 · Cada rol ve solo lo suyo
-
-Una sola matriz de permisos en [`backend/src/shared/permisos.js`](backend/src/shared/permisos.js):
-
-| Módulo | Admin | Operario | Superadmin |
-|---|:---:|:---:|:---:|
-| Dashboard (órdenes y estados) | ✓ | ✓ | |
-| Clientes | ✓ | ✓ | |
-| Vehículos | ✓ | ✓ | |
-| Servicios (configuración) | ✓ | solo lectura del catálogo para registrar ingresos | |
-| Promociones | ✓ | | |
-| Usuarios | ✓ | | |
-| Branding | ✓ | | |
-| Reportes (cuando exista) | ✓ | | |
-| Administración de la plataforma | | | ✓ |
-
-- **CA1:** el operario ve en el menú solo *Dashboard, Clientes y Vehículos*. La API le niega promociones, usuarios, configuración de servicios y branding.
-- **CA2:** el administrador ve todos los módulos, siempre con los datos de su establecimiento (aislamiento HU-41).
-- **CA3:** si alguien escribe a mano una dirección que no le corresponde (por ejemplo `/promociones` siendo operario, o `/superadmin` siendo administrador), el panel no muestra la página, lo devuelve a su inicio y muestra *"No tienes acceso a esa sección con tu rol"*. La API además responde `403 SIN_PERMISO` y registra el intento en la auditoría (`requiereModulo`).
-- `GET /me` devuelve `permisos: { modulos, inicio }`; el panel arma el menú con esa lista y comparte el perfil con todas las páginas (`usePerfil`), así ya no se consulta `/me` una vez por página.
-- **Cambio de comportamiento:** antes el operario podía consultar `GET /promociones`; ahora recibe `403` (se actualizó la prueba de integración de HU-12).
-
-#### Cómo ejecutar el backend, el frontend y las pruebas
-
-1. **Instalar dependencias** (una vez, o cuando cambie `package.json`):
-
-   ```bash
-   cd backend && npm install
-   cd ../frontend && npm install
-   ```
-
-2. **Configurar las variables:** copiar `backend/.env.example` a `backend/.env` y `frontend/.env.example` a `frontend/.env`, y llenar `SUPABASE_SERVICE_ROLE_KEY` y `ZARU_CLAVE_CIFRADO` (ver [Variables de entorno](#variables-de-entorno)). Para ver los correos sin enviarlos deja `CORREO_PROVEEDOR=consola`: aparecerán en la terminal del backend como `[correo:consola] Para l***@correo.com · Recibimos tu vehículo…`. Para enviarlos de verdad usa `smtp` o `resend`.
-
-3. **Levantar el backend** (terminal 1) — queda en `http://localhost:4000`, documentación en `http://localhost:4000/api/docs`:
-
-   ```bash
-   cd backend
-   npm run dev
-   ```
-
-4. **Levantar el frontend** (terminal 2) — queda en `http://localhost:5173`:
-
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-
-5. **Ejecutar las pruebas:**
-
-   ```bash
-   # Backend: solo unitarias (no tocan Supabase)
-   cd backend
-   npm run test:unit
-
-   # Backend: unitarias + integración (las de integración necesitan backend/.env y backend/.env.spike.local)
-   npm test
-
-   # Validar el contrato OpenAPI
-   npm run lint:openapi
-
-   # Frontend: pruebas del panel
-   cd ../frontend
-   npm test
-   ```
-
-6. **Probar a mano los criterios de aceptación:**
-   - **HU-46:** entra como administrador u operario → *Dashboard* → **+ Ingresar vehículo** → busca la placa de un vehículo cuyo cliente tenga correo → elige servicios → **Registrar ingreso**: llega (o aparece en la consola) el correo de ingreso y la tarjeta muestra *Correo enviado · ingreso*. Pulsa **Pasar a lavado** y luego **Marcar como listo**: llega el correo de listo. Repite con un cliente sin correo: el estado cambia igual y se muestra la advertencia.
-   - **HU-57:** entra como superadministrador → **+ Registrar establecimiento** → el administrador recibe la invitación y define su contraseña en `/aceptar-invitacion`. Suspende el establecimiento: sus usuarios reciben *"El establecimiento está suspendido"* al iniciar sesión; habilítalo y vuelven a entrar con sus datos intactos.
-   - **HU-59:** entra como operario: el menú solo muestra Dashboard, Clientes y Vehículos; escribe `http://localhost:5173/promociones` en la barra de direcciones: vuelves al Dashboard con el aviso de acceso.
+| Jira | Historia | Puntos | Implementación |
+|---|---|---|---|
+| ZARU-47 | HU-41 Aislamiento multi-tenant | 8 | `shared/tenant.js` · RLS y llaves compuestas |
+| ZARU-49 | HU-42 Base de datos | 8 | `supabase/migrations/` · `database/schema.sql` |
+| ZARU-50 | HU-43 API REST | 5 | `openapi/openapi.yaml` · `/api/v1` |
+| ZARU-51 | HU-44 Autenticación y roles | 5 | `middlewares/auth.js` · hook de claims |
+| ZARU-53 | HU-46 Notificaciones por correo | 3 | `shared/notificaciones.js` · `shared/correo.js` |
+| ZARU-54 | HU-47 Despliegue en la nube | 3 | `render.yaml` · Vercel · prueba de humo |
+| ZARU-57 | HU-50 Cifrado y secretos | 3 | `shared/cifrado.js` · `middlewares/https.js` · gitleaks |
+| ZARU-58 | HU-51 Autorización Habeas Data | 3 | `politicas_datos` · `consentimientos` |
+| ZARU-59 | HU-52 Eliminar datos del cliente | 3 | `ConfirmarEliminarCliente.jsx` · `clientes.routes.js` |
+| ZARU-63 | HU-57 Registrar establecimiento afiliado | 5 | `Superadmin.jsx` · `superadmin.routes.js` |
+| ZARU-64 | HU-58 Spike de arquitectura | 3 | `docs/arquitectura/spike-hu58.md` |
+| ZARU-65 | HU-59 Acceso según el rol | 3 | `lib/rutas.js` · `RutaProtegida.jsx` · `requiereRol` |
 
 ---
 
@@ -421,7 +315,7 @@ Una sola matriz de permisos en [`backend/src/shared/permisos.js`](backend/src/sh
 - **Ramas:** `main` (versión desplegada), `develop` (integración del sprint) y `feature/ZARU-<n>-<descripcion>` por historia de usuario.
 - **Commits:** prefijados con la clave de Jira, por ejemplo `ZARU-4: registro de clientes`.
 - **Pull Requests:** hacia `develop`, con al menos una aprobación y verificación de los criterios de aceptación. Al cierre de cada sprint, `develop` se integra en `main`.
-- **Integración continua:** GitHub Actions ejecuta las pruebas y el build del frontend, valida el backend y su contrato OpenAPI, ejecuta sus pruebas y escanea secretos con gitleaks en cada Pull Request hacia `main` o `develop`.
+- **Integración continua:** GitHub Actions compila el frontend, valida el backend, ejecuta sus pruebas y escanea secretos con gitleaks en cada Pull Request hacia `main` o `develop`.
 
 Las convenciones completas están en [`docs/CONTRIBUIR.md`](docs/CONTRIBUIR.md).
 
@@ -490,7 +384,6 @@ El backend valida sus variables al arrancar (`backend/src/config/env.js`): en pr
    | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API (secreta) |
    | `ZARU_CLAVE_CIFRADO` | `openssl rand -base64 32`; si ya hay correos cifrados, la misma clave con la que se cifraron |
    | `FRONTEND_URL` | Dominio del paso 1, con `https://` y sin `/` final |
-   | `CORREO_PROVEEDOR`, `CORREO_REMITENTE`, `RESEND_API_KEY` | HU-46: `resend` con su clave y un remitente de dominio verificado (o `smtp` con `SMTP_*`). Con `consola` no se envían correos |
 
    `NODE_ENV=production` y `NODE_VERSION=22` ya vienen en el Blueprint. Al terminar, comprobar `https://<servicio>.onrender.com/api/v1/health`.
 3. **Panel en Vercel.** **Add New → Project**, mismo repositorio, nombre del paso 1 y **Root Directory** `frontend`. Variables:

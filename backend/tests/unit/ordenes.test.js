@@ -1,212 +1,283 @@
-// HU-08, HU-10 y HU-46 — Controlador de órdenes: el correo se dispara en el momento correcto y
-// nunca bloquea ni revierte la operación del operario.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { crearTenantFalso, ejecutar } from '../helpers/tenantFalso.js';
+// HU-08: validación del ingreso y creación de la orden. No requiere Supabase: usa un req.tenant falso.
+import { describe, it, expect, vi } from 'vitest';
 
-const { prepararCorreo, enSegundoPlano } = vi.hoisted(() => ({
-  prepararCorreo: vi.fn(),
-  enSegundoPlano: vi.fn(),
-}));
-vi.mock('../../src/shared/notificaciones.js', () => ({
-  prepararCorreo,
-  enSegundoPlano,
-  EVENTOS: { RECIBIDA: 'orden.recibida', LISTA: 'orden.lista' },
-}));
+process.env.ZARU_CLAVE_CIFRADO ||= Buffer.alloc(32).toString('base64');
 
-const { crear, cambiarEstado, listarActivas, SIGUIENTE_ESTADO } = await import('../../src/controllers/ordenes.controller.js');
-const { ordenNueva, cambioEstado } = await import('../../src/schemas/ordenes.schemas.js');
+// HU-46: el aviso al cliente se prueba en notificaciones.test.js; aquí se aísla para no tocar el tenant falso.
+vi.mock('../../src/shared/notificaciones.js', () => ({ programarNotificacion: vi.fn(async () => ({ estado: 'omitida' })) }));
 
-const VEHICULO_ID = 'aaaaaaaa-0000-4000-8000-00000000000a';
-const S1 = 'bbbbbbbb-0000-4000-8000-00000000000b';
-const S2 = 'cccccccc-0000-4000-8000-00000000000c';
-const ORDEN_ID = 'dddddddd-0000-4000-8000-00000000000d';
-const ctx = { usuarioId: 'ffffffff-0000-4000-8000-00000000000f', rol: 'operario' };
+import { cambioEstadoOrden, ordenNueva } from '../../src/schemas/ordenes.schemas.js';
+import { cambiarEstado, crear } from '../../src/controllers/ordenes.controller.js';
+import { AppError, noEncontrado } from '../../src/shared/errores.js';
+import { descifrar } from '../../src/shared/cifrado.js';
 
-const enviar = vi.fn();
-beforeEach(() => {
-  prepararCorreo.mockReset().mockResolvedValue({ resumen: { canal: 'correo', estado: 'pendiente', destino: 'l***@x.co' }, enviar });
-  enSegundoPlano.mockReset();
-  vi.spyOn(console, 'error').mockImplementation(() => {});
-});
+const VEHICULO = '11111111-1111-4111-8111-111111111111';
+const SERVICIO_1 = '22222222-2222-4222-8222-222222222222';
+const SERVICIO_2 = '33333333-3333-4333-8333-333333333333';
+const CLIENTE_EXISTENTE = '44444444-4444-4444-8444-444444444444';
 
-function tenantParaCrear({ activa = [], servicios } = {}) {
-  const tenant = crearTenantFalso({
-    ordenes: [{ data: activa, error: null }],
-    servicios: [{ data: servicios ?? [
-      { id: S1, nombre: 'Lavado', precio: '30000.00', duracion_min: 30, activo: true },
-      { id: S2, nombre: 'Encerado', precio: '15000.00', duracion_min: 20, activo: true },
-    ], error: null }],
-  });
-  tenant.obtener.mockResolvedValue({ id: VEHICULO_ID, placa: 'ABC123', tipo: 'carro' });
-  tenant.crear.mockImplementation(async (tabla, valores) => ({ id: ORDEN_ID, created_at: '2026-11-03T15:00:00Z', ...valores }));
+const base = { vehiculoId: VEHICULO, servicioIds: [SERVICIO_1] };
+
+const errores = (datos) => ordenNueva.safeParse({ ...base, ...datos }).error?.issues.map((i) => [i.path.join('.'), i.message]);
+
+const cliente = {
+  nombre: 'Ana Gómez',
+  telefono: '3001234567',
+  correo: 'ana@example.com',
+  autorizacionDatos: true,
+  politicaVersion: '1.1',
+};
+const vehiculo = { placa: 'xyz-987', tipo: 'carro', marca: 'Mazda', color: 'Rojo' };
+
+const ORDEN = {
+  id: '55555555-5555-4555-8555-555555555555',
+  estado: 'recibido',
+  subtotal: 55000,
+  descuento: 0,
+  total: 55000,
+  codigo_seguimiento: 'ABCDEFGHJK',
+  entrega_estimada_at: '2026-11-02T15:10:00.000Z',
+  observaciones: null,
+  created_at: '2026-11-02T14:00:00.000Z',
+  entregada_at: null,
+  vehiculo: { id: VEHICULO, placa: 'XYZ987', tipo: 'carro', marca: 'Mazda', color: 'Rojo', cliente: { id: 'c1', nombre: 'Ana Gómez' } },
+  servicios: [
+    { precio: 25000, duracion_min: 30, descuento: 0, servicio: { id: SERVICIO_1, nombre: 'Lavado básico' } },
+    { precio: 30000, duracion_min: 40, descuento: 0, servicio: { id: SERVICIO_2, nombre: 'Lavado de motor' } },
+  ],
+  promocion: null,
+};
+
+/** Consulta encadenable mínima para el patrón `.eq(...).maybeSingle()` del controlador. */
+function consulta(respuesta) {
+  const q = { eq: () => q, maybeSingle: async () => respuesta };
+  return q;
+}
+
+function tenantCon({ rpc = async () => ORDEN.id, consultas = [], detalle = ORDEN } = {}) {
+  const respuestas = [...consultas];
+  const tenant = {
+    obtener: vi.fn(async (tabla) => (tabla === 'ordenes' ? detalle : { id: tabla === 'vehiculos' ? VEHICULO : 'c1' })),
+    listar: vi.fn(() => consulta(respuestas.shift())),
+    rpc: vi.fn(async (funcion, argumentos) => rpc(funcion, argumentos)),
+  };
   return tenant;
 }
 
-describe('HU-08 + HU-46 CA1 · registrar ingreso', () => {
-  it('crea la orden en "recibido" con el total de los servicios y prepara el correo de ingreso', async () => {
-    const tenant = tenantParaCrear();
-    const { res, error } = await ejecutar(crear, { tenant, ctx, body: { vehiculoId: VEHICULO_ID, servicios: [S1, S2] } });
+async function ejecutar(req) {
+  const res = { status: vi.fn(() => res), json: vi.fn() };
+  const next = vi.fn();
+  await crear(req, res, next);
+  return { res, datos: res.json.mock.calls[0]?.[0], error: next.mock.calls[0]?.[0] };
+}
 
-    expect(error).toBeUndefined();
-    expect(res.statusCode).toBe(201);
-    expect(tenant.crear).toHaveBeenCalledWith('ordenes', expect.objectContaining({
-      vehiculo_id: VEHICULO_ID, estado: 'recibido', subtotal: 45000, descuento: 0, total: 45000, creada_por: ctx.usuarioId,
-    }), expect.any(String));
-    // HU-07 CA2: guarda precio y duración del momento.
-    expect(tenant.crearDetalle).toHaveBeenCalledWith('orden_servicios', expect.objectContaining({ id: ORDEN_ID }), [
-      { servicio_id: S1, precio: '30000.00', duracion_min: 30 },
-      { servicio_id: S2, precio: '15000.00', duracion_min: 20 },
-    ], 'servicio_id');
-    // HU-10 CA1: primer registro del historial.
-    expect(tenant.crearDetalle).toHaveBeenCalledWith('historial_estados', expect.anything(), { estado: 'recibido', usuario_id: ctx.usuarioId }, 'id');
+// En la API el middleware `validar({ body: ordenNueva })` limpia y normaliza el cuerpo antes del controlador.
+const peticion = (cuerpo, tenant) => ({
+  tenant,
+  ctx: { usuarioId: 'p1' },
+  ip: '127.0.0.1',
+  body: ordenNueva.parse(cuerpo),
+});
 
-    expect(prepararCorreo).toHaveBeenCalledWith(tenant, { evento: 'orden.recibida', ordenId: ORDEN_ID });
-    expect(res.body.notificacion).toEqual({ canal: 'correo', estado: 'pendiente', destino: 'l***@x.co' });
-    expect(res.body.servicios.map((s) => s.nombre)).toEqual(['Lavado', 'Encerado']);
+describe('esquema de la orden', () => {
+  it('acepta un vehículo registrado y elimina servicios repetidos', () => {
+    const datos = ordenNueva.parse({ ...base, servicioIds: [SERVICIO_1, SERVICIO_1, SERVICIO_2], observaciones: '  ' });
+    expect(datos.servicioIds).toEqual([SERVICIO_1, SERVICIO_2]);
+    expect(datos.observaciones).toBeNull();
   });
 
-  it('CA3: el correo se envía en segundo plano DESPUÉS de responder al operario', async () => {
-    const tenant = tenantParaCrear();
-    const orden = [];
-    const { res } = await ejecutar(crear, { tenant, ctx, body: { vehiculoId: VEHICULO_ID, servicios: [S1, S2] } });
-    orden.push(res.json.mock.invocationCallOrder[0], enSegundoPlano.mock.invocationCallOrder[0]);
-
-    expect(enSegundoPlano).toHaveBeenCalledWith(enviar);
-    expect(orden[0]).toBeLessThan(orden[1]);
+  it('acepta el alta de cliente y vehículo y normaliza la placa', () => {
+    const datos = ordenNueva.parse({ servicioIds: [SERVICIO_1], nuevoVehiculo: { cliente, vehiculo } });
+    expect(datos.nuevoVehiculo.vehiculo.placa).toBe('XYZ987');
   });
 
-  it('CA3: si el cliente no tiene correo la orden se crea igual y se informa el motivo', async () => {
-    prepararCorreo.mockResolvedValue({ resumen: { canal: 'correo', estado: 'omitida', motivo: 'sin_correo' }, enviar });
-    const tenant = tenantParaCrear();
-    const { res, error } = await ejecutar(crear, { tenant, ctx, body: { vehiculoId: VEHICULO_ID, servicios: [S1, S2] } });
-
-    expect(error).toBeUndefined();
-    expect(res.statusCode).toBe(201);
-    expect(res.body.notificacion).toMatchObject({ estado: 'omitida', motivo: 'sin_correo' });
+  it('exige exactamente una forma de indicar el vehículo', () => {
+    expect(errores({ vehiculoId: undefined })[0][0]).toBe('vehiculoId');
+    expect(errores({ nuevoVehiculo: { cliente, vehiculo } })[0][1]).toContain('no ambos');
   });
 
-  it('rechaza servicios desactivados o de otro establecimiento', async () => {
-    const tenant = tenantParaCrear({ servicios: [{ id: S1, nombre: 'Lavado', precio: 1, duracion_min: 1, activo: false }] });
-    const { error } = await ejecutar(crear, { tenant, ctx, body: { vehiculoId: VEHICULO_ID, servicios: [S1, S2] } });
-    expect(error.codigo).toBe('VALIDACION');
-    expect(tenant.crear).not.toHaveBeenCalled();
-    expect(prepararCorreo).not.toHaveBeenCalled();
+  it('exige al menos un servicio y un UUID válido', () => {
+    expect(errores({ servicioIds: [] })[0][0]).toBe('servicioIds');
+    expect(errores({ servicioIds: ['no-es-id'] })[0][0]).toBe('servicioIds.0');
   });
 
-  it('no permite una segunda orden en curso para el mismo vehículo', async () => {
-    const tenant = tenantParaCrear({ activa: [{ id: ORDEN_ID }] });
-    const { error } = await ejecutar(crear, { tenant, ctx, body: { vehiculoId: VEHICULO_ID, servicios: [S1] } });
-    expect(error.codigo).toBe('CONFLICTO');
-    expect(error.message).toContain('ABC123');
-  });
-
-  it('si no se pueden guardar los servicios, borra la orden y no envía correo', async () => {
-    const tenant = tenantParaCrear();
-    tenant.crearDetalle.mockRejectedValueOnce(new Error('fallo'));
-    const { error } = await ejecutar(crear, { tenant, ctx, body: { vehiculoId: VEHICULO_ID, servicios: [S1, S2] } });
-    expect(error).toBeDefined();
-    expect(tenant.eliminar).toHaveBeenCalledWith('ordenes', ORDEN_ID, 'Orden');
-    expect(prepararCorreo).not.toHaveBeenCalled();
-  });
-
-  it('valida la petición: vehículo y al menos un servicio, sin repetidos', () => {
-    expect(ordenNueva.safeParse({ vehiculoId: VEHICULO_ID, servicios: [] }).success).toBe(false);
-    expect(ordenNueva.safeParse({ servicios: [S1] }).success).toBe(false);
-    expect(ordenNueva.parse({ vehiculoId: VEHICULO_ID, servicios: [S1, S1] }).servicios).toEqual([S1]);
+  it('exige la autorización y una placa válida en el vehículo nuevo', () => {
+    expect(errores({ vehiculoId: undefined, nuevoVehiculo: { cliente: { ...cliente, autorizacionDatos: false }, vehiculo } })[0][0]).toBe(
+      'nuevoVehiculo.cliente.autorizacionDatos',
+    );
+    expect(errores({ vehiculoId: undefined, nuevoVehiculo: { cliente, vehiculo: { ...vehiculo, placa: 'ABC12D' } } })[0][0]).toBe(
+      'nuevoVehiculo.vehiculo.placa',
+    );
   });
 });
 
-describe('HU-10 + HU-46 CA2 · cambiar estado', () => {
-  function tenantEn(estado) {
-    const tenant = crearTenantFalso();
-    tenant.obtener.mockResolvedValue({ id: ORDEN_ID, estado });
-    tenant.actualizar.mockImplementation(async (tabla, id, cambios) => ({ id, total: 45000, ...cambios }));
-    return tenant;
-  }
-
-  it('sigue la secuencia recibido → en_lavado → listo → entregado', () => {
-    expect(SIGUIENTE_ESTADO).toEqual({ recibido: 'en_lavado', en_lavado: 'listo', listo: 'entregado' });
-    expect(cambioEstado.safeParse({ estado: 'lavando' }).success).toBe(false);
-  });
-
-  it('CA2: al pasar a "listo" prepara el aviso para recoger y lo envía en segundo plano', async () => {
-    const tenant = tenantEn('en_lavado');
-    const { res, error } = await ejecutar(cambiarEstado, { tenant, ctx, params: { id: ORDEN_ID }, body: { estado: 'listo' } });
+describe('POST /ordenes', () => {
+  it('CA1: crea la orden de un vehículo registrado y devuelve total, código y entrega estimada', async () => {
+    const tenant = tenantCon();
+    const { res, datos, error } = await ejecutar(peticion({ ...base, observaciones: 'Rayón en la puerta' }, tenant));
 
     expect(error).toBeUndefined();
-    expect(res.body).toMatchObject({ id: ORDEN_ID, estado: 'listo', notificacion: { estado: 'pendiente' } });
-    expect(prepararCorreo).toHaveBeenCalledWith(tenant, { evento: 'orden.lista', ordenId: ORDEN_ID });
-    expect(enSegundoPlano).toHaveBeenCalledWith(enviar);
-    // Bloqueo optimista: solo actualiza si sigue en el estado leído.
-    expect(tenant.actualizar).toHaveBeenCalledWith('ordenes', ORDEN_ID, expect.objectContaining({ estado: 'listo' }), expect.any(String), 'Orden', { estado: 'en_lavado' });
-    expect(tenant.crearDetalle).toHaveBeenCalledWith('historial_estados', expect.anything(), { estado: 'listo', usuario_id: ctx.usuarioId }, 'id');
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(datos).toMatchObject({ estado: 'recibido', total: 55000, codigoSeguimiento: 'ABCDEFGHJK' });
+    expect(datos.servicios[0]).toEqual({ id: SERVICIO_1, nombre: 'Lavado básico', precio: 25000, duracionMin: 30, descuento: 0 });
+    expect(tenant.obtener).toHaveBeenNthCalledWith(1, 'vehiculos', VEHICULO, 'id', 'Vehículo');
+    expect(tenant.rpc).toHaveBeenCalledWith('crear_orden', {
+      p_vehiculo_id: VEHICULO,
+      p_servicio_ids: [SERVICIO_1],
+      p_observaciones: 'Rayón en la puerta',
+      p_creada_por: 'p1',
+      p_cliente: null,
+      p_vehiculo: null,
+    });
   });
 
-  it('los demás cambios de estado no envían correo', async () => {
-    for (const [desde, hacia] of [['recibido', 'en_lavado'], ['listo', 'entregado']]) {
-      prepararCorreo.mockClear();
-      const { res } = await ejecutar(cambiarEstado, { tenant: tenantEn(desde), ctx, params: { id: ORDEN_ID }, body: { estado: hacia } });
-      expect(res.body.notificacion).toBeNull();
-      expect(prepararCorreo).not.toHaveBeenCalled();
-    }
-  });
+  it('CA2: con placa nueva cifra el correo y envía cliente y vehículo a la misma función', async () => {
+    const tenant = tenantCon();
+    const { res, error } = await ejecutar(peticion({ servicioIds: [SERVICIO_1], nuevoVehiculo: { cliente, vehiculo } }, tenant));
 
-  it('al entregar guarda la fecha de entrega (queda en el historial del vehículo)', async () => {
-    const tenant = tenantEn('listo');
-    await ejecutar(cambiarEstado, { tenant, ctx, params: { id: ORDEN_ID }, body: { estado: 'entregado' } });
-    expect(tenant.actualizar.mock.calls[0][2]).toHaveProperty('entregada_at');
-  });
-
-  it('CA3: si falla el correo de "listo", el cambio de estado se guarda y responde 200', async () => {
-    prepararCorreo.mockResolvedValue({ resumen: { canal: 'correo', estado: 'error', motivo: 'preparacion' }, enviar });
-    const tenant = tenantEn('en_lavado');
-    const { res, error } = await ejecutar(cambiarEstado, { tenant, ctx, params: { id: ORDEN_ID }, body: { estado: 'listo' } });
     expect(error).toBeUndefined();
-    expect(res.statusCode).toBe(200);
-    expect(res.body.estado).toBe('listo');
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(tenant.obtener).toHaveBeenCalledTimes(1); // Solo se consulta la orden creada; no hay vehículo previo.
+    const [, argumentos] = tenant.rpc.mock.calls[0];
+    expect(argumentos.p_vehiculo_id).toBeNull();
+    expect(argumentos.p_vehiculo).toEqual({ placa: 'XYZ987', tipo: 'carro', marca: 'Mazda', color: 'Rojo' });
+    expect(argumentos.p_cliente.correo).not.toBe(cliente.correo);
+    expect(descifrar(argumentos.p_cliente.correo)).toBe(cliente.correo);
+    expect(argumentos.p_cliente).toMatchObject({ canal: 'panel', ip: '127.0.0.1' });
   });
 
-  it('no permite saltar estados', async () => {
-    const tenant = tenantEn('recibido');
-    const { error } = await ejecutar(cambiarEstado, { tenant, ctx, params: { id: ORDEN_ID }, body: { estado: 'listo' } });
-    expect(error.codigo).toBe('VALIDACION');
-    expect(tenant.actualizar).not.toHaveBeenCalled();
-  });
-
-  it('una orden entregada ya no cambia', async () => {
-    const { error } = await ejecutar(cambiarEstado, { tenant: tenantEn('entregado'), ctx, params: { id: ORDEN_ID }, body: { estado: 'listo' } });
-    expect(error.codigo).toBe('CONFLICTO');
-  });
-
-  it('si otro operario la movió al mismo tiempo, responde conflicto en lugar de pisar el cambio', async () => {
-    const tenant = tenantEn('en_lavado');
-    const { noEncontrado } = await import('../../src/shared/errores.js');
-    tenant.actualizar.mockRejectedValue(noEncontrado('Orden'));
-    const { error } = await ejecutar(cambiarEstado, { tenant, ctx, params: { id: ORDEN_ID }, body: { estado: 'listo' } });
-    expect(error.codigo).toBe('CONFLICTO');
-    expect(prepararCorreo).not.toHaveBeenCalled();
-  });
-});
-
-describe('HU-09 + HU-46 · órdenes activas', () => {
-  it('informa si el cliente tiene correo y el estado de cada correo, sin exponer la dirección', async () => {
-    const tenant = crearTenantFalso({
-      ordenes: [{ data: [{
-        id: ORDEN_ID, estado: 'listo', estado_desde: 'x', created_at: 'y', subtotal: 1, descuento: 0, total: 1,
-        vehiculos: { id: VEHICULO_ID, placa: 'ABC123', tipo: 'carro', clientes: { id: 'c1', nombre: 'Ana', correo: 'v1:cifrado' } },
-        orden_servicios: [{ precio: 1, duracion_min: 30, servicios: { nombre: 'Lavado' } }],
-      }], error: null }],
-      notificaciones: [{ data: [
-        { orden_id: ORDEN_ID, evento: 'orden.recibida', estado: 'enviada' },
-        { orden_id: ORDEN_ID, evento: 'orden.lista', estado: 'fallida' },
-      ], error: null }],
+  it('un vehículo de otro establecimiento responde 404 y no llama a la función', async () => {
+    const tenant = tenantCon();
+    tenant.obtener = vi.fn(async () => {
+      throw noEncontrado('Vehículo');
     });
 
-    const { res } = await ejecutar(listarActivas, { tenant, ctx });
+    const { error } = await ejecutar(peticion(base, tenant));
+    expect(error).toMatchObject({ codigo: 'NO_ENCONTRADO', status: 404 });
+    expect(tenant.rpc).not.toHaveBeenCalled();
+  });
 
-    expect(res.body[0].cliente).toEqual({ id: 'c1', nombre: 'Ana', tieneCorreo: true });
-    expect(res.body[0].correos).toEqual({ 'orden.recibida': 'enviada', 'orden.lista': 'fallida' });
-    expect(JSON.stringify(res.body)).not.toContain('v1:cifrado');
-    expect(tenant.consultas[0].filtros).toContainEqual(['neq', 'estado', 'entregado']);
+  it('un teléfono repetido se informa con el cliente existente', async () => {
+    const tenant = tenantCon({
+      consultas: [{ data: { id: CLIENTE_EXISTENTE, nombre: 'Ana Gómez' }, error: null }],
+      rpc: async () => {
+        throw new AppError('VALIDACION', 'Ya existe un cliente con ese teléfono', [{ campo: 'telefono', mensaje: 'Ya existe' }]);
+      },
+    });
+
+    const { error } = await ejecutar(peticion({ servicioIds: [SERVICIO_1], nuevoVehiculo: { cliente, vehiculo } }, tenant));
+    expect(error).toMatchObject({ codigo: 'CONFLICTO', status: 409 });
+    expect(error.detalles[0]).toMatchObject({ campo: 'telefono', clienteId: CLIENTE_EXISTENTE });
+  });
+
+  it('una placa repetida se informa con el cliente dueño', async () => {
+    const tenant = tenantCon({
+      consultas: [{ data: { clientes: { id: CLIENTE_EXISTENTE, nombre: 'Luis' } }, error: null }],
+      rpc: async () => {
+        throw new AppError('VALIDACION', 'Ya existe un vehículo con esa placa', [{ campo: 'placa', mensaje: 'Ya existe' }]);
+      },
+    });
+
+    const { error } = await ejecutar(peticion({ servicioIds: [SERVICIO_1], nuevoVehiculo: { cliente, vehiculo } }, tenant));
+    expect(error).toMatchObject({ codigo: 'CONFLICTO', status: 409 });
+    expect(error.detalles[0]).toMatchObject({ campo: 'placa', clienteId: CLIENTE_EXISTENTE });
+  });
+
+  it('RF-F3-03: un vehículo con servicio en curso responde 409', async () => {
+    const tenant = tenantCon({
+      rpc: async () => {
+        throw new AppError('VALIDACION', 'Este vehículo ya tiene un servicio en curso', [
+          { campo: 'vehiculoId', mensaje: 'Este vehículo ya tiene un servicio en curso' },
+        ]);
+      },
+    });
+
+    const { error } = await ejecutar(peticion(base, tenant));
+    expect(error).toMatchObject({ codigo: 'CONFLICTO', status: 409 });
+  });
+});
+
+describe('esquema del cambio de estado', () => {
+  it('acepta un estado del flujo y la opción de revertir', () => {
+    expect(cambioEstadoOrden.parse({ estado: 'secado' })).toEqual({ estado: 'secado' });
+    expect(cambioEstadoOrden.parse({ revertir: true })).toEqual({ revertir: true });
+  });
+
+  it('exige un estado o revertir, pero no ambos', () => {
+    const errores = (datos) => cambioEstadoOrden.safeParse(datos).error?.issues.map((i) => [i.path.join('.'), i.message]);
+
+    expect(errores({})[0][0]).toBe('estado');
+    expect(errores({ estado: 'en_lavado', revertir: true })[0][1]).toContain('pero no ambos');
+    expect(errores({ estado: 'perdido' })[0][0]).toBe('estado');
+  });
+});
+
+describe('PATCH /ordenes/:id/estado', () => {
+  const peticionCambio = (cuerpo, tenant) => ({
+    tenant,
+    ctx: { usuarioId: 'p1' },
+    params: { id: ORDEN.id },
+    body: cambioEstadoOrden.parse(cuerpo),
+  });
+
+  async function ejecutarCambio(req) {
+    const res = { status: vi.fn(() => res), json: vi.fn() };
+    const next = vi.fn();
+    await cambiarEstado(req, res, next);
+    return { res, datos: res.json.mock.calls[0]?.[0], error: next.mock.calls[0]?.[0] };
+  }
+
+  it('CA1: avanza el estado y devuelve la orden actualizada', async () => {
+    const tenant = tenantCon();
+    const { res, datos, error } = await ejecutarCambio(peticionCambio({ estado: 'en_lavado' }, tenant));
+
+    expect(error).toBeUndefined();
+    expect(res.status).not.toHaveBeenCalled();
+    expect(datos).toMatchObject({ id: ORDEN.id, estado: 'recibido', codigoSeguimiento: ORDEN.codigo_seguimiento });
+    expect(tenant.obtener).toHaveBeenNthCalledWith(1, 'ordenes', ORDEN.id, 'id', 'Orden');
+    expect(tenant.rpc).toHaveBeenCalledWith('cambiar_estado_orden', {
+      p_orden_id: ORDEN.id,
+      p_nuevo_estado: 'en_lavado',
+      p_usuario_id: 'p1',
+      p_revertir: false,
+    });
+  });
+
+  it('CA1: permite revertir el último cambio', async () => {
+    const tenant = tenantCon();
+    const { error } = await ejecutarCambio(peticionCambio({ revertir: true }, tenant));
+
+    expect(error).toBeUndefined();
+    expect(tenant.rpc).toHaveBeenCalledWith('cambiar_estado_orden', {
+      p_orden_id: ORDEN.id,
+      p_nuevo_estado: null,
+      p_usuario_id: 'p1',
+      p_revertir: true,
+    });
+  });
+
+  it('RF-F3-05: una transición inválida responde 409', async () => {
+    const tenant = tenantCon({
+      rpc: async () => {
+        throw Object.assign(new Error('No se puede pasar una orden de recibido a entregado'), {
+          code: 'P0001',
+          hint: 'CONFLICTO',
+        });
+      },
+    });
+
+    const { error } = await ejecutarCambio(peticionCambio({ estado: 'entregado' }, tenant));
+    expect(error).toMatchObject({ codigo: 'CONFLICTO', status: 409 });
+  });
+
+  it('una orden de otro establecimiento responde 404 y no llama a la función', async () => {
+    const tenant = tenantCon();
+    tenant.obtener = vi.fn(async () => {
+      throw noEncontrado('Orden');
+    });
+
+    const { error } = await ejecutarCambio(peticionCambio({ estado: 'en_lavado' }, tenant));
+    expect(error).toMatchObject({ codigo: 'NO_ENCONTRADO', status: 404 });
+    expect(tenant.rpc).not.toHaveBeenCalled();
   });
 });

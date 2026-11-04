@@ -1,12 +1,11 @@
-// HU-12 — Rutas de promociones. Solo el admin (HU-59 CA1: el operario no ve promociones).
+// HU-12 — Rutas de promociones. Todos las consultan; solo el admin las gestiona.
 import { Router } from 'express';
-import { requiereRol, requiereModulo } from '../middlewares/auth.js';
+import { requiereRol } from '../middlewares/auth.js';
 import { validar } from '../shared/validar.js';
 import { promocionNueva, promocionCambios, filtroPromociones } from '../schemas/promociones.schemas.js';
 import * as ctrl from '../controllers/promociones.controller.js';
 
 const router = Router();
-router.use(requiereModulo('promociones')); // HU-59
 
 router.get('/', validar({ query: filtroPromociones }), ctrl.listar);
 router.post('/', requiereRol('admin'), validar({ body: promocionNueva }), ctrl.crear);

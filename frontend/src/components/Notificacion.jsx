@@ -1,11 +1,10 @@
 // Notificación breve en la esquina inferior derecha. Se cierra sola, salvo mientras el cursor
 // o el foco están sobre ella, para que siempre se alcance a leer (WCAG 2.2.1).
-// tipo: "exito" (por defecto) o "advertencia" (p. ej. HU-46: el cliente no tiene correo).
 import { useEffect, useState } from 'react';
 
 const DURACION_MS = 6000;
 
-export default function Notificacion({ titulo, detalle, onCerrar, tipo = 'exito' }) {
+export default function Notificacion({ titulo, detalle, onCerrar }) {
   const [pausada, setPausada] = useState(false);
 
   useEffect(() => {
@@ -16,13 +15,13 @@ export default function Notificacion({ titulo, detalle, onCerrar, tipo = 'exito'
 
   return (
     <div
-      className={`notificacion${tipo === 'advertencia' ? ' notificacion-advertencia' : ''}`}
+      className="notificacion"
       onMouseEnter={() => setPausada(true)}
       onMouseLeave={() => setPausada(false)}
       onFocus={() => setPausada(true)}
       onBlur={() => setPausada(false)}
     >
-      <span className="notificacion-icono" aria-hidden="true">{tipo === 'advertencia' ? '!' : '✓'}</span>
+      <span className="notificacion-icono" aria-hidden="true">✓</span>
       <div className="notificacion-texto">
         <p className="notificacion-titulo">{titulo}</p>
         {detalle && <p>{detalle}</p>}

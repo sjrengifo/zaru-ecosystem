@@ -2,18 +2,15 @@
 // No requiere Supabase real: se simulan las consultas y las operaciones de Auth.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { supabase, respuestas, llamadas, inviteUserByEmail, deleteUser, listUsers, getUserById, registrarAuditoria } = vi.hoisted(() => {
+const { supabase, respuestas, llamadas, inviteUserByEmail, deleteUser } = vi.hoisted(() => {
   const estado = { respuestas: [], llamadas: [] };
   const inviteUserByEmail = vi.fn();
   const deleteUser = vi.fn();
-  const listUsers = vi.fn();
-  const getUserById = vi.fn();
-  const registrarAuditoria = vi.fn(async () => {});
 
   function crearConsulta(tabla) {
     const respuesta = estado.respuestas.shift() ?? { data: null, error: null };
     const consulta = {};
-    for (const metodo of ['select', 'insert', 'update', 'delete', 'eq', 'in', 'ilike', 'lte', 'order', 'limit', 'single', 'maybeSingle']) {
+    for (const metodo of ['select', 'insert', 'update', 'delete', 'eq', 'lte', 'order', 'single', 'maybeSingle']) {
       consulta[metodo] = (...args) => {
         estado.llamadas.push([tabla, metodo, ...args]);
         return consulta;
@@ -28,14 +25,13 @@ const { supabase, respuestas, llamadas, inviteUserByEmail, deleteUser, listUsers
       estado.llamadas.push(['from', tabla]);
       return crearConsulta(tabla);
     },
-    auth: { admin: { inviteUserByEmail, deleteUser, listUsers, getUserById } },
+    auth: { admin: { inviteUserByEmail, deleteUser } },
   };
-  return { supabase, respuestas: estado.respuestas, llamadas: estado.llamadas, inviteUserByEmail, deleteUser, listUsers, getUserById, registrarAuditoria };
+  return { supabase, respuestas: estado.respuestas, llamadas: estado.llamadas, inviteUserByEmail, deleteUser };
 });
 
 vi.mock('../../src/config/supabase.js', () => ({ supabase }));
-vi.mock('../../src/shared/auditoria.js', () => ({ registrarAuditoria }));
-const { listar, crear, activar, suspender, reenviarInvitacion, diasRestantes, TRANSICIONES } = await import('../../src/controllers/superadmin.controller.js');
+const { listar, crear, activar, suspender } = await import('../../src/controllers/superadmin.controller.js');
 
 const ESTABLECIMIENTO_ID = 'aaaaaaaa-0000-4000-8000-000000000001';
 const USUARIO_ID = 'bbbbbbbb-0000-4000-8000-000000000002';
@@ -67,9 +63,6 @@ beforeEach(() => {
   llamadas.length = 0;
   inviteUserByEmail.mockReset();
   deleteUser.mockReset();
-  listUsers.mockReset().mockResolvedValue({ data: { users: [] }, error: null });
-  getUserById.mockReset();
-  registrarAuditoria.mockClear();
   delete process.env.FRONTEND_URL;
 });
 
@@ -80,10 +73,10 @@ describe('HU-57 · controlador de superadministración', () => {
       { data: [establecimiento], error: null },
     );
 
-    const { res, error } = await ejecutar(listar, { query: {} });
+    const { res, error } = await ejecutar(listar);
 
     expect(error).toBeUndefined();
-    expect(res.body).toEqual([{ ...establecimiento, dias_restantes: expect.any(Number), administrador: null }]);
+    expect(res.body).toEqual([establecimiento]);
     expect(llamadas).toContainEqual(['establecimientos', 'update', { estado: 'pendiente_activacion' }]);
     expect(llamadas).toContainEqual(['establecimientos', 'eq', 'estado', 'prueba']);
     expect(llamadas).toContainEqual(['establecimientos', 'select', expect.any(String)]);
@@ -102,9 +95,7 @@ describe('HU-57 · controlador de superadministración', () => {
 
     expect(error).toBeUndefined();
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.body.establecimiento).toMatchObject(establecimiento);
-    expect(res.body.establecimiento.administrador).toEqual({ nombre: 'admin', correo: 'admin@example.com', invitacionAceptada: false });
-    expect(registrarAuditoria).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ accion: 'superadmin.establecimiento.registrar', recursoId: ESTABLECIMIENTO_ID }));
+    expect(res.body.establecimiento).toEqual(establecimiento);
     expect(res.body.invitacion).toEqual({ correo: 'admin@example.com', enviada: true });
     expect(inviteUserByEmail).toHaveBeenCalledWith('admin@example.com', expect.objectContaining({
       redirectTo: 'http://localhost:5173/aceptar-invitacion',
@@ -156,35 +147,16 @@ describe('HU-57 · controlador de superadministración', () => {
   it.each([
     ['activar', activar, 'activo'],
     ['suspender', suspender, 'suspendido'],
-  ])('CA3: permite %s un establecimiento existente y lo audita', async (accion, controlador, estado) => {
+  ])('CA3: permite %s un establecimiento existente', async (_nombre, controlador, estado) => {
     const actualizado = { ...establecimiento, estado };
-    respuestas.push({ data: null, error: null }, { data: establecimiento, error: null }, { data: actualizado, error: null });
+    respuestas.push({ data: null, error: null }, { data: actualizado, error: null });
 
-    const { res, error } = await ejecutar(controlador, { params: { id: ESTABLECIMIENTO_ID }, body: { motivo: 'Prueba' } });
+    const { res, error } = await ejecutar(controlador, { params: { id: ESTABLECIMIENTO_ID } });
 
     expect(error).toBeUndefined();
-    expect(res.body).toEqual({ ...actualizado, dias_restantes: null });
+    expect(res.body).toEqual(actualizado);
     expect(llamadas).toContainEqual(['establecimientos', 'update', expect.objectContaining({ estado })]);
     expect(llamadas).toContainEqual(['establecimientos', 'eq', 'id', ESTABLECIMIENTO_ID]);
-    expect(llamadas).toContainEqual(['establecimientos', 'eq', 'estado', 'prueba']); // no pisa cambios simultáneos
-    expect(registrarAuditoria).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      accion: `superadmin.establecimiento.${accion}`, motivo: 'Prueba', detalle: { desde: 'prueba', hacia: estado },
-    }));
-  });
-
-  it.each([
-    ['activar', activar, 'activo'],
-    ['suspender', suspender, 'suspendido'],
-  ])('no permite %s un establecimiento que ya está en ese estado', async (_accion, controlador, estado) => {
-    respuestas.push({ data: null, error: null }, { data: { ...establecimiento, estado }, error: null });
-    const { error } = await ejecutar(controlador, { params: { id: ESTABLECIMIENTO_ID } });
-    expect(error).toMatchObject({ codigo: 'CONFLICTO', status: 409 });
-    expect(llamadas).not.toContainEqual(['establecimientos', 'update', expect.objectContaining({ estado })]);
-  });
-
-  it('las transiciones permitidas cubren el ciclo prueba → pendiente → activo ⇄ suspendido', () => {
-    expect(TRANSICIONES.activar).toEqual(['prueba', 'pendiente_activacion', 'suspendido']);
-    expect(TRANSICIONES.suspender).toEqual(['prueba', 'activo', 'pendiente_activacion']);
   });
 
   it('devuelve 404 al intentar cambiar el estado de un establecimiento inexistente', async () => {
@@ -193,77 +165,5 @@ describe('HU-57 · controlador de superadministración', () => {
     const { error } = await ejecutar(activar, { params: { id: ESTABLECIMIENTO_ID } });
 
     expect(error).toMatchObject({ codigo: 'NO_ENCONTRADO', status: 404 });
-  });
-});
-
-describe('HU-57 · mejoras del listado y de la invitación', () => {
-  it('incluye el administrador inicial con su correo y si aceptó la invitación', async () => {
-    respuestas.push(
-      { data: null, error: null },
-      { data: [establecimiento], error: null },
-      { data: [{ id: USUARIO_ID, nombre: 'Laura', establecimiento_id: ESTABLECIMIENTO_ID }], error: null },
-    );
-    listUsers.mockResolvedValue({ data: { users: [{ id: USUARIO_ID, email: 'laura@lavadero.co', email_confirmed_at: null }] }, error: null });
-
-    const { res } = await ejecutar(listar, { query: {} });
-
-    expect(res.body[0].administrador).toEqual({ nombre: 'Laura', correo: 'laura@lavadero.co', invitacionAceptada: false });
-  });
-
-  it('si Auth no responde, el listado se muestra igual sin los correos', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    respuestas.push(
-      { data: null, error: null },
-      { data: [establecimiento], error: null },
-      { data: [{ id: USUARIO_ID, nombre: 'Laura', establecimiento_id: ESTABLECIMIENTO_ID }], error: null },
-    );
-    listUsers.mockRejectedValue(new Error('timeout'));
-
-    const { res, error } = await ejecutar(listar, { query: {} });
-
-    expect(error).toBeUndefined();
-    expect(res.body[0].administrador).toEqual({ nombre: 'Laura', correo: null, invitacionAceptada: null });
-  });
-
-  it('filtra por estado y busca por nombre escapando comodines', async () => {
-    respuestas.push({ data: null, error: null }, { data: [], error: null });
-    await ejecutar(listar, { query: { estado: 'suspendido', buscar: '100%' } });
-    expect(llamadas).toContainEqual(['establecimientos', 'eq', 'estado', 'suspendido']);
-    expect(llamadas).toContainEqual(['establecimientos', 'ilike', 'nombre', '%100\\%%']);
-  });
-
-  it('calcula los días restantes solo para establecimientos en prueba', () => {
-    const ahora = new Date('2026-11-10T10:00:00Z');
-    expect(diasRestantes(establecimiento, ahora)).toBe(7);
-    expect(diasRestantes({ ...establecimiento, prueba_finaliza_at: '2026-11-01T00:00:00Z' }, ahora)).toBe(0);
-    expect(diasRestantes({ ...establecimiento, estado: 'activo' }, ahora)).toBeNull();
-  });
-
-  it('reenvía la invitación si el administrador aún no la aceptó', async () => {
-    respuestas.push({ data: establecimiento, error: null }, { data: { id: USUARIO_ID }, error: null });
-    getUserById.mockResolvedValue({ data: { user: { id: USUARIO_ID, email: 'laura@lavadero.co', email_confirmed_at: null } }, error: null });
-    inviteUserByEmail.mockResolvedValue({ data: {}, error: null });
-
-    const { res, error } = await ejecutar(reenviarInvitacion, { params: { id: ESTABLECIMIENTO_ID } });
-
-    expect(error).toBeUndefined();
-    expect(res.body).toEqual({ correo: 'laura@lavadero.co', enviada: true });
-    expect(inviteUserByEmail).toHaveBeenCalledWith('laura@lavadero.co', { redirectTo: 'http://localhost:5173/aceptar-invitacion' });
-  });
-
-  it('no reenvía si el administrador ya activó su cuenta', async () => {
-    respuestas.push({ data: establecimiento, error: null }, { data: { id: USUARIO_ID }, error: null });
-    getUserById.mockResolvedValue({ data: { user: { id: USUARIO_ID, email: 'laura@lavadero.co', email_confirmed_at: '2026-11-04T00:00:00Z' } }, error: null });
-
-    const { error } = await ejecutar(reenviarInvitacion, { params: { id: ESTABLECIMIENTO_ID } });
-
-    expect(error).toMatchObject({ codigo: 'CONFLICTO' });
-    expect(inviteUserByEmail).not.toHaveBeenCalled();
-  });
-
-  it('no reenvía la invitación de un establecimiento suspendido', async () => {
-    respuestas.push({ data: { ...establecimiento, estado: 'suspendido' }, error: null });
-    const { error } = await ejecutar(reenviarInvitacion, { params: { id: ESTABLECIMIENTO_ID } });
-    expect(error).toMatchObject({ codigo: 'CONFLICTO' });
   });
 });

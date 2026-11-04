@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { hayEntornoIntegracion, faltantes } from '../helpers/entorno.js';
+import { codigoSeguimiento } from '../helpers/ordenes.js';
 
 const EST_A = '00000000-0000-0000-0000-00000000a058';
 const TEL = { ana: '3008080801', enCurso: '3008080802', conservar: '3008080803' };
@@ -67,14 +68,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Eliminar cliente${hayEntornoIntegracion
       .throwOnError();
     const placa = (p) => vehiculos.find((v) => v.placa === p).id;
     const crearOrden = async (vehiculo_id, estado, total) =>
-      (await admin.from('ordenes').insert({
-        establecimiento_id: EST_A,
-        vehiculo_id,
-        codigo_seguimiento: randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase(),
-        estado,
-        subtotal: total,
-        total
-      }).select().single().throwOnError()).data;
+      (await admin.from('ordenes').insert({ establecimiento_id: EST_A, vehiculo_id, estado, subtotal: total, total, codigo_seguimiento: codigoSeguimiento() }).select().single().throwOnError()).data;
     ordenEntregada = await crearOrden(placa('HUE521'), 'entregado', 30000);
     ordenActiva = await crearOrden(placa('HUE523'), 'en_lavado', 40000);
     await admin.from('notificaciones').insert({ establecimiento_id: EST_A, cliente_id: ana.id, tipo: 'operativa', evento: 'listo', canal: 'correo', destino: `${TEL.ana}@correo.com` }).throwOnError();

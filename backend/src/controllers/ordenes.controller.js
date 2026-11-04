@@ -1,185 +1,173 @@
-// HU-08, HU-09, HU-10 y HU-46 — Órdenes de servicio y avisos por correo al cliente.
-// - Multi-tenant (HU-41): todo acceso a datos pasa por req.tenant.
-// - HU-46 CA1: al registrar el ingreso se envía la confirmación con los servicios solicitados.
-// - HU-46 CA2: al pasar a "listo" se envía el aviso para recoger el vehículo.
-// - HU-46 CA3: el correo se envía en segundo plano, después de responder. Si el cliente no tiene
-//   correo o el envío falla, la orden queda guardada igual y la respuesta solo informa el resultado.
-// Pendiente de HU-12 CA3: aplicar la promoción vigente al total (hoy descuento = 0).
-import { AppError } from '../shared/errores.js';
-import { prepararCorreo, enSegundoPlano, EVENTOS } from '../shared/notificaciones.js';
+// HU-08 y HU-10 — Lógica de órdenes.
+// HU-08: crear la orden con sus servicios y totales; el alta de cliente + vehículo ocurre en la
+// misma transacción de la base (función public.crear_orden).
+// HU-10: avanzar o revertir el estado con una función SQL transaccional que actualiza
+//   "estado_desde", guarda historial_estados con usuario y hora, cierra con entregada_at y deja
+//   el evento de dominio para que HU-46 notifique al cliente.
+import { AppError, noEncontrado } from '../shared/errores.js';
+import { cifrar } from '../shared/cifrado.js';
+import { programarNotificacion } from '../shared/notificaciones.js';
 
-/** HU-10: secuencia válida de estados. */
-export const SIGUIENTE_ESTADO = { recibido: 'en_lavado', en_lavado: 'listo', listo: 'entregado' };
+/** HU-46: el aviso al cliente corre después de responder; un fallo nunca afecta la operación. */
+function avisarCliente(tenant, ordenId, tipo) {
+  programarNotificacion(tenant, ordenId, tipo).catch(() => {});
+}
 
-const COLUMNAS_ORDEN = 'id, estado, estado_desde, created_at, subtotal, descuento, total';
-const COLUMNAS_ACTIVAS =
-  `${COLUMNAS_ORDEN}, vehiculos(id, placa, tipo, clientes(id, nombre, correo)), orden_servicios(precio, duracion_min, servicios(nombre))`;
+const COLUMNAS_DETALLE = [
+  'id, estado, subtotal, descuento, total, codigo_seguimiento, entrega_estimada_at,',
+  'observaciones, created_at, entregada_at, version,',
+  'vehiculo:vehiculos(id, placa, tipo, marca, color, cliente:clientes(id, nombre, telefono)),',
+  'servicios:orden_servicios(precio, duracion_min, descuento, servicio:servicios(id, nombre)),',
+  'promocion:promociones(id, nombre, descuento_pct)',
+].join(' ');
 
-/** Lo que el panel necesita de una orden, sin exponer el correo del cliente. */
-function formatoOrden(orden, correos = {}) {
-  const vehiculo = orden.vehiculos ?? null;
-  const cliente = vehiculo?.clientes ?? null;
+/** Respuesta pública de una orden: nombres camelCase para el código de seguimiento y la entrega. */
+function detalle(orden) {
+  const { codigo_seguimiento, entrega_estimada_at, servicios, ...resto } = orden;
   return {
-    id: orden.id,
-    estado: orden.estado,
-    estadoDesde: orden.estado_desde,
-    creadaEn: orden.created_at,
-    subtotal: orden.subtotal,
-    descuento: orden.descuento,
-    total: orden.total,
-    vehiculo: vehiculo && { id: vehiculo.id, placa: vehiculo.placa, tipo: vehiculo.tipo },
-    cliente: cliente && { id: cliente.id, nombre: cliente.nombre, tieneCorreo: Boolean(cliente.correo) },
-    servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre, precio: s.precio, duracionMin: s.duracion_min })),
-    correos, // HU-46: { 'orden.recibida': 'enviada', 'orden.lista': 'fallida', … }
+    ...resto,
+    codigoSeguimiento: codigo_seguimiento,
+    entregaEstimadaAt: entrega_estimada_at,
+    servicios: (servicios ?? []).map(({ servicio, precio, duracion_min, descuento }) => ({
+      id: servicio?.id,
+      nombre: servicio?.nombre,
+      precio,
+      duracionMin: duracion_min,
+      descuento,
+    })),
   };
 }
 
-/** HU-09: órdenes en curso del establecimiento, con el estado de sus correos (HU-46). */
+async function buscarClientePorTelefono(tenant, telefono) {
+  const { data, error } = await tenant.listar('clientes', 'id, nombre').eq('telefono', telefono).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function buscarVehiculoPorPlaca(tenant, placa) {
+  const { data, error } = await tenant.listar('vehiculos', 'clientes(id, nombre)').eq('placa', placa).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * La función SQL devuelve errores de negocio con el campo a corregir en `hint`.
+ * Aquí se convierten en la misma respuesta amable que usan clientes y vehículos.
+ */
+async function traducirError(err, tenant, { cliente, vehiculo } = {}) {
+  if (err.codigo !== 'VALIDACION') return err;
+
+  const campo = err.detalles?.[0]?.campo;
+  if (campo === 'telefono' && cliente) {
+    const existente = await buscarClientePorTelefono(tenant, cliente.telefono);
+    if (existente) {
+      return new AppError('CONFLICTO', 'Ya existe un cliente con ese teléfono', [
+        { campo: 'telefono', mensaje: `El teléfono ya está registrado a nombre de ${existente.nombre}`, clienteId: existente.id },
+      ]);
+    }
+  }
+
+  if (campo === 'placa' && vehiculo) {
+    const existente = await buscarVehiculoPorPlaca(tenant, vehiculo.placa);
+    if (existente?.clientes) {
+      return new AppError('CONFLICTO', 'Ya existe un vehículo con esa placa', [
+        { campo: 'placa', mensaje: `La placa ya está registrada a nombre de ${existente.clientes.nombre}`, clienteId: existente.clientes.id },
+      ]);
+    }
+  }
+
+  // RF-F3-03: el vehículo ya está en el car wash.
+  if (campo === 'vehiculoId' && /servicio en curso/i.test(err.message)) {
+    return new AppError('CONFLICTO', err.message, err.detalles);
+  }
+
+  return err;
+}
+
+/** HU-08 CA1 y CA2: registrar el ingreso y dejar la orden en `recibido`. */
+export async function crear(req, res, next) {
+  try {
+    const { vehiculoId, nuevoVehiculo, servicioIds, observaciones } = req.body;
+    const cliente = nuevoVehiculo?.cliente;
+    const vehiculo = nuevoVehiculo?.vehiculo;
+
+    // Un vehículo de otro establecimiento responde igual que uno inexistente (HU-41 CA2).
+    if (vehiculoId) await req.tenant.obtener('vehiculos', vehiculoId, 'id', 'Vehículo');
+
+    let ordenId;
+    try {
+      ordenId = await req.tenant.rpc('crear_orden', {
+        p_vehiculo_id: vehiculoId ?? null,
+        p_servicio_ids: servicioIds,
+        p_observaciones: observaciones ?? null,
+        p_creada_por: req.ctx.usuarioId,
+        p_cliente: cliente
+          ? { ...cliente, correo: cifrar(cliente.correo), canal: 'panel', ip: req.ip ?? null }
+          : null,
+        p_vehiculo: vehiculo ?? null,
+      });
+    } catch (err) {
+      throw await traducirError(err, req.tenant, { cliente, vehiculo });
+    }
+
+    res.status(201).json(detalle(await req.tenant.obtener('ordenes', ordenId, COLUMNAS_DETALLE, 'Orden')));
+    avisarCliente(req.tenant, ordenId, 'ingreso'); // HU-46 CA1
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * HU-10: la función SQL usa P0001 para conflictos de negocio. La API los devuelve como 409;
+ * un recurso de otro establecimiento sigue respondiendo 404 igual que uno inexistente.
+ */
+function traducirErrorEstado(err) {
+  if (err instanceof AppError) return err;
+  if (err?.hint === 'NO_ENCONTRADO') return noEncontrado('Orden');
+  if (err?.code === 'P0001') return new AppError('CONFLICTO', err.message);
+  if (err?.code === '23514' && err.hint === 'usuario') {
+    return new AppError('SIN_PERMISO', 'El usuario no está activo en este establecimiento');
+  }
+  return err;
+}
+
+/** HU-10 CA1 a CA3: avanzar de estado o revertir el último cambio. */
+export async function cambiarEstado(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { estado, revertir } = req.body;
+
+    // Un id inválido o de otro establecimiento responde 404 sin revelar que existe (HU-41 CA2).
+    await req.tenant.obtener('ordenes', id, 'id', 'Orden');
+
+    try {
+      await req.tenant.rpc('cambiar_estado_orden', {
+        p_orden_id: id,
+        p_nuevo_estado: estado ?? null,
+        p_usuario_id: req.ctx.usuarioId,
+        p_revertir: revertir === true,
+      });
+    } catch (err) {
+      throw traducirErrorEstado(err);
+    }
+
+    const orden = detalle(await req.tenant.obtener('ordenes', id, COLUMNAS_DETALLE, 'Orden'));
+    res.json(orden);
+    if (orden.estado === 'listo' && revertir !== true) avisarCliente(req.tenant, id, 'listo'); // HU-46 CA2
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** HU-09: órdenes que siguen en el car wash (todo lo que no se ha entregado), de la más antigua a la más reciente. */
 export async function listarActivas(req, res, next) {
   try {
     const { data, error } = await req.tenant
-      .listar('ordenes', COLUMNAS_ACTIVAS)
+      .listar('ordenes', COLUMNAS_DETALLE)
       .neq('estado', 'entregado')
-      .order('created_at');
+      .order('created_at', { ascending: true });
     if (error) throw error;
-
-    const ids = data.map((o) => o.id);
-    const correos = {};
-    if (ids.length) {
-      const { data: notificaciones, error: errorNotif } = await req.tenant
-        .listar('notificaciones', 'orden_id, evento, estado')
-        .eq('canal', 'correo')
-        .in('orden_id', ids);
-      if (errorNotif) throw errorNotif;
-      for (const n of notificaciones ?? []) (correos[n.orden_id] ??= {})[n.evento] = n.estado;
-    }
-    res.json(data.map((o) => formatoOrden(o, correos[o.id])));
-  } catch (err) {
-    next(err);
-  }
-}
-
-/** HU-08 CA1 + HU-46 CA1: registra el ingreso, calcula el total y avisa al cliente por correo. */
-export async function crear(req, res, next) {
-  try {
-    const { vehiculoId, servicios: idsServicios } = req.body;
-    const vehiculo = await req.tenant.obtener('vehiculos', vehiculoId, 'id, placa, tipo', 'Vehículo');
-
-    const { data: activa, error: errorActiva } = await req.tenant
-      .listar('ordenes', 'id')
-      .eq('vehiculo_id', vehiculo.id)
-      .neq('estado', 'entregado')
-      .limit(1);
-    if (errorActiva) throw errorActiva;
-    if (activa?.length) {
-      throw new AppError('CONFLICTO', `El vehículo ${vehiculo.placa} ya tiene una orden en curso`, [
-        { campo: 'vehiculoId', mensaje: 'Termina o entrega la orden actual antes de registrar otra' },
-      ]);
-    }
-
-    const { data: servicios, error: errorServicios } = await req.tenant
-      .listar('servicios', 'id, nombre, precio, duracion_min, activo')
-      .in('id', idsServicios);
-    if (errorServicios) throw errorServicios;
-    const disponibles = (servicios ?? []).filter((s) => s.activo);
-    if (disponibles.length !== idsServicios.length) {
-      throw new AppError('VALIDACION', 'Uno o más servicios no existen o están desactivados', [
-        { campo: 'servicios', mensaje: 'Revisa los servicios seleccionados' },
-      ]);
-    }
-
-    const subtotal = disponibles.reduce((suma, s) => suma + Number(s.precio), 0);
-    const ahora = new Date().toISOString();
-    const orden = await req.tenant.crear('ordenes', {
-      vehiculo_id: vehiculo.id,
-      estado: 'recibido',
-      subtotal,
-      descuento: 0,
-      total: subtotal,
-      creada_por: req.ctx.usuarioId,
-      estado_desde: ahora,
-    }, COLUMNAS_ORDEN);
-
-    const padre = { tabla: 'ordenes', id: orden.id, columna: 'orden_id', recurso: 'Orden' };
-    try {
-      // HU-07 CA2: la orden guarda el precio y la duración vigentes hoy.
-      await req.tenant.crearDetalle('orden_servicios', padre, disponibles.map((s) => ({
-        servicio_id: s.id, precio: s.precio, duracion_min: s.duracion_min,
-      })), 'servicio_id');
-    } catch (err) {
-      await req.tenant.eliminar('ordenes', orden.id, 'Orden').catch(() => {});
-      throw err;
-    }
-    await registrarHistorial(req, orden.id, 'recibido');
-
-    const correo = await prepararCorreo(req.tenant, { evento: EVENTOS.RECIBIDA, ordenId: orden.id });
-    res.status(201).json({
-      ...formatoOrden({ ...orden, vehiculos: { ...vehiculo, clientes: null } }),
-      servicios: disponibles.map((s) => ({ nombre: s.nombre, precio: s.precio, duracionMin: s.duracion_min })),
-      notificacion: correo.resumen,
-    });
-    enSegundoPlano(correo.enviar);
-  } catch (err) {
-    next(err);
-  }
-}
-
-/** HU-10 CA1: trazabilidad de cada cambio (usuario y hora). Un fallo aquí no revierte el cambio. */
-async function registrarHistorial(req, ordenId, estado) {
-  try {
-    await req.tenant.crearDetalle(
-      'historial_estados',
-      { tabla: 'ordenes', id: ordenId, columna: 'orden_id', recurso: 'Orden' },
-      { estado, usuario_id: req.ctx.usuarioId },
-      'id',
-    );
-  } catch (err) {
-    console.error(`[HU-10] No se pudo registrar el historial de la orden ${ordenId}:`, err.message);
-  }
-}
-
-/** HU-10 + HU-46 CA2: avanza al siguiente estado; al quedar "listo" avisa al cliente. */
-export async function cambiarEstado(req, res, next) {
-  try {
-    const { estado } = req.body;
-    const actual = await req.tenant.obtener('ordenes', req.params.id, 'id, estado', 'Orden');
-
-    if (actual.estado === 'entregado') throw new AppError('CONFLICTO', 'La orden ya fue entregada');
-    const siguiente = SIGUIENTE_ESTADO[actual.estado];
-    if (estado !== siguiente) {
-      throw new AppError('VALIDACION', `La orden está en "${actual.estado}": solo puede pasar a "${siguiente}"`, [
-        { campo: 'estado', mensaje: `Estado siguiente válido: ${siguiente}` },
-      ]);
-    }
-
-    const ahora = new Date().toISOString();
-    let orden;
-    try {
-      orden = await req.tenant.actualizar(
-        'ordenes',
-        actual.id,
-        { estado, estado_desde: ahora, ...(estado === 'entregado' ? { entregada_at: ahora } : {}) },
-        COLUMNAS_ORDEN,
-        'Orden',
-        { estado: actual.estado }, // si otro operario ya la movió, no se pisa su cambio
-      );
-    } catch (err) {
-      if (err.codigo === 'NO_ENCONTRADO') throw new AppError('CONFLICTO', 'Otro usuario ya cambió el estado de esta orden. Actualiza el tablero.');
-      throw err;
-    }
-    await registrarHistorial(req, orden.id, estado);
-
-    const correo = estado === 'listo'
-      ? await prepararCorreo(req.tenant, { evento: EVENTOS.LISTA, ordenId: orden.id })
-      : null;
-    res.json({
-      id: orden.id,
-      estado: orden.estado,
-      estadoDesde: orden.estado_desde,
-      total: orden.total,
-      notificacion: correo?.resumen ?? null,
-    });
-    if (correo) enSegundoPlano(correo.enviar);
+    res.json((data ?? []).map(detalle));
   } catch (err) {
     next(err);
   }
