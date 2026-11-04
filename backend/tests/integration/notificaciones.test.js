@@ -6,14 +6,14 @@ import { hayEntornoIntegracion, faltantes } from '../helpers/entorno.js';
 
 const EST_A = '00000000-0000-0000-0000-00000000a058';
 const TEL = { conCorreo: '3009461001', sinCorreo: '3009461002' };
-const PLACA = { conCorreo: 'HUN461', sinCorreo: 'HUN462' };
+const PLACA = { conCorreo: 'HUN461', sinCorreo: 'HUN462', api: 'HUN463' };
 const CODIGO = { directo: 'HU46NT2222', api: 'HU46NT3333', sinCorreo: 'HU46NT4444' };
 const CORREO = 'cliente-hu46@zaru.test';
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 describe.skipIf(!hayEntornoIntegracion)(`HU-46 · avisos por correo${hayEntornoIntegracion ? '' : ` (omitida: faltan ${faltantes.join(', ')})`}`, () => {
-  let request, app, admin, tenant, notificarOrden, descifrar, tokenA, vehiculo, vehiculoSinCorreo;
+  let request, app, admin, tenant, notificarOrden, descifrar, tokenA, vehiculo, vehiculoApi, vehiculoSinCorreo;
 
   const con = (token) => (r) => r.set('Authorization', `Bearer ${token}`);
 
@@ -59,6 +59,8 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-46 · avisos por correo${hayEntornoI
     const nuevoVehiculo = async (cliente_id, placa) =>
       (await admin.from('vehiculos').insert({ establecimiento_id: EST_A, cliente_id, placa, tipo: 'carro' }).select().single().throwOnError()).data;
     vehiculo = await nuevoVehiculo(conCorreo.id, PLACA.conCorreo);
+    // La base permite una sola orden activa por vehículo: cada prueba usa el suyo.
+    vehiculoApi = await nuevoVehiculo(conCorreo.id, PLACA.api);
     vehiculoSinCorreo = await nuevoVehiculo(sinCorreo.id, PLACA.sinCorreo);
   });
 
@@ -87,7 +89,7 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-46 · avisos por correo${hayEntornoI
   });
 
   it('CA2 y CA3: al pasar a "Listo" por la API responde 200 y deja el aviso registrado', async () => {
-    const orden = await crearOrden(vehiculo.id, CODIGO.api);
+    const orden = await crearOrden(vehiculoApi.id, CODIGO.api);
     const patch = (estado) => request(app).patch(`/api/v1/ordenes/${orden.id}/estado`).use(con(tokenA)).send({ estado });
 
     expect((await patch('en_lavado')).status).toBe(200);
