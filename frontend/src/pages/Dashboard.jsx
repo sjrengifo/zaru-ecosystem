@@ -2,15 +2,17 @@
 // Reutiliza el alta de ingreso (HU-08) y el avance de estado (HU-10) que ya
 // existían; HU-09 añade el tablero de cuatro columnas, los indicadores del día
 // y la sincronización con Supabase Realtime.
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../services/api.js';
 import { formatoMoneda } from '../lib/formato.js';
 import { useDashboardOrdenes } from '../hooks/useDashboardOrdenes.js';
+import { useAhora } from '../hooks/useAhora.js';
 import {
   COLUMNAS_TABLERO,
   ESTADOS_ORDEN,
   SIGUIENTE_ESTADO,
   agruparPorColumna,
+  calcularDemora,
   horaBogota,
   vehiculosAtendidosHoy,
   vehiculosIngresadosHoy,
@@ -18,6 +20,7 @@ import {
 import ColumnaKanban from '../components/ColumnaKanban.jsx';
 import IndicadoresDashboard from '../components/IndicadoresDashboard.jsx';
 import FormularioIngreso from '../components/FormularioIngreso.jsx';
+import AlertaDemora from '../components/AlertaDemora.jsx';
 import Notificacion from '../components/Notificacion.jsx';
 
 export default function Dashboard() {
@@ -32,16 +35,52 @@ export default function Dashboard() {
     refrescar,
     reintentar,
   } = useDashboardOrdenes();
+  // HU-11: referencia compartida para que la alerta de demora aparezca sola.
+  const ahora = useAhora();
 
   const [ingresando, setIngresando] = useState(false);
   const [avanzando, setAvanzando] = useState(null);
   const [confirmacion, setConfirmacion] = useState(null);
   const [errorAccion, setErrorAccion] = useState('');
+  const [alertaDemoraVisible, setAlertaDemoraVisible] = useState(false);
+  const ultimaAlertaRef = useRef(0);
+  const ultimaFirmaRef = useRef('');
   const cerrarConfirmacion = useCallback(() => setConfirmacion(null), []);
+  const cerrarAlertaDemora = useCallback(() => setAlertaDemoraVisible(false), []);
 
   const grupos = agruparPorColumna(ordenes);
   const atendidos = vehiculosAtendidosHoy(ordenes);
   const ingresados = vehiculosIngresadosHoy(ordenes);
+  // El reloj compartido recalcula cada segundo; así la notificación aparece
+  // apenas un vehículo supera los 30 s en su estado actual.
+  const demoradas = ordenes.filter((orden) => calcularDemora(orden, ahora).demorada);
+  const firmaDemoras = demoradas.map((orden) => orden.id).sort().join(',');
+
+  // Muestra la notificación cuando aparece una demora nueva y la repite cada
+  // 30 s mientras el vehículo siga sin actualizar. Al cambiar el estado de forma
+  // manual, `estado_desde` se reinicia y la notificación desaparece sola. En
+  // cada estado nuevo vuelve a contar y, si se demora, vuelve a avisar.
+  useEffect(() => {
+    if (!firmaDemoras) {
+      setAlertaDemoraVisible(false);
+      ultimaAlertaRef.current = 0;
+      ultimaFirmaRef.current = '';
+      return;
+    }
+    if (ingresando) return;
+
+    const ahoraMs = ahora.getTime();
+    const ids = firmaDemoras.split(',');
+    const anteriores = new Set(ultimaFirmaRef.current ? ultimaFirmaRef.current.split(',') : []);
+    const hayNueva = ids.some((id) => !anteriores.has(id));
+    const tocaRepetir = ahoraMs - ultimaAlertaRef.current >= 30_000;
+
+    if (hayNueva || tocaRepetir) {
+      setAlertaDemoraVisible(true);
+      ultimaAlertaRef.current = ahoraMs;
+    }
+    ultimaFirmaRef.current = firmaDemoras;
+  }, [firmaDemoras, ahora, ingresando]);
 
   function alIngresar(orden) {
     setIngresando(false);
@@ -172,6 +211,7 @@ export default function Dashboard() {
                 ordenes={grupos[columna.id]}
                 onAvanzar={avanzarEstado}
                 avanzando={avanzando}
+                ahora={ahora}
               />
             ))}
           </div>
@@ -189,6 +229,14 @@ export default function Dashboard() {
             </p>
           )}
         </>
+      )}
+
+      {alertaDemoraVisible && demoradas.length > 0 && (
+        <AlertaDemora
+          ordenes={demoradas}
+          ahora={ahora}
+          onCerrar={cerrarAlertaDemora}
+        />
       )}
     </section>
   );

@@ -60,6 +60,8 @@ tags:
     description: HU-13
   - name: Superadministración
     description: HU-57
+  - name: Reportes
+    description: HU-16
 security:
   - bearerPanel: []
 
@@ -622,23 +624,121 @@ paths:
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /reportes/servicios:
+    get:
+      tags: [Reportes]
+      operationId: listarReporteServicios
+      summary: Ranking de servicios por número de órdenes e ingresos (solo administrador)
+      description: >-
+        HU-16 CA1. Cuenta cada orden una sola vez por servicio, aunque tenga varios servicios.
+        Los ingresos usan el precio y el descuento guardados en la orden al crearla, no el precio
+        actual del catálogo. El rango incluye completos el día `desde` y el día `hasta`, en hora
+        de Bogotá. Si no hay órdenes, `servicios` queda vacío y `totalOrdenes` es 0.
+      parameters:
+        - name: desde
+          in: query
+          required: true
+          description: Primer día del rango, en formato AAAA-MM-DD y hora de Bogotá.
+          schema: { type: string, format: date }
+          example: '2026-11-01'
+        - name: hasta
+          in: query
+          required: true
+          description: Último día del rango (incluido), en formato AAAA-MM-DD y hora de Bogotá.
+          schema: { type: string, format: date }
+          example: '2026-11-03'
+      responses:
+        '200':
+          description: Ranking de servicios del rango, de mayor a menor número de órdenes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReporteServicios' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /reportes/afluencia:
+    get:
+      tags: [Reportes]
+      operationId: listarReporteAfluencia
+      summary: Vehículos por día de la semana y franja horaria (solo administrador)
+      description: >-
+        HU-16 CA2. Cada orden representa un ingreso de vehículo; si el mismo vehículo vuelve,
+        cuenta como una visita nueva. La matriz tiene 7 filas (lunes a domingo) por 12 franjas
+        fijas de dos horas, calculadas en hora de Bogotá. El rango incluye completos el día
+        `desde` y el día `hasta`. Si no hay órdenes, `totalVehiculos` es 0 y la matriz queda en ceros.
+      parameters:
+        - name: desde
+          in: query
+          required: true
+          description: Primer día del rango, en formato AAAA-MM-DD y hora de Bogotá.
+          schema: { type: string, format: date }
+          example: '2026-11-01'
+        - name: hasta
+          in: query
+          required: true
+          description: Último día del rango (incluido), en formato AAAA-MM-DD y hora de Bogotá.
+          schema: { type: string, format: date }
+          example: '2026-11-03'
+      responses:
+        '200':
+          description: Afluencia de vehículos del rango.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReporteAfluencia' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
   /usuarios:
     get:
       tags: [Usuarios]
       operationId: listarUsuarios
-      summary: Listar operarios (solo administrador; pendiente HU-02)
+      summary: Listar operarios del establecimiento (solo administrador)
+      description: >-
+        HU-02 CA1. Devuelve únicamente los perfiles con rol `operario` del establecimiento de la sesión.
+        El correo se lee de Supabase Auth (la tabla `perfiles` no lo almacena) y nunca se expone la
+        `service_role`. Los administradores y demás establecimientos no aparecen.
       responses:
+        '200':
+          description: Operarios del establecimiento.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Usuario' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
     post:
       tags: [Usuarios]
       operationId: crearUsuario
-      summary: Crear un operario e invitarlo por correo (solo administrador; pendiente HU-02)
+      summary: Crear un operario e invitarlo por correo (solo administrador)
+      description: >-
+        HU-02 CA1. Envía una invitación de Supabase Auth para que el operario establezca su propia
+        contraseña y crea su perfil con rol fijo `operario` en el establecimiento de la sesión.
+        El cliente no puede fijar `rol`, `establecimiento_id` ni contraseña. Si el correo ya existe
+        responde 409, sin distinguir entre establecimientos. Si la cuenta de Auth se crea pero el
+        correo de invitación no puede enviarse (SMTP, límite de envíos o URL de redirección), la
+        respuesta incluye `invitacion.enlace` con un enlace seguro de un solo uso para compartir
+        manualmente. La respuesta con enlace se envía con `Cache-Control: no-store`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UsuarioNuevo' }
+            example: { nombre: Laura Gómez, correo: laura@example.com }
       responses:
+        '201':
+          description: >-
+            Operario creado. `invitacion.enviada` indica si el correo de invitación salió; si es
+            `false`, `invitacion.enlace` trae el enlace seguro de respaldo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AltaUsuario' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
 
   /usuarios/{id}:
     parameters:
@@ -646,11 +746,30 @@ paths:
     put:
       tags: [Usuarios]
       operationId: actualizarUsuario
-      summary: Editar o desactivar un operario (solo administrador; pendiente HU-02)
+      summary: Editar o activar/desactivar un operario (solo administrador)
+      description: >-
+        HU-02 CA2 y CA3. Solo permite cambiar `nombre` y `activo` de un operario del mismo
+        establecimiento. El correo es de solo lectura y el rol nunca se modifica. Un administrador o
+        superadministrador no puede editarse por esta ruta. Desactivar conserva el historial y bloquea
+        el acceso en la siguiente petición, aunque el token siga vigente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UsuarioCambios' }
+            examples:
+              editarNombre: { value: { nombre: Laura Gómez } }
+              desactivar: { value: { activo: false } }
       responses:
+        '200':
+          description: Operario actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '501': { $ref: '#/components/responses/NoImplementado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /establecimiento:
     get:
@@ -732,44 +851,60 @@ paths:
   /superadmin/establecimientos:
     get:
       tags: [Superadministración]
-      operationId: listarEstablecimientosAfiliados
-      summary: Listar establecimientos afiliados
-      description: Solo el superadministrador de plataforma. Actualiza primero los periodos de prueba vencidos.
+      operationId: listarEstablecimientosSuperadmin
+      summary: Listar todos los establecimientos (solo superadministrador)
+      description: >-
+        HU-57 CA2. Devuelve el listado global de establecimientos y, antes de responder, marca como
+        `pendiente_activacion` los que superaron su período de prueba.
       responses:
-        '200': { description: Listado de establecimientos. }
+        '200':
+          description: Establecimientos de la plataforma.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EstablecimientoSuperadmin' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
     post:
       tags: [Superadministración]
-      operationId: registrarEstablecimientoAfiliado
-      summary: Registrar establecimiento y enviar invitación
-      description: Crea el tenant, asigna el plan y periodo de prueba (14 a 30 días), e invita al administrador inicial.
+      operationId: crearEstablecimientoSuperadmin
+      summary: Registrar un establecimiento e invitar a su administrador (solo superadministrador)
+      description: >-
+        HU-57 CA1. Crea el establecimiento en estado `prueba` e invita por correo al administrador inicial.
+        Si la invitación o la creación del perfil fallan, se compensan las operaciones ya realizadas.
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [nombre, plan, correoAdministrador, diasPrueba]
-              properties:
-                nombre: { type: string, minLength: 2, maxLength: 120 }
-                plan: { type: string, enum: [basico, intermedio, empresarial] }
-                correoAdministrador: { type: string, format: email }
-                diasPrueba: { type: integer, minimum: 14, maximum: 30 }
+            schema: { $ref: '#/components/schemas/NuevoEstablecimientoSuperadmin' }
+            example: { nombre: Car Wash Central, plan: basico, correoAdministrador: admin@example.com, diasPrueba: 14 }
       responses:
-        '201': { description: Establecimiento creado e invitación enviada. }
+        '201':
+          description: Establecimiento creado e invitación enviada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AltaEstablecimientoSuperadmin' }
         '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
-        '409': { description: No se pudo completar el alta o enviar la invitación. }
+        '409': { $ref: '#/components/responses/Conflicto' }
 
   /superadmin/establecimientos/{id}/activar:
     parameters:
       - $ref: '#/components/parameters/Id'
     post:
       tags: [Superadministración]
-      operationId: activarEstablecimiento
-      summary: Activar un establecimiento
+      operationId: activarEstablecimientoSuperadmin
+      summary: Activar un establecimiento (solo superadministrador)
+      description: HU-57 CA3. Habilita el acceso del establecimiento suspendido o pendiente de activación.
       responses:
-        '200': { description: Establecimiento activado. }
+        '200':
+          description: Establecimiento activo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EstablecimientoSuperadmin' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
@@ -778,10 +913,16 @@ paths:
       - $ref: '#/components/parameters/Id'
     post:
       tags: [Superadministración]
-      operationId: suspenderEstablecimiento
-      summary: Suspender un establecimiento sin eliminar sus datos
+      operationId: suspenderEstablecimientoSuperadmin
+      summary: Suspender un establecimiento (solo superadministrador)
+      description: HU-57 CA3. Bloquea el acceso sin eliminar el establecimiento ni sus datos.
       responses:
-        '200': { description: Establecimiento suspendido. }
+        '200':
+          description: Establecimiento suspendido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EstablecimientoSuperadmin' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
@@ -1228,6 +1369,53 @@ components:
           items: { type: string, format: uuid }
         activa: { type: boolean }
 
+    Usuario:
+      type: object
+      description: Operario del establecimiento. El correo vive en Supabase Auth, no en `perfiles`.
+      required: [id, nombre, correo, rol, activo, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        correo: { type: string, format: email, description: Correo de la cuenta de Supabase Auth. }
+        rol: { type: string, enum: [operario] }
+        activo: { type: boolean, description: 'Si es false, el operario no puede usar el panel.' }
+        created_at: { type: [string, 'null'], format: date-time }
+
+    UsuarioNuevo:
+      type: object
+      required: [nombre, correo]
+      additionalProperties: false
+      properties:
+        nombre: { type: string, minLength: 2, maxLength: 120 }
+        correo: { type: string, format: email, maxLength: 254 }
+
+    UsuarioCambios:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        nombre: { type: string, minLength: 2, maxLength: 120 }
+        activo: { type: boolean }
+
+    AltaUsuario:
+      type: object
+      required: [usuario, invitacion]
+      properties:
+        usuario: { $ref: '#/components/schemas/Usuario' }
+        invitacion:
+          type: object
+          description: >-
+            Resultado de la invitación. Si el correo no pudo enviarse, `enlace` contiene un enlace
+            de un solo uso que el administrador debe compartir por un medio seguro.
+          required: [correo, enviada]
+          properties:
+            correo: { type: string, format: email }
+            enviada: { type: boolean, description: 'true si Supabase envió el correo de invitación.' }
+            enlace:
+              type: string
+              format: uri
+              description: Enlace seguro de respaldo; solo aparece cuando `enviada` es false.
+
     Establecimiento:
       type: object
       description: >-
@@ -1246,3 +1434,103 @@ components:
       properties:
         colorPrimario: { type: string, pattern: '^#[0-9A-Fa-f]{6}$', example: '#0F766E' }
         colorSecundario: { type: string, pattern: '^#[0-9A-Fa-f]{6}$', example: '#F59E0B' }
+
+    EstablecimientoSuperadmin:
+      type: object
+      description: Establecimiento visto desde la administración global (HU-57).
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        plan: { type: string, enum: [basico, intermedio, empresarial] }
+        estado: { type: string, enum: [prueba, pendiente_activacion, activo, suspendido] }
+        prueba_inicia_at: { type: [string, 'null'], format: date-time }
+        prueba_finaliza_at: { type: [string, 'null'], format: date-time }
+        activado_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: [string, 'null'], format: date-time }
+
+    NuevoEstablecimientoSuperadmin:
+      type: object
+      required: [nombre, plan, correoAdministrador, diasPrueba]
+      additionalProperties: false
+      properties:
+        nombre: { type: string, minLength: 2, maxLength: 120 }
+        plan: { type: string, enum: [basico, intermedio, empresarial] }
+        correoAdministrador: { type: string, format: email, maxLength: 254 }
+        diasPrueba: { type: integer, minimum: 14, maximum: 30 }
+
+    AltaEstablecimientoSuperadmin:
+      type: object
+      required: [establecimiento, invitacion]
+      properties:
+        establecimiento: { $ref: '#/components/schemas/EstablecimientoSuperadmin' }
+        invitacion:
+          type: object
+          required: [correo, enviada]
+          properties:
+            correo: { type: string, format: email }
+            enviada: { type: boolean }
+
+    ReporteServicio:
+      type: object
+      required: [servicioId, nombre, ordenes, ingresos]
+      properties:
+        servicioId: { type: string, format: uuid }
+        nombre: { type: string }
+        ordenes: { type: integer, minimum: 0, description: Órdenes distintas que incluyen el servicio. }
+        ingresos:
+          type: number
+          minimum: 0
+          description: Suma histórica de precio menos descuento de las líneas de la orden.
+
+    ReporteServicios:
+      type: object
+      required: [desde, hasta, totalOrdenes, servicios]
+      properties:
+        desde: { type: string, format: date }
+        hasta: { type: string, format: date }
+        totalOrdenes: { type: integer, minimum: 0 }
+        servicios:
+          type: array
+          items: { $ref: '#/components/schemas/ReporteServicio' }
+
+    ReporteAfluencia:
+      type: object
+      required: [desde, hasta, totalVehiculos, dias, franjas, matriz, porDia, porFranja]
+      properties:
+        desde: { type: string, format: date }
+        hasta: { type: string, format: date }
+        totalVehiculos: { type: integer, minimum: 0 }
+        dias:
+          type: array
+          description: Siete días, de lunes a domingo.
+          items: { type: string }
+          minItems: 7
+          maxItems: 7
+        franjas:
+          type: array
+          description: Doce franjas fijas de dos horas, de 00:00 a 24:00.
+          items: { type: string }
+          minItems: 12
+          maxItems: 12
+        matriz:
+          type: array
+          description: Filas por día (lunes primero) y columnas por franja (00:00 primero).
+          items:
+            type: array
+            items: { type: integer, minimum: 0 }
+        porDia:
+          type: array
+          items:
+            type: object
+            required: [dia, vehiculos]
+            properties:
+              dia: { type: string }
+              vehiculos: { type: integer, minimum: 0 }
+        porFranja:
+          type: array
+          items:
+            type: object
+            required: [franja, vehiculos]
+            properties:
+              franja: { type: string }
+              vehiculos: { type: integer, minimum: 0 }

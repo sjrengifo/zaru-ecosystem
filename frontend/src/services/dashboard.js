@@ -7,11 +7,13 @@ import { supabase } from '../lib/supabase.js';
 import { inicioDiaBogota } from '../lib/dashboard.js';
 
 // Columnas que necesita una tarjeta y los dos indicadores del día.
+// `estado_desde` y `duracion_min` alimentan la alerta de demora de HU-11 sin
+// consultas extra: la duración es el snapshot guardado al crear la orden.
 const CAMPOS = [
-  'id, vehiculo_id, estado, created_at, total, codigo_seguimiento,',
+  'id, vehiculo_id, estado, estado_desde, created_at, total, codigo_seguimiento,',
   'entrega_estimada_at, entregada_at,',
   'vehiculos(placa),',
-  'orden_servicios(servicios(nombre))',
+  'orden_servicios(duracion_min, servicios(nombre))',
 ].join(' ');
 
 /**
