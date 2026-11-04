@@ -136,7 +136,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Estado de una orden${hayEntornoIntegrac
       const res = await cambiar(orden.id, { estado: 'entregado' });
 
       expect(res.status).toBe(409);
-      expect(res.body.codigo).toBe('CONFLICTO');
+      expect(res.body.error.codigo).toBe('CONFLICTO');
       const { data } = await admin.from('ordenes').select('estado, version, entregada_at').eq('id', orden.id).single();
       expect(data).toEqual({ estado: 'recibido', version: 1, entregada_at: null });
 
@@ -179,7 +179,7 @@ describe.skipIf(!hayEntornoIntegracion)(`Estado de una orden${hayEntornoIntegrac
 
       const res = await cambiar(orden.id, { revertir: true });
       expect(res.status).toBe(409);
-      expect(res.body.codigo).toBe('CONFLICTO');
+      expect(res.body.error.codigo).toBe('CONFLICTO');
     });
   });
 

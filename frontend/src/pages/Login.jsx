@@ -15,6 +15,10 @@ export default function Login() {
 
   const [error, setError] = useState(() => {
     try {
+      if (sessionStorage.getItem('zaru:sesion-revocada')) {
+        sessionStorage.removeItem('zaru:sesion-revocada');
+        return 'Tu cuenta ya no tiene acceso al panel. Contacta al administrador.';
+      }
       if (sessionStorage.getItem('zaru:sesion-vencida')) {
         sessionStorage.removeItem('zaru:sesion-vencida');
         return 'Tu sesión venció. Inicia sesión de nuevo.';

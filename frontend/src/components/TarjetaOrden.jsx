@@ -5,14 +5,20 @@ import { formatoMoneda } from '../lib/formato.js';
 import {
   ESTADOS_ORDEN,
   SIGUIENTE_ESTADO,
+  calcularDemora,
   horaBogota,
   nombresServicios,
+  tiempoEnEstadoLegible,
 } from '../lib/dashboard.js';
 
-export default function TarjetaOrden({ orden, onAvanzar, avanzando }) {
+export default function TarjetaOrden({ orden, onAvanzar, avanzando, ahora }) {
   const placa = orden.vehiculos?.placa ?? 'Sin placa';
   const estado = ESTADOS_ORDEN[orden.estado] ?? orden.estado;
   const siguiente = SIGUIENTE_ESTADO[orden.estado];
+  const demora = calcularDemora(orden, ahora);
+  const tieneInicioEstado = Boolean(
+    orden.estado_desde || (orden.estado === 'recibido' && orden.created_at),
+  );
 
   return (
     <article
@@ -33,6 +39,12 @@ export default function TarjetaOrden({ orden, onAvanzar, avanzando }) {
           <dt>Ingreso</dt>
           <dd>{horaBogota(orden.created_at)}</dd>
         </div>
+        {orden.estado !== 'entregado' && tieneInicioEstado && (
+          <div>
+            <dt>En este estado</dt>
+            <dd>{tiempoEnEstadoLegible(demora.transcurridoSeg)}</dd>
+          </div>
+        )}
         <div>
           <dt>Total</dt>
           <dd>{formatoMoneda(orden.total)}</dd>

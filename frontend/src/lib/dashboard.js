@@ -88,6 +88,58 @@ export function nombresServicios(orden) {
 }
 
 /**
+ * HU-11 — Umbral de la alerta: más de 30 segundos en el mismo estado.
+ * La alerta se repite cada 30 s mientras el estado no se actualice y deja de
+ * mostrarse en `entregado`.
+ */
+export const UMBRAL_ALERTA_SEGUNDOS = 30;
+
+/**
+ * HU-11 — ¿La orden lleva más de 30 segundos en su estado actual?
+ *
+ * El tiempo se mide desde `estado_desde`, que la función SQL reinicia en cada
+ * cambio de estado. Para el estado inicial `recibido`, si por algún motivo aún
+ * no hay `estado_desde`, se usa `created_at`: el conteo arranca al ingresar el
+ * vehículo. Una orden entregada ya terminó su seguimiento y no alerta.
+ * Si falta la fecha o la referencia, tampoco alerta.
+ */
+export function calcularDemora(orden, referencia = new Date()) {
+  const inicioEstado =
+    orden?.estado_desde || (orden?.estado === 'recibido' ? orden?.created_at : null);
+  const desde = new Date(inicioEstado ?? NaN).getTime();
+  const ahora = new Date(referencia).getTime();
+
+  const sinDatos =
+    Number.isNaN(desde) || Number.isNaN(ahora) || orden?.estado === 'entregado';
+
+  if (sinDatos) {
+    return { demorada: false, transcurridoMin: 0, transcurridoSeg: 0 };
+  }
+
+  const transcurridoMs = Math.max(0, ahora - desde);
+  return {
+    // La alerta aparece solo cuando se superan los 30 s exactos.
+    demorada: transcurridoMs > UMBRAL_ALERTA_SEGUNDOS * 1000,
+    transcurridoMin: Math.floor(transcurridoMs / 60_000),
+    transcurridoSeg: Math.floor(transcurridoMs / 1000),
+  };
+}
+
+/** Texto corto del tiempo transcurrido: segundos, minutos, horas o días. */
+export function tiempoEnEstadoLegible(segundos) {
+  const total = Number.isFinite(segundos) && segundos > 0 ? Math.floor(segundos) : 0;
+  if (total < 60) return `${total} s`;
+
+  const minutos = Math.floor(total / 60);
+  if (minutos < 60) return `${minutos} min`;
+
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `${horas} h`;
+
+  return `${Math.floor(horas / 24)} d`;
+}
+
+/**
  * Agrupa las órdenes en las cuatro columnas y las ordena por hora de ingreso
  * (la más antigua primero, que es la que conviene atender antes).
  */

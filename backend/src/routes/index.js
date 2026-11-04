@@ -11,6 +11,7 @@ import promocionesRoutes from './promociones.routes.js';
 import usuariosRoutes from './usuarios.routes.js';
 import establecimientoRoutes from './establecimiento.routes.js';
 import superadminRoutes from './superadmin.routes.js';
+import reportesRoutes from './reportes.routes.js';
 import * as me from '../controllers/me.controller.js';
 import * as politicas from '../controllers/politicas.controller.js';
 
@@ -26,6 +27,7 @@ export const MODULOS = [
   ['/usuarios', usuariosRoutes],               // HU-02
   ['/establecimiento', establecimientoRoutes], // HU-13
   ['/superadmin', superadminRoutes],             // HU-57
+  ['/reportes', reportesRoutes],                 // HU-16
 ];
 
 const router = Router();

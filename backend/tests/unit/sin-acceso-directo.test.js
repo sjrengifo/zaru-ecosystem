@@ -14,7 +14,19 @@ function archivos(dir) {
 }
 
 // Únicos archivos autorizados a usar el cliente service_role directamente.
-const PERMITIDOS = ['config/supabase.js', 'shared/tenant.js', 'shared/auditoria.js', 'shared/politicas.js', 'middlewares/auth.js'];
+// El superadministrador (HU-57) es global y no tiene `req.tenant`: administra
+// establecimientos de todos los tenants, por eso accede a la base directamente.
+// HU-02 usa la Admin API de Auth para invitar y leer correos, e inserta el perfil con el id
+// que devuelve Auth (req.tenant.crear lo protege y no permite fijarlo); el resto pasa por req.tenant.
+const PERMITIDOS = [
+  'config/supabase.js',
+  'shared/tenant.js',
+  'shared/auditoria.js',
+  'shared/politicas.js',
+  'middlewares/auth.js',
+  'controllers/superadmin.controller.js',
+  'controllers/usuarios.controller.js',
+];
 
 describe('acceso a datos', () => {
   it('los controladores y servicios solo usan req.tenant', () => {
