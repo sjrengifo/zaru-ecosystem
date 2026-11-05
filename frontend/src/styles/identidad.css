@@ -105,6 +105,34 @@ input[type='file']::file-selector-button {
   cursor: pointer;
 }
 
+/* ---------- Carga ---------- */
+/* El círculo y su texto quedan centrados en el espacio del componente que se está cargando. */
+.cargando {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  color: var(--color-texto-suave);
+  font-size: 14px;
+  text-align: center;
+}
+.cargando .spinner { flex-shrink: 0; margin: 0; }
+.cargando-bloque { min-height: 140px; }
+.cargando-pantalla { min-height: 100vh; min-height: 100dvh; margin: 0; }
+.spinner-oscuro { width: 18px; height: 18px; border-width: 2.5px; }
+.tabla td.tabla-vacia .cargando { padding: 8px 0; }
+.indicador-cargando { display: flex; align-items: center; height: 46px; }
+.indicador-cargando .spinner { width: 26px; height: 26px; margin: 0; border-width: 3px; }
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ---------- Superficies ---------- */
 .tarjeta {
   border-color: color-mix(in srgb, var(--color-borde) 80%, transparent);
@@ -341,19 +369,6 @@ input[type='file']::file-selector-button {
     radial-gradient(240px 140px at 100% 0%, color-mix(in srgb, var(--color-secundario) 14%, transparent), transparent 70%),
     var(--color-superficie);
 }
-.indicador::after {
-  /* Gota de agua decorativa en la esquina. */
-  content: '';
-  position: absolute;
-  top: 18px;
-  right: 20px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50% 50% 50% 0;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--color-secundario) 60%, #fff), var(--color-primario));
-  opacity: 0.9;
-  transform: rotate(-45deg);
-}
 .indicador-titulo { font-size: 12.5px; letter-spacing: 0.06em; }
 .indicador-valor { margin: 4px 0 2px; color: var(--color-texto); font-family: var(--fuente-display); font-size: 46px; font-weight: 750; letter-spacing: -0.04em; line-height: 1; }
 .indicador-nota { max-width: 44ch; }
@@ -415,18 +430,6 @@ input[type='file']::file-selector-button {
   padding: 26px 12px;
   border: 1.5px dashed color-mix(in srgb, var(--color-borde) 90%, var(--color-texto-suave));
   border-radius: 14px;
-  background:
-    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--color-paso, var(--color-primario)) 10%, transparent), transparent 60%);
-}
-.columna-vacia::before {
-  content: '';
-  display: block;
-  width: 26px;
-  height: 26px;
-  margin: 0 auto 8px;
-  border-radius: 50% 50% 50% 0;
-  background: color-mix(in srgb, var(--color-paso, var(--color-primario)) 35%, #fff);
-  transform: rotate(-45deg);
 }
 
 /* Tarjeta de vehículo: placa protagonista y barra de avance del lavado. */
@@ -525,17 +528,7 @@ input[type='file']::file-selector-button {
 .enlace-tabla:hover { color: var(--color-primario); }
 .boton-fila { border-radius: 10px; }
 .tabla .placas-celda { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.tabla-vacia::before {
-  content: '';
-  display: block;
-  width: 30px;
-  height: 30px;
-  margin: 0 auto 10px;
-  border-radius: 50% 50% 50% 0;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--color-secundario) 45%, #fff), var(--color-primario));
-  opacity: 0.55;
-  transform: rotate(-45deg);
-}
+
 .boton-fila:hover { background: var(--color-primario-suave); }
 
 /* Buscadores: lupa dibujada con CSS para no tocar los formularios de las HU. */

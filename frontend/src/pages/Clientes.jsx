@@ -10,6 +10,7 @@ import FormularioEditarCliente from '../components/FormularioEditarCliente.jsx';
 import FormularioVehiculo from '../components/FormularioVehiculo.jsx';
 import ConfirmarEliminarCliente from '../components/ConfirmarEliminarCliente.jsx';
 import { useRol } from '../hooks/useRol.js';
+import Cargando from '../components/Cargando.jsx';
 
 const ESPERA_BUSQUEDA_MS = 250;
 
@@ -249,7 +250,7 @@ export default function Clientes() {
             {clientes.length === 0 && !error && (
               <tr>
                 <td colSpan={5} className="tabla-vacia">
-                  {cargando ? 'Cargando clientes…' : buscar ? `No hay clientes que coincidan con "${buscar}".` : 'Aún no hay clientes. Registra el primero con "+ Nuevo cliente".'}
+                  {cargando ? <Cargando texto="Cargando clientes…" /> : buscar ? `No hay clientes que coincidan con "${buscar}".` : 'Aún no hay clientes. Registra el primero con "+ Nuevo cliente".'}
                 </td>
               </tr>
             )}

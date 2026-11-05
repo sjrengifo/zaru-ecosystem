@@ -8,6 +8,7 @@ import Modal from './Modal.jsx';
 import CampoTexto from './CampoTexto.jsx';
 import MensajeError from './MensajeError.jsx';
 import PieFormulario from './PieFormulario.jsx';
+import Cargando from './Cargando.jsx';
 
 const CAMPOS = ['placa', 'tipo', 'marca', 'color', 'nombre', 'telefono', 'correo', 'autorizacionDatos', 'servicioIds', 'observaciones'];
 
@@ -410,7 +411,7 @@ export default function FormularioIngreso({ onCreada, onCancelar }) {
                   {parrafosPolitica(politica.contenido)}
                 </div>
               )}
-              {!politica && !errorPolitica && <p className="texto-suave" role="status">Cargando la política…</p>}
+              {!politica && !errorPolitica && <Cargando texto="Cargando la política…" />}
               {errorPolitica && (
                 <div className="aviso aviso-error" role="alert">
                   <p>{errorPolitica}</p>
@@ -446,7 +447,7 @@ export default function FormularioIngreso({ onCreada, onCancelar }) {
             <legend>
               Servicios <span className="obligatorio" aria-hidden="true">*</span>
             </legend>
-            {servicios === null && !errorCarga && <p className="texto-suave">Cargando el catálogo…</p>}
+            {servicios === null && !errorCarga && <Cargando texto="Cargando el catálogo…" />}
             {servicios?.length === 0 && <p className="texto-suave">No hay servicios activos en el catálogo.</p>}
             <div className="lista-servicios" aria-describedby={errores.servicioIds ? 'ingreso-servicios-error' : undefined}>
               {(servicios ?? []).map((s, i) => (

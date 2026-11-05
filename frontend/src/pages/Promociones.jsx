@@ -8,6 +8,7 @@ import { ESTADOS_PROMOCION } from '../lib/validacionPromocion.js';
 import { useRol } from '../hooks/useRol.js';
 import FormularioPromocion from '../components/FormularioPromocion.jsx';
 import Notificacion from '../components/Notificacion.jsx';
+import Cargando from '../components/Cargando.jsx';
 
 const FILTROS = [
   { valor: 'todas', texto: 'Todas' },
@@ -159,7 +160,7 @@ export default function Promociones() {
             {promociones.length === 0 && !error && (
               <tr>
                 <td colSpan={esAdmin ? 6 : 5} className="tabla-vacia">
-                  {cargando ? 'Cargando promociones…' : VACIO[filtro]}
+                  {cargando ? <Cargando texto="Cargando promociones…" /> : VACIO[filtro]}
                 </td>
               </tr>
             )}

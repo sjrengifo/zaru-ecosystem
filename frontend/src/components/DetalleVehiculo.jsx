@@ -5,6 +5,7 @@ import { TIPOS_VEHICULO } from '../lib/validacionVehiculo.js';
 import { formatoFecha, formatoMoneda } from '../lib/formato.js';
 import Modal from './Modal.jsx';
 import Icono from './Icono.jsx';
+import Cargando from './Cargando.jsx';
 
 export default function DetalleVehiculo({ vehiculo, nombreCliente, onCerrar }) {
   const [historial, setHistorial] = useState(null);
@@ -41,9 +42,7 @@ export default function DetalleVehiculo({ vehiculo, nombreCliente, onCerrar }) {
           </div>
         )}
         {!historial && !error && (
-          <div className="perfil-cargando" role="status" aria-label="Cargando el historial del vehículo">
-            <span />
-          </div>
+          <Cargando texto="Cargando el historial del vehículo…" className="cargando-bloque" />
         )}
 
         {historial?.length > 0 && (

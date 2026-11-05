@@ -9,6 +9,7 @@ import FormularioVehiculo from './FormularioVehiculo.jsx';
 import DetalleVehiculo from './DetalleVehiculo.jsx';
 import Notificacion from './Notificacion.jsx';
 import Icono from './Icono.jsx';
+import Cargando from './Cargando.jsx';
 
 export default function DetalleCliente({ id, onEditar, onAbrirCliente, onVehiculoRegistrado, onEliminado }) {
   const rol = useRol();
@@ -43,10 +44,7 @@ export default function DetalleCliente({ id, onEditar, onAbrirCliente, onVehicul
           </div>
         )}
         {!cliente && !error && (
-          <div className="perfil-cargando" role="status" aria-label="Cargando el perfil del cliente">
-            <span />
-            <span />
-          </div>
+          <Cargando texto="Cargando el perfil del cliente…" className="cargando-bloque" />
         )}
         {cliente && (
           <>

@@ -6,6 +6,7 @@ import { formatoMoneda } from '../lib/formato.js';
 import { useRol } from '../hooks/useRol.js';
 import FormularioServicio from '../components/FormularioServicio.jsx';
 import Notificacion from '../components/Notificacion.jsx';
+import Cargando from '../components/Cargando.jsx';
 
 const FILTROS = [
   { valor: '', texto: 'Todos' },
@@ -165,7 +166,7 @@ export default function Servicios() {
             {servicios.length === 0 && !error && (
               <tr>
                 <td colSpan={esAdmin ? 5 : 4} className="tabla-vacia">
-                  {cargando ? 'Cargando servicios…' : VACIO[filtro]}
+                  {cargando ? <Cargando texto="Cargando servicios…" /> : VACIO[filtro]}
                 </td>
               </tr>
             )}

@@ -10,6 +10,7 @@ import Modal from '../components/Modal.jsx';
 import Notificacion from '../components/Notificacion.jsx';
 import FormularioEstablecimiento from '../components/FormularioEstablecimiento.jsx';
 import MarcaZaru from '../components/MarcaZaru.jsx';
+import Cargando from '../components/Cargando.jsx';
 import {
   PLANES, ESTADOS, FILTROS, DIAS_AVISO_VENCIMIENTO,
   accionesPara, contarPorEstado, filtrarEstablecimientos, formatoFechaCorta,
@@ -174,7 +175,7 @@ export default function Superadmin() {
             <button className="boton secundario boton-pequeno" type="button" onClick={cargar} disabled={cargando} aria-busy={cargando}>Actualizar</button>
           </div>
 
-          {cargando && !establecimientos.length ? <p className="texto-suave">Cargando establecimientos…</p> : (
+          {cargando && !establecimientos.length ? <Cargando texto="Cargando establecimientos…" className="cargando-bloque" /> : (
             <div className="tabla-contenedor">
               <table className="tabla tabla-establecimientos">
                 <thead><tr><th>Establecimiento</th><th>Plan</th><th>Estado</th><th>Administrador</th><th>Prueba</th><th>Acciones</th></tr></thead>

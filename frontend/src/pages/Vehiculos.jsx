@@ -7,6 +7,7 @@ import Modal from '../components/Modal.jsx';
 import DetalleCliente from '../components/DetalleCliente.jsx';
 import DetalleVehiculo from '../components/DetalleVehiculo.jsx';
 import Notificacion from '../components/Notificacion.jsx';
+import Cargando from '../components/Cargando.jsx';
 
 const ESPERA_BUSQUEDA_MS = 250;
 
@@ -129,7 +130,7 @@ export default function Vehiculos() {
             {vehiculos.length === 0 && !error && (
               <tr>
                 <td colSpan={6} className="tabla-vacia">
-                  {cargando ? 'Cargando vehículos…' : buscar ? `No hay vehículos que coincidan con "${buscar}".` : 'Aún no hay vehículos registrados.'}
+                  {cargando ? <Cargando texto="Cargando vehículos…" /> : buscar ? `No hay vehículos que coincidan con "${buscar}".` : 'Aún no hay vehículos registrados.'}
                 </td>
               </tr>
             )}

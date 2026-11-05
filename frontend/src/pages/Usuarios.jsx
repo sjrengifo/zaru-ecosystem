@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 import FormularioUsuario from '../components/FormularioUsuario.jsx';
 import Notificacion from '../components/Notificacion.jsx';
+import Cargando from '../components/Cargando.jsx';
 
 const FILTROS = [
   { valor: '', texto: 'Todos' },
@@ -214,7 +215,7 @@ export default function Usuarios() {
             {visibles.length === 0 && !error && (
               <tr>
                 <td colSpan={4} className="tabla-vacia">
-                  {cargando ? 'Cargando operarios…' : VACIO[filtro]}
+                  {cargando ? <Cargando texto="Cargando operarios…" /> : VACIO[filtro]}
                 </td>
               </tr>
             )}
