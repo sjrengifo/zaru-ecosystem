@@ -9,6 +9,7 @@ import { usePerfil } from '../hooks/usePerfil.js';
 import Modal from '../components/Modal.jsx';
 import Notificacion from '../components/Notificacion.jsx';
 import FormularioEstablecimiento from '../components/FormularioEstablecimiento.jsx';
+import MarcaZaru from '../components/MarcaZaru.jsx';
 import {
   PLANES, ESTADOS, FILTROS, DIAS_AVISO_VENCIMIENTO,
   accionesPara, contarPorEstado, filtrarEstablecimientos, formatoFechaCorta,
@@ -120,7 +121,7 @@ export default function Superadmin() {
     <div className="superadmin-pagina">
       <header className="superadmin-barra">
         <div className="superadmin-marca">
-          <span className="logo">Zaru</span>
+          <span className="logo"><MarcaZaru claro tamano={28} /></span>
           <span className="superadmin-marca-texto">Administración de la plataforma</span>
         </div>
         <div className="superadmin-sesion">

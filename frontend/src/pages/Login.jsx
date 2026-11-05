@@ -6,6 +6,9 @@ import { supabase } from '../lib/supabase.js';
 import { useSesion } from '../hooks/useSesion.js';
 import { validarCorreo } from '../lib/validacionCorreo.js';
 import { destinoTrasLogin } from '../lib/rutas.js';
+import { ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import MarcoAuth from '../components/MarcoAuth.jsx';
+import MarcaZaru from '../components/MarcaZaru.jsx';
 
 export default function Login() {
   const { sesion, usuario, cargando, errorSesion, recargar, recuperacion } = useSesion();
@@ -13,6 +16,7 @@ export default function Login() {
 
   const [correo, setCorreo] = useState('');
   const [clave, setClave] = useState('');
+  const [verClave, setVerClave] = useState(false);
 
   const [error, setError] = useState(() => {
     try {
@@ -92,46 +96,65 @@ export default function Login() {
   const mensajeError = error || errorSesion;
 
   return (
-    <div className="login">
-      <form className="tarjeta login-form" onSubmit={iniciarSesion} noValidate>
-        <h1 className="logo">Zaru</h1>
-        <p className="texto-suave">Panel administrativo</p>
+    <MarcoAuth>
+      <form className="login-form" onSubmit={iniciarSesion} noValidate>
+        <h1 className="logo">
+          <MarcaZaru tamano={34} />
+        </h1>
+        <h2 className="auth-titulo">Hola de nuevo</h2>
+        <p className="texto-suave auth-intro">Ingresa al panel administrativo de tu lavadero.</p>
 
         <label htmlFor="correo">Correo</label>
-        <input
-          id="correo"
-          type="email"
-          value={correo}
-          onChange={(e) => setCorreo(e.target.value)}
-          autoComplete="email"
-          autoFocus
-          disabled={enviando}
-          required
-        />
+        <div className="campo-control campo-con-icono">
+          <Mail size={18} aria-hidden="true" />
+          <input
+            id="correo"
+            type="email"
+            value={correo}
+            onChange={(e) => setCorreo(e.target.value)}
+            autoComplete="email"
+            placeholder="tu@correo.com"
+            autoFocus
+            disabled={enviando}
+            required
+          />
+        </div>
 
         <label htmlFor="clave">Contraseña</label>
-        <input
-          id="clave"
-          type="password"
-          value={clave}
-          onChange={(e) => setClave(e.target.value)}
-          autoComplete="current-password"
-          disabled={enviando}
-          required
-        />
+        <div className="campo-control campo-con-icono campo-con-boton">
+          <Lock size={18} aria-hidden="true" />
+          <input
+            id="clave"
+            type={verClave ? 'text' : 'password'}
+            value={clave}
+            onChange={(e) => setClave(e.target.value)}
+            autoComplete="current-password"
+            disabled={enviando}
+            required
+          />
+          <button
+            type="button"
+            className="boton-ver-clave"
+            onClick={() => setVerClave((v) => !v)}
+            aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            aria-pressed={verClave}
+          >
+            {verClave ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+          </button>
+        </div>
 
         <Link className="login-olvido" to="/recuperar">
           ¿Olvidaste tu contraseña?
         </Link>
 
         {mensajeError && (
-          <p className="error" role="alert" aria-live="polite">
+          <p className="error aviso aviso-error" role="alert" aria-live="polite">
             {mensajeError}
           </p>
         )}
 
         <button
-          className="boton"
+          className="boton boton-grande"
           type="submit"
           disabled={enviando || cargando}
           aria-busy={enviando}
@@ -142,10 +165,13 @@ export default function Login() {
               Entrando…
             </>
           ) : (
-            'Iniciar sesión'
+            <>
+              Iniciar sesión
+              <ArrowRight size={18} aria-hidden="true" />
+            </>
           )}
         </button>
       </form>
-    </div>
+    </MarcoAuth>
   );
 }
