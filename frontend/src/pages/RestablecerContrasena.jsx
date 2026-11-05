@@ -28,7 +28,7 @@ function Tarjeta({ children }) {
     <MarcoAuth>
       <div className="login-form auth-form">
         <h1 className="logo">
-          <MarcaZaru tamano={34} />
+          <MarcaZaru tamano={34} gota={false} />
         </h1>
         {children}
       </div>

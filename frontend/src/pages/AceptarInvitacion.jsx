@@ -57,7 +57,7 @@ export default function AceptarInvitacion() {
     <MarcoAuth>
       <form className="login-form" onSubmit={establecerClave}>
         <h1 className="logo">
-          <MarcaZaru tamano={34} />
+          <MarcaZaru tamano={34} gota={false} />
         </h1>
         <h2>Activa tu cuenta</h2>
         <p className="texto-suave">
