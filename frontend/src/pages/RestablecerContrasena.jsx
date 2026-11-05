@@ -6,6 +6,8 @@ import { useSesion } from '../hooks/useSesion.js';
 import { REGLAS_CONTRASENA, validarContrasena } from '../lib/contrasena.js';
 import { enlaceAuth } from '../lib/enlaceAuth.js';
 import { supabase } from '../lib/supabase.js';
+import MarcoAuth from '../components/MarcoAuth.jsx';
+import MarcaZaru from '../components/MarcaZaru.jsx';
 
 // El enlace vence o ya fue usado cuando Supabase ya no reconoce la sesión temporal.
 function esEnlaceCaido(error) {
@@ -23,13 +25,14 @@ function esEnlaceCaido(error) {
 
 function Tarjeta({ children }) {
   return (
-    <div className="login">
-      <div className="tarjeta login-form auth-form">
-        <h1 className="logo">Zaru</h1>
-        <p className="texto-suave">Panel administrativo</p>
+    <MarcoAuth>
+      <div className="login-form auth-form">
+        <h1 className="logo">
+          <MarcaZaru tamano={34} />
+        </h1>
         {children}
       </div>
-    </div>
+    </MarcoAuth>
   );
 }
 

@@ -184,7 +184,13 @@ export default function Clientes() {
                 </td>
                 <td data-etiqueta="Teléfono">{c.telefono}</td>
                 <td data-etiqueta="Correo">{c.correo || '—'}</td>
-                <td data-etiqueta="Vehículos">{c.vehiculos?.map((v) => v.placa).join(', ') || '—'}</td>
+                <td data-etiqueta="Vehículos">
+                  {c.vehiculos?.length ? (
+                    <span className="placas-celda">
+                      {c.vehiculos.map((v) => <span key={v.placa} className="placa">{v.placa}</span>)}
+                    </span>
+                  ) : '—'}
+                </td>
                 <td className="tabla-acciones">
                   <button
                     type="button"
