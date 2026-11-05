@@ -99,7 +99,7 @@ export default function Login() {
     <MarcoAuth>
       <form className="login-form" onSubmit={iniciarSesion} noValidate>
         <h1 className="logo">
-          <MarcaZaru tamano={34} />
+          <MarcaZaru tamano={34} gota={false} />
         </h1>
         <h2 className="auth-titulo">Hola de nuevo</h2>
         <p className="texto-suave auth-intro">Ingresa al panel administrativo de tu lavadero.</p>
