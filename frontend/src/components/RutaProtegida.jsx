@@ -5,6 +5,7 @@ import { useSesion } from '../hooks/useSesion.js';
 import { rutaInicio } from '../lib/rutas.js';
 import { usePerfil } from '../hooks/usePerfil.js';
 import { inicioDe, puedeVer } from '../lib/permisos.js';
+import Cargando from './Cargando.jsx';
 
 export default function RutaProtegida({
   children,
@@ -14,7 +15,7 @@ export default function RutaProtegida({
   const ubicacion = useLocation();
 
   // Solo se bloquea la primera carga; una revalidación en segundo plano conserva la página.
-  if (cargando && !usuario) return <p className="centrado">Cargando…</p>;
+  if (cargando && !usuario) return <Cargando pantalla />;
 
   if (recuperacion) {
     return <Navigate to="/restablecer" replace />;
@@ -54,7 +55,7 @@ export default function RutaProtegida({
 export function RequiereModulo({ modulo, children }) {
   const perfil = usePerfil();
   const ubicacion = useLocation();
-  if (!perfil) return <p className="centrado">Cargando…</p>;
+  if (!perfil) return <Cargando pantalla />;
   if (!puedeVer(perfil, modulo)) {
     const inicio = inicioDe(perfil);
     return <Navigate to={inicio} replace state={{ accesoDenegado: ubicacion.pathname }} />;

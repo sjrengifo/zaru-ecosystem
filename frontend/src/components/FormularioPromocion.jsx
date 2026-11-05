@@ -8,6 +8,7 @@ import Modal from './Modal.jsx';
 import CampoTexto from './CampoTexto.jsx';
 import MensajeError from './MensajeError.jsx';
 import PieFormulario from './PieFormulario.jsx';
+import Cargando from './Cargando.jsx';
 
 const CAMPOS = ['nombre', 'descripcion', 'condiciones', 'descuentoPct', 'fechaInicio', 'fechaFin', 'servicioIds'];
 
@@ -151,7 +152,7 @@ export default function FormularioPromocion({ promocion, onGuardada, onCancelar 
             <legend>
               Servicios a los que aplica <span className="obligatorio" aria-hidden="true">*</span>
             </legend>
-            {servicios === null && !errorServicios && <p className="texto-suave">Cargando el catálogo…</p>}
+            {servicios === null && !errorServicios && <Cargando texto="Cargando el catálogo…" />}
             {errorServicios && <MensajeError id="promocion-servicios-carga">{errorServicios}</MensajeError>}
             {servicios && opciones.length === 0 && (
               <p className="texto-suave">El catálogo no tiene servicios activos. Agrégalos primero en Servicios.</p>
