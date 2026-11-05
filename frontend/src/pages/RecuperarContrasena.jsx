@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import CampoTexto from '../components/CampoTexto.jsx';
 import { supabase } from '../lib/supabase.js';
 import { normalizarCorreo, validarCorreo } from '../lib/validacionCorreo.js';
+import MarcoAuth from '../components/MarcoAuth.jsx';
+import MarcaZaru from '../components/MarcaZaru.jsx';
 
 export default function RecuperarContrasena() {
   const [correo, setCorreo] = useState('');
@@ -67,10 +69,11 @@ export default function RecuperarContrasena() {
   }
 
   return (
-    <div className="login">
-      <div className="tarjeta login-form auth-form">
-        <h1 className="logo">Zaru</h1>
-        <p className="texto-suave">Panel administrativo</p>
+    <MarcoAuth>
+      <div className="login-form auth-form">
+        <h1 className="logo">
+          <MarcaZaru tamano={34} />
+        </h1>
         <h2 className="auth-titulo">Recuperar contraseña</h2>
 
         {enviado ? (
@@ -136,6 +139,6 @@ export default function RecuperarContrasena() {
           </form>
         )}
       </div>
-    </div>
+    </MarcoAuth>
   );
 }

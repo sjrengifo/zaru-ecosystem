@@ -9,6 +9,29 @@ import { leerBranding, guardarBranding, borrarBranding } from '../lib/brandingGu
 import { menuPara, NOMBRE_ROL } from '../lib/permisos.js';
 import { usePerfil } from '../hooks/usePerfil.js';
 import { api } from '../services/api.js';
+import { BadgePercent, BarChart3, Car, LayoutDashboard, LogOut, Palette, Sparkles, UserCog, Users } from 'lucide-react';
+import MarcaZaru from './MarcaZaru.jsx';
+
+// Ícono de cada opción del menú. Son decorativos: el texto de la opción da el significado.
+const ICONOS_MENU = {
+  '/': LayoutDashboard,
+  '/clientes': Users,
+  '/vehiculos': Car,
+  '/servicios': Sparkles,
+  '/promociones': BadgePercent,
+  '/usuarios': UserCog,
+  '/reportes': BarChart3,
+  '/branding': Palette,
+};
+
+function IconoMenu({ ruta }) {
+  const Icono = ICONOS_MENU[ruta];
+  return Icono ? <Icono size={19} aria-hidden="true" /> : null;
+}
+
+function iniciales(nombre = '') {
+  return nombre.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('');
+}
 
 export default function Layout() {
   const { pathname, state } = useLocation();
@@ -79,7 +102,7 @@ export default function Layout() {
             {establecimiento?.logo_url ? (
               <img src={establecimiento.logo_url} alt={establecimiento.nombre} />
             ) : establecimiento || cargado ? (
-              'Zaru'
+              <MarcaZaru claro tamano={30} />
             ) : (
               <span className="logo-espacio" aria-label="Cargando" /> // Reserva el lugar del logo mientras llega.
             )}
@@ -90,29 +113,34 @@ export default function Layout() {
         <nav ref={navegacion}>
           {menu.map((item) => (
             <NavLink key={item.ruta} to={item.ruta} end className="menu-item">
-              {item.texto}
+              <IconoMenu ruta={item.ruta} />
+              <span>{item.texto}</span>
             </NavLink>
           ))}
         </nav>
 
         <div className="menu-usuario">
           {usuario && (
-            <>
-              <strong>{usuario.nombre}</strong>
-              <span className="texto-suave">
-                {NOMBRE_ROL[usuario.rol] ?? usuario.rol}
+            <div className="menu-perfil">
+              <span className="menu-avatar" aria-hidden="true">{iniciales(usuario.nombre)}</span>
+              <span className="menu-perfil-texto">
+                <strong>{usuario.nombre}</strong>
+                <span className="texto-suave">
+                  {NOMBRE_ROL[usuario.rol] ?? usuario.rol}
+                </span>
               </span>
-            </>
+            </div>
           )}
           <button
             type="button"
-            className="boton secundario"
+            className="boton secundario boton-salir"
             onClick={() => {
               borrarBranding(); // Quien entre después en este equipo no ve el branding de esta sede.
               supabase.auth.signOut();
             }}
           >
-            Cerrar sesión
+            <LogOut size={17} aria-hidden="true" />
+            <span>Cerrar sesión</span>
           </button>
         </div>
       </aside>

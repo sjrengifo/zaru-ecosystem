@@ -6,29 +6,41 @@
    --color-secundario (Layout.jsx); sus tonos se derivan solos.
    ========================================================= */
 :root {
-  --color-primario: #2563eb;
-  --color-secundario: #0ea5e9;
-  --color-primario-hover: color-mix(in srgb, var(--color-primario) 85%, #000);
-  --color-fondo: #f5f7fb;
+  /* Marca Zaru: agua profunda (petróleo) + aqua + el amarillo de la placa como firma. */
+  --color-primario: #0b7285;
+  --color-secundario: #22b8cf;
+  --color-primario-hover: color-mix(in srgb, var(--color-primario) 82%, #000);
+  --color-fondo: #f2f5f8;
   --color-superficie: #ffffff;
-  --color-texto: #111827;
-  --color-texto-suave: #6b7280;
-  --color-borde: #e5e7eb;
-  --color-encabezado-tabla: #eef1f6;
-  --color-primario-suave: color-mix(in srgb, var(--color-primario) 8%, #fff);
-  --color-primario-suave-hover: color-mix(in srgb, var(--color-primario) 16%, #fff);
+  --color-texto: #0f1d2b;
+  --color-texto-suave: #5b6b7c;
+  --color-borde: #dde4eb;
+  --color-encabezado-tabla: #f6f8fa;
+  --color-primario-suave: color-mix(in srgb, var(--color-primario) 9%, #fff);
+  --color-primario-suave-hover: color-mix(in srgb, var(--color-primario) 17%, #fff);
   --color-placa: #ffd400;
-  --color-error: #b91c1c;
-  --color-error-fondo: #fef2f2;
-  --color-advertencia: #92400e;
-  --color-advertencia-fondo: #fffbeb;
-  --color-advertencia-borde: #fde68a;
-  --color-exito: #166534;
-  --color-exito-fondo: #f0fdf4;
+  --color-error: #b42318;
+  --color-error-fondo: #fef3f2;
+  --color-advertencia: #93370d;
+  --color-advertencia-fondo: #fffaeb;
+  --color-advertencia-borde: #fedf89;
+  --color-exito: #067647;
+  --color-exito-fondo: #ecfdf3;
+
+  /* Tinta: el fondo oscuro del menú y del login. No cambia con el branding de la sede. */
+  --color-tinta: #0c1a28;
+  --color-tinta-2: #13273a;
+  --color-tinta-texto: #c9d5e1;
 
   --radio: 10px;
+  --radio-grande: 16px;
   --espacio: 16px;
-  --fuente: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --sombra-1: 0 1px 2px rgba(15, 29, 43, 0.06), 0 1px 1px rgba(15, 29, 43, 0.04);
+  --sombra-2: 0 4px 12px -2px rgba(15, 29, 43, 0.08), 0 2px 4px -2px rgba(15, 29, 43, 0.05);
+  --sombra-3: 0 18px 40px -12px rgba(15, 29, 43, 0.22);
+  --transicion: 160ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fuente: 'Plus Jakarta Sans Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fuente-display: 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }

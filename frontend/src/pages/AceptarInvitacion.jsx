@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { api } from '../services/api.js';
+import MarcoAuth from '../components/MarcoAuth.jsx';
+import MarcaZaru from '../components/MarcaZaru.jsx';
 
 export default function AceptarInvitacion() {
   const navegar = useNavigate();
@@ -52,9 +54,11 @@ export default function AceptarInvitacion() {
   }
 
   return (
-    <div className="login">
-      <form className="tarjeta login-form" onSubmit={establecerClave}>
-        <h1 className="logo">Zaru</h1>
+    <MarcoAuth>
+      <form className="login-form" onSubmit={establecerClave}>
+        <h1 className="logo">
+          <MarcaZaru tamano={34} />
+        </h1>
         <h2>Activa tu cuenta</h2>
         <p className="texto-suave">
           Establece una contraseña para ingresar al panel de tu establecimiento.
@@ -88,6 +92,6 @@ export default function AceptarInvitacion() {
           {cargando ? 'Activando cuenta…' : 'Establecer contraseña'}
         </button>
       </form>
-    </div>
+    </MarcoAuth>
   );
 }
