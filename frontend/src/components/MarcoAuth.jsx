@@ -13,7 +13,7 @@ export default function MarcoAuth({ children }) {
           <span /><span /><span /><span /><span />
         </div>
 
-        <MarcaZaru claro tamano={40} />
+        <MarcaZaru claro tamano={40} gota={false} />
 
         <div className="login-mensaje">
           <p className="login-titular">

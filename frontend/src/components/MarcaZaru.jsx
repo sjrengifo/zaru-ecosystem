@@ -15,11 +15,11 @@ export function GotaZaru({ tamano = 32 }) {
   );
 }
 
-/** Gota + nombre. `claro` para fondos oscuros. */
-export default function MarcaZaru({ claro = false, tamano = 32 }) {
+/** Gota + nombre. `claro` para fondos oscuros; `gota={false}` deja solo el nombre (pantallas sin sesión). */
+export default function MarcaZaru({ claro = false, tamano = 32, gota = true }) {
   return (
     <span className={`marca-zaru${claro ? ' marca-zaru-clara' : ''}`}>
-      <GotaZaru tamano={tamano} />
+      {gota && <GotaZaru tamano={tamano} />}
       <span className="marca-zaru-nombre">Zaru</span>
     </span>
   );

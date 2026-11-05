@@ -72,7 +72,7 @@ export default function RecuperarContrasena() {
     <MarcoAuth>
       <div className="login-form auth-form">
         <h1 className="logo">
-          <MarcaZaru tamano={34} />
+          <MarcaZaru tamano={34} gota={false} />
         </h1>
         <h2 className="auth-titulo">Recuperar contraseña</h2>
 
