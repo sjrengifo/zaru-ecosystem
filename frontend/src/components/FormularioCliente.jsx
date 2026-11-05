@@ -9,6 +9,7 @@ import MensajeError from './MensajeError.jsx';
 import Icono from './Icono.jsx';
 import AvisoClienteExistente from './AvisoClienteExistente.jsx';
 import PieFormulario from './PieFormulario.jsx';
+import Cargando from './Cargando.jsx';
 
 const CAMPOS = ['nombre', 'telefono', 'correo', 'autorizacionDatos'];
 
@@ -199,7 +200,7 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
                 </div>
               </>
             )}
-            {!politica && !errorPolitica && <p className="texto-suave" role="status">Cargando la política…</p>}
+            {!politica && !errorPolitica && <Cargando texto="Cargando la política…" />}
             {errorPolitica && (
               <div className="aviso aviso-error" role="alert">
                 <p>{errorPolitica}</p>

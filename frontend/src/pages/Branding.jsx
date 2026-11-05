@@ -11,6 +11,7 @@ import { REQUISITOS_LOGO, CONTRASTE_MINIMO, validarLogo, validarColor, contraste
 import MensajeError from '../components/MensajeError.jsx';
 import Notificacion from '../components/Notificacion.jsx';
 import VistaPreviaBranding from '../components/VistaPreviaBranding.jsx';
+import Cargando from '../components/Cargando.jsx';
 
 const COLORES = [
   { clave: 'primario', columna: 'color_primario', campoApi: 'colorPrimario', etiqueta: 'Color primario', uso: 'Encabezado y botones' },
@@ -44,7 +45,7 @@ export default function Branding() {
             <p>{errorEstablecimiento}</p>
           </div>
         ) : (
-          <p className="texto-suave">Cargando el branding de la sede…</p>
+          <Cargando texto="Cargando el branding de la sede…" className="tarjeta cargando-bloque" />
         )}
       </section>
     );

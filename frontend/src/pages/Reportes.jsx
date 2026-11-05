@@ -14,6 +14,7 @@ import {
 import { obtenerReporteAfluencia, obtenerReporteServicios } from '../services/reportes.js';
 import RankingServicios from '../components/RankingServicios.jsx';
 import MapaCalorAfluencia from '../components/MapaCalorAfluencia.jsx';
+import Cargando from '../components/Cargando.jsx';
 
 const RANGOS = [
   {
@@ -192,10 +193,7 @@ export default function Reportes() {
       )}
 
       {cargando && (
-        <div className="tarjeta reporte-cargando" role="status" aria-live="polite">
-          <span className="spinner spinner-oscuro" aria-hidden="true" />
-          <span>Consultando reportes del periodo…</span>
-        </div>
+        <Cargando texto="Consultando reportes del periodo…" className="tarjeta cargando-bloque" />
       )}
 
       {sinDatos && (

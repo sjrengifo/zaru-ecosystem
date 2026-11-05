@@ -23,6 +23,7 @@ import IndicadoresDashboard from '../components/IndicadoresDashboard.jsx';
 import FormularioIngreso from '../components/FormularioIngreso.jsx';
 import AlertaDemora from '../components/AlertaDemora.jsx';
 import Notificacion from '../components/Notificacion.jsx';
+import Cargando from '../components/Cargando.jsx';
 
 export default function Dashboard() {
   const {
@@ -203,10 +204,7 @@ export default function Dashboard() {
       />
 
       {cargando ? (
-        <div className="tarjeta dashboard-cargando" role="status" aria-live="polite">
-          <span className="spinner spinner-oscuro" aria-hidden="true" />
-          <span>Cargando órdenes del establecimiento…</span>
-        </div>
+        <Cargando texto="Cargando órdenes del establecimiento…" className="tarjeta cargando-bloque" />
       ) : (
         <>
           <div className="tablero">
