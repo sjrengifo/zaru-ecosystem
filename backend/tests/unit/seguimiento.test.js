@@ -102,6 +102,20 @@ describe('HU-18 CA1 · indicador de la etapa actual', () => {
     expect(etapas[3]).toMatchObject({ actual: true, at: '2026-11-08T14:25:00Z' });
   });
 
+  it('al entregar el vehículo, todas las etapas quedan completadas, incluida "Entregado"', () => {
+    const etapas = construirEtapas(ordenBase({
+      estado: 'entregado',
+      historial: [
+        { estado: 'en_lavado', created_at: '2026-11-08T14:05:00Z' },
+        { estado: 'secado', created_at: '2026-11-08T14:20:00Z' },
+        { estado: 'listo', created_at: '2026-11-08T14:30:00Z' },
+        { estado: 'entregado', created_at: '2026-11-08T14:45:00Z' },
+      ],
+    }));
+    expect(etapas.every((e) => e.completada)).toBe(true);
+    expect(etapas[4]).toMatchObject({ actual: true, completada: true, at: '2026-11-08T14:45:00Z' });
+  });
+
   it('un cambio revertido por el operario no aparece en el recorrido', () => {
     const etapas = construirEtapas(ordenBase({
       estado: 'recibido',

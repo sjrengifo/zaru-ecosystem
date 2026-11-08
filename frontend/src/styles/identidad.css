@@ -397,9 +397,10 @@ input[type='file']::file-selector-button {
 }
 .columna-recibido { --color-paso: var(--color-secundario); }
 .columna-en_lavado { --color-paso: var(--color-primario); }
+.columna-secado { --color-paso: #f79009; }
 .columna-listo { --color-paso: #12b76a; }
 .columna-entregado { --color-paso: #98a2b3; }
-.columna-recibido, .columna-en_lavado, .columna-listo, .columna-entregado { border-top: 1px solid color-mix(in srgb, var(--color-borde) 70%, transparent); }
+.columna-recibido, .columna-en_lavado, .columna-secado, .columna-listo, .columna-entregado { border-top: 1px solid color-mix(in srgb, var(--color-borde) 70%, transparent); }
 
 .columna-encabezado { padding: 2px 4px 10px; border-bottom: none; }
 .columna-titulo {

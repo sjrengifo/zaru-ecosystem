@@ -17,6 +17,7 @@ const ETAPAS = [
 
 function seguimiento(estado = 'recibido', version = 1) {
   const posicion = ETAPAS.findIndex(([e]) => e === estado);
+  const terminado = estado === 'entregado';
   const [, titulo] = ETAPAS[posicion];
   return {
     codigo: '7KQ2M9XH4P',
@@ -25,7 +26,7 @@ function seguimiento(estado = 'recibido', version = 1) {
     etapas: ETAPAS.map(([e, t], i) => ({
       estado: e,
       titulo: t,
-      completada: i < posicion,
+      completada: i < posicion || (terminado && i === posicion),
       actual: i === posicion,
       omitida: false,
       at: i <= posicion ? '2026-11-08T14:00:00Z' : null,
@@ -122,6 +123,16 @@ describe('HU-18 CA1 · indicador de la etapa actual', () => {
     expect(pasos.map((li) => li.querySelector('.seg-paso-titulo').textContent)).toEqual(ETAPAS.map(([, t]) => t));
     expect(pasos[0]).toHaveAttribute('aria-current', 'step');
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/publico\/seguimiento\/7KQ2M9XH4P$/), expect.anything());
+  });
+
+  it('al entregar el vehículo, el paso "Entregado" aparece con su check', async () => {
+    fetch.mockImplementation(() => respuesta(200, seguimiento('entregado', 5)));
+    const { container } = abrir();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Entregado' })).toBeInTheDocument();
+    const pasos = [...container.querySelectorAll('.seg-paso')];
+    expect(pasos.every((li) => li.classList.contains('seg-paso-hecho'))).toBe(true);
+    expect(pasos.every((li) => li.querySelector('.seg-paso-marca svg'))).toBe(true);
+    expect(pasos[4]).toHaveAttribute('aria-current', 'step');
   });
 
   it('aplica los colores de la sede', async () => {

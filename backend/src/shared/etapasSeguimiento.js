@@ -50,16 +50,18 @@ function horasPorEstado(orden) {
 /**
  * Recorrido del lavado para la línea de pasos.
  * `secado` es opcional: si la orden pasó de lavado a listo sin secado, ese paso queda `omitida`.
+ * `entregado` es el final del servicio: al llegar ahí también queda completada.
  */
 export function construirEtapas(orden) {
   const actual = POSICION.get(orden.estado) ?? 0;
+  const terminado = orden.estado === 'entregado';
   const horas = horasPorEstado(orden);
   return ETAPAS.map((etapa, i) => {
     const omitida = i < actual && etapa.estado === 'secado' && !horas.has('secado');
     return {
       estado: etapa.estado,
       titulo: etapa.titulo,
-      completada: i < actual && !omitida,
+      completada: (i < actual || (terminado && i === actual)) && !omitida,
       actual: i === actual,
       omitida,
       at: i <= actual && !omitida ? horas.get(etapa.estado) ?? null : null,

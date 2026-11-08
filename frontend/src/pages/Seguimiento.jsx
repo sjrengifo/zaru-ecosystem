@@ -168,7 +168,8 @@ function Recorrido({ etapas }) {
       <h2 id="seg-recorrido">Recorrido</h2>
       <ol className="seg-pasos">
         {etapas.map((etapa) => {
-          const clase = etapa.actual ? 'actual' : etapa.completada ? 'hecho' : etapa.omitida ? 'omitido' : 'pendiente';
+          // El paso final (entregado) es actual y completado a la vez: se muestra con su check.
+          const clase = etapa.completada ? 'hecho' : etapa.actual ? 'actual' : etapa.omitida ? 'omitido' : 'pendiente';
           return (
             <li key={etapa.estado} className={`seg-paso seg-paso-${clase}`} aria-current={etapa.actual ? 'step' : undefined}>
               <span className="seg-paso-marca" aria-hidden="true">
@@ -178,7 +179,7 @@ function Recorrido({ etapas }) {
               <span className="seg-paso-hora">
                 {etapa.omitida ? 'No aplica' : etapa.at ? horaBogota(etapa.at) : ''}
                 <span className="solo-lectores">
-                  {etapa.actual ? ' (etapa actual)' : etapa.completada ? ' (completada)' : etapa.omitida ? '' : ' (pendiente)'}
+                  {etapa.completada ? ' (completada)' : etapa.actual ? ' (etapa actual)' : etapa.omitida ? '' : ' (pendiente)'}
                 </span>
               </span>
             </li>
