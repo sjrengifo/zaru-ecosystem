@@ -38,13 +38,14 @@ export const SIGUIENTE_ESTADO = {
 };
 
 /**
- * Las cuatro columnas de HU-09 CA1.
- * `secado` no tiene columna propia: se muestra dentro de "En lavado" y la
- * tarjeta conserva su etiqueta "Secado" para no ocultar el estado real.
+ * Columnas del tablero (HU-09 CA1), una por cada estado oficial de la orden (DA-02).
+ * `secado` tiene columna propia para que el panel muestre las mismas etapas que ve
+ * el cliente final en su seguimiento (HU-18).
  */
 export const COLUMNAS_TABLERO = [
   { id: 'recibido', titulo: 'Recibido', estados: ['recibido'] },
-  { id: 'en_lavado', titulo: 'En lavado', estados: ['en_lavado', 'secado'] },
+  { id: 'en_lavado', titulo: 'En lavado', estados: ['en_lavado'] },
+  { id: 'secado', titulo: 'Secado', estados: ['secado'] },
   { id: 'listo', titulo: 'Listo', estados: ['listo'] },
   { id: 'entregado', titulo: 'Entregado', estados: ['entregado'] },
 ];

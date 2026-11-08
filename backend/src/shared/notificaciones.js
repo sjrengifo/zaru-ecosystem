@@ -21,7 +21,7 @@ export const MAX_INTENTOS = 3;
 const ESPERAS_MS = [2_000, 4_000]; // antes del 2.º y del 3.er intento
 
 const COLUMNAS_ORDEN =
-  'id, estado, subtotal, descuento, total, created_at, vehiculos(placa, clientes(id, nombre, correo)), orden_servicios(precio, servicios(nombre))';
+  'id, estado, subtotal, descuento, total, created_at, codigo_seguimiento, vehiculos(placa, clientes(id, nombre, correo)), orden_servicios(precio, servicios(nombre))';
 
 const dormir = (ms) => new Promise((resolver) => setTimeout(resolver, ms));
 const resumen = (estado, extra = {}) => ({ canal: 'correo', estado, ...extra });

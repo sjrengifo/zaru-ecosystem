@@ -62,6 +62,8 @@ tags:
     description: HU-57
   - name: Reportes
     description: HU-16
+  - name: Seguimiento
+    description: HU-18 (cliente final, sin sesión)
 security:
   - bearerPanel: []
 
@@ -100,6 +102,71 @@ paths:
               schema: { $ref: '#/components/schemas/Politica' }
               example: { version: '1.0', titulo: Política de tratamiento de datos personales, contenido: '# Política de tratamiento de datos personales · versión 1.0 …', vigenteDesde: '2026-10-28T14:00:00Z' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /publico/seguimiento/{codigo}:
+    get:
+      tags: [Seguimiento]
+      operationId: obtenerSeguimientoPublico
+      summary: Estado actual del lavado para el cliente final
+      description: |
+        Etapa actual del servicio con un texto claro (en cola, lavado iniciado, secado, listo para recoger,
+        entregado) y el recorrido completo, con la marca de la sede (HU-18 CA1).
+
+        Es pública: el cliente final entra con el código de seguimiento de su orden (enlace del correo de
+        ingreso o el que le comparte el operario). No incluye nombre, teléfono ni correo del cliente.
+        El código deja de responder 24 horas después de la entrega. Un código inexistente, vencido o de una
+        sede suspendida responde el mismo `404`. Tras 10 códigos no válidos en 10 minutos desde el mismo
+        origen, responde `429`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CodigoSeguimiento'
+      responses:
+        '200':
+          description: Seguimiento de la orden.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Seguimiento' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
+  /publico/seguimiento/{codigo}/eventos:
+    get:
+      tags: [Seguimiento]
+      operationId: seguirLavadoEnVivo
+      summary: Cambios de estado del lavado en tiempo real (Server-Sent Events)
+      description: |
+        Flujo `text/event-stream` que mantiene actualizada la pantalla del cliente sin recargarla (HU-18 CA2).
+
+        - Al conectar (o reconectar) se envía el estado actual.
+        - Cada vez que el operario cambia el estado en el panel se envía `event: estado` con el `Seguimiento`
+          completo en `data` e `id` igual a la `version` de la orden.
+        - Cada 25 s llega el comentario `: ping` para que los proxies no corten la conexión.
+        - `retry: 5000`: si la conexión se corta, el navegador reconecta solo y recibe el estado más reciente.
+        - Si el código vence o la sede se suspende, se envía `event: fin` y se cierra el flujo.
+
+        Solo se emiten eventos de la orden de ese código.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CodigoSeguimiento'
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: Versión del último evento recibido. Al reconectar siempre se envía el estado actual.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Flujo de eventos abierto.
+          content:
+            text/event-stream:
+              schema: { type: string }
+              example: |
+                retry: 5000
+
+                id: 3
+                event: estado
+                data: {"codigo":"7KQ2M9XH4P","estado":"en_lavado","etapa":{"estado":"en_lavado","titulo":"Lavado iniciado","paso":2,"totalPasos":5}}
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
 
   /me:
     get:
@@ -983,6 +1050,13 @@ components:
       schema: { type: string }
 
   parameters:
+    CodigoSeguimiento:
+      name: codigo
+      in: path
+      required: true
+      description: Código de seguimiento de la orden (HU-08). No distingue mayúsculas; se ignoran espacios y guiones.
+      schema: { type: string }
+      example: 7KQ2M9XH4P
     Id:
       name: id
       in: path
@@ -992,6 +1066,13 @@ components:
       example: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10
 
   responses:
+    LimiteExcedido:
+      description: Demasiados intentos desde el mismo origen. Espere unos minutos.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: { codigo: LIMITE_EXCEDIDO, mensaje: Demasiados intentos con códigos no válidos. Espera unos minutos e inténtalo de nuevo, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
     Validacion:
       description: Datos inválidos o incompletos. `detalles` indica qué corregir.
       content:
@@ -1042,6 +1123,63 @@ components:
             error: { codigo: NO_IMPLEMENTADO, mensaje: Pendiente de desarrollo (HU-05), requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
 
   schemas:
+    Seguimiento:
+      type: object
+      description: Vista pública de una orden para el cliente final (HU-18). Sin datos personales.
+      properties:
+        codigo: { type: string }
+        estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
+        etapa:
+          type: object
+          properties:
+            estado: { type: string }
+            titulo: { type: string, example: Lavado iniciado }
+            descripcion: { type: string }
+            paso: { type: integer, example: 2 }
+            totalPasos: { type: integer, example: 5 }
+        etapas:
+          type: array
+          description: Recorrido del lavado. `secado` es opcional y queda `omitida` si no se usó.
+          items:
+            type: object
+            properties:
+              estado: { type: string }
+              titulo: { type: string }
+              completada: { type: boolean }
+              actual: { type: boolean }
+              omitida: { type: boolean }
+              at: { type: [string, 'null'], format: date-time }
+        estadoDesde: { type: [string, 'null'], format: date-time }
+        ingresoAt: { type: [string, 'null'], format: date-time }
+        entregaEstimadaAt: { type: [string, 'null'], format: date-time }
+        entregadaAt: { type: [string, 'null'], format: date-time }
+        vehiculo:
+          type: object
+          properties:
+            placa: { type: [string, 'null'] }
+            tipo: { type: [string, 'null'] }
+            marca: { type: [string, 'null'] }
+            color: { type: [string, 'null'] }
+        servicios:
+          type: array
+          items:
+            type: object
+            properties:
+              nombre: { type: string }
+              precio: { type: number }
+        subtotal: { type: number }
+        descuento: { type: number }
+        total: { type: number }
+        notaPago: { type: string, example: El pago se realiza en el establecimiento }
+        establecimiento:
+          type: object
+          properties:
+            nombre: { type: string }
+            logoUrl: { type: [string, 'null'] }
+            colorPrimario: { type: string }
+            colorSecundario: { type: string }
+        version: { type: integer, description: Aumenta con cada cambio de estado. }
+
     Error:
       type: object
       required: [error]

@@ -23,11 +23,14 @@ function archivos(dir) {
 // - usuarios.controller.js (HU-02): usa la Admin API de Auth para invitar y leer correos, e inserta
 //   el perfil con el id que devuelve Auth (req.tenant.crear no permite fijarlo).
 // - auditoria.js y politicas.js: utilidades compartidas.
+// - seguimiento.js (HU-18): el cliente final no tiene sesión; solo busca la orden por su código de
+//   seguimiento (único en la plataforma) y el resto lo lee con el acceso del tenant de esa orden.
 const PERMITIDOS = new Set([
   'config/supabase.js',
   'shared/tenant.js',
   'shared/auditoria.js',
   'shared/politicas.js',
+  'shared/seguimiento.js',
   'middlewares/auth.js',
   'controllers/superadmin.controller.js',
   'controllers/usuarios.controller.js',

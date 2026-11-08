@@ -18,21 +18,22 @@ import {
 
 const REFERENCIA = new Date('2026-11-03T15:30:00.000Z'); // 10:30 en Bogotá
 
-test('el tablero tiene exactamente las cuatro columnas de HU-09', () => {
+test('el tablero tiene una columna por cada estado de la orden, como el seguimiento del cliente', () => {
   assert.deepEqual(
     COLUMNAS_TABLERO.map((columna) => columna.titulo),
-    ['Recibido', 'En lavado', 'Listo', 'Entregado'],
+    ['Recibido', 'En lavado', 'Secado', 'Listo', 'Entregado'],
   );
 });
 
-test('secado se muestra dentro de En lavado sin perder su estado', () => {
+test('secado tiene su propia columna', () => {
   const grupos = agruparPorColumna([
     { id: '1', estado: 'secado', created_at: '2026-11-03T12:00:00Z' },
     { id: '2', estado: 'en_lavado', created_at: '2026-11-03T13:00:00Z' },
     { id: '3', estado: 'recibido', created_at: '2026-11-03T14:00:00Z' },
   ]);
 
-  assert.deepEqual(grupos.en_lavado.map((orden) => orden.estado), ['secado', 'en_lavado']);
+  assert.deepEqual(grupos.secado.map((orden) => orden.estado), ['secado']);
+  assert.deepEqual(grupos.en_lavado.map((orden) => orden.estado), ['en_lavado']);
   assert.equal(grupos.recibido.length, 1);
   assert.equal(grupos.listo.length, 0);
   assert.equal(grupos.entregado.length, 0);

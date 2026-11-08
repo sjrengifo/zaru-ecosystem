@@ -227,7 +227,7 @@ label { display: block; font-size: 14px; }
 
 .tablero {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--espacio);
   align-items: start;
 }
@@ -276,6 +276,7 @@ label { display: block; font-size: 14px; }
 /* Un color por columna, siempre acompañado por el título y la etiqueta de la tarjeta. */
 .columna-recibido { border-top: 3px solid var(--color-secundario); }
 .columna-en_lavado { border-top: 3px solid var(--color-primario); }
+.columna-secado { border-top: 3px solid #f79009; }
 .columna-listo { border-top: 3px solid #047857; }
 .columna-entregado { border-top: 3px solid var(--color-texto-suave); }
 
@@ -298,6 +299,24 @@ label { display: block; font-size: 14px; }
 .tarjeta-vehiculo-datos dt { color: var(--color-texto-suave); }
 .tarjeta-vehiculo-datos dd { margin: 0; color: var(--color-texto); overflow-wrap: anywhere; }
 .tarjeta-vehiculo-accion { width: 100%; padding-inline: 10px; font-size: 13px; }
+
+/* HU-18: código de seguimiento con acciones para compartir el enlace con el cliente. */
+.enlace-seguimiento { display: inline-flex; align-items: center; gap: 2px; }
+.enlace-seguimiento-codigo { margin-right: 4px; letter-spacing: 0.04em; }
+.enlace-seguimiento-boton {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  color: var(--color-primario);
+  background: transparent;
+  cursor: pointer;
+}
+.enlace-seguimiento-boton:hover { background: var(--color-primario-suave); }
+.enlace-seguimiento-boton:focus-visible { outline: 2px solid var(--color-primario); outline-offset: 1px; }
 
 /* HU-11: notificación flotante y no bloqueante. No usa <dialog>, así el admin
    puede seguir operando el tablero mientras la ve. */
@@ -398,6 +417,9 @@ label { display: block; font-size: 14px; }
 .dashboard-vacio { margin: 0; }
 .dashboard-actualizado { margin: 0; color: var(--color-texto-suave); font-size: 12px; text-align: right; }
 
+@media (max-width: 1400px) {
+  .tablero { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 1100px) {
   .tablero { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
