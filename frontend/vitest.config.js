@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    include: ['tests/dashboard-correo.test.jsx', 'tests/logica.test.js', 'tests/permisos-rutas.test.jsx', 'tests/superadmin.test.jsx'],
+    include: ['tests/dashboard-correo.test.jsx', 'tests/logica.test.js', 'tests/permisos-rutas.test.jsx', 'tests/seguimiento.test.jsx', 'tests/superadmin.test.jsx'],
     setupFiles: ['tests/setup.js'],
     restoreMocks: true,
   },

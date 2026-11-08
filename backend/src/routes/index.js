@@ -14,6 +14,7 @@ import superadminRoutes from './superadmin.routes.js';
 import reportesRoutes from './reportes.routes.js';
 import * as me from '../controllers/me.controller.js';
 import * as politicas from '../controllers/politicas.controller.js';
+import * as seguimiento from '../controllers/seguimiento.controller.js';
 
 export const VERSION_API = '1.0.0';
 
@@ -48,6 +49,10 @@ router.get('/health', (req, res) => {
 
 // La consulta de política es pública.
 router.get('/politicas-datos/vigente', politicas.vigente);
+
+// HU-18: el cliente final sigue su lavado con el código de seguimiento, sin sesión.
+router.get('/publico/seguimiento/:codigo', seguimiento.obtener);
+router.get('/publico/seguimiento/:codigo/eventos', seguimiento.eventos);
 
 // Todo lo demás requiere sesión.
 router.use(requiereSesion);

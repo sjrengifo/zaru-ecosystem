@@ -69,7 +69,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU | Jira | Pts | MoSCoW | Responsable | Fase | Requisitos | Escenarios | Prueba | Estado |
 |---|---|---|---|---|---|---|---|---|---|
 | HU-17 Acceder a la plataforma móvil con la placa o el celular, sin contraseña | ZARU-33 | 5 | Must | — | F5 | RF-F5-02, 03 | ESC-F5-01, 02 | — | Pendiente |
-| HU-18 Seguimiento en tiempo real del estado del lavado | ZARU-34 | 8 | Must | — | F5 | RF-F5-04, 05 | ESC-F5-03, 04 | — | Pendiente |
+| HU-18 Seguimiento en tiempo real del estado del lavado | ZARU-34 | 8 | Must | — | F5 | RF-F5-04, 05, 07, 08 · RNF-F5-04, 05 | ESC-F5-03, 04, 06 | `tests/unit/seguimiento.test.js`, `tests/integration/seguimiento.test.js`, `frontend/tests/seguimiento.test.jsx` | En desarrollo |
 | HU-19 Visualizar la línea de tiempo de las etapas del lavado | ZARU-39 | 5 | Should | — | F5 | RF-F5-04 | ESC-F5-03 | — | Pendiente |
 | HU-20 Consultar el tiempo estimado de entrega de mi vehículo | ZARU-69 | 3 | Should | — | F5 | RF-F5-04 · RF-F3-04 | ESC-F3-01 | — | Pendiente |
 | HU-21 Visualización del detalle de servicios contratados | ZARU-40 | 3 | Should | — | F5 | RF-F5-04 | ESC-F5-03 | — | Pendiente |
