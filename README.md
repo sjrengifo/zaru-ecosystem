@@ -109,7 +109,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 - Las funciones de seguridad residen en el esquema `privado`, que no se expone en la API REST de Supabase.
 - Las escrituras se realizan exclusivamente desde el backend con la clave `service_role`. Los controladores acceden a los datos solo mediante `req.tenant` ([`backend/src/shared/tenant.js`](backend/src/shared/tenant.js)), que aplica automáticamente el filtro por el establecimiento de la sesión, ignora cualquier `establecimiento_id` enviado en la petición y responde `404` igual para un recurso inexistente que para uno de otro establecimiento (HU-41). Una prueba en CI impide consultar la base directamente desde un controlador.
 - La base impide relacionar datos de establecimientos distintos mediante llaves foráneas compuestas `(id, establecimiento_id)` y triggers en las tablas puente.
-- La tabla `ordenes` está publicada en `supabase_realtime` para el dashboard operativo.
+- La tabla `ordenes` está publicada en `supabase_realtime` para el dashboard operativo. El cliente final no tiene usuario de Supabase: recibe los cambios de su orden por Server-Sent Events desde el backend, que mantiene una sola suscripción de Realtime y reparte cada cambio solo a las conexiones de esa orden (HU-18, ADR-04).
 
 ### Cifrado y secretos
 
@@ -216,6 +216,8 @@ Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. 
 
 Para HU-46, el proveedor `consola` permite probar el flujo sin enviar correos reales. En producción configura `CORREO_PROVEEDOR` como `smtp` o `resend` y agrega sus credenciales al entorno del backend. El correo se registra primero en la cola `notificaciones`; el envío ocurre en segundo plano y se reintenta hasta tres veces. No copies archivos `.env` entre carpetas ni los incluyas en commits.
 
+HU-18 publica la pantalla del cliente final en `/seguimiento/:codigo` (sin sesión). El correo de ingreso incluye el enlace, armado con `FRONTEND_URL`, y cada tarjeta del tablero permite copiarlo para compartirlo. No requiere migraciones ni variables nuevas.
+
 HU-57 incorpora el panel de superadministración para registrar establecimientos, invitar al administrador inicial, consultar periodos de prueba, activar, suspender y reenviar invitaciones. HU-59 centraliza los módulos permitidos por rol en el backend (`GET /me` y middleware `requiereModulo`) y usa esos permisos para filtrar el menú y proteger la navegación del frontend.
 
 ### Ejecución
@@ -241,7 +243,7 @@ El acceso al panel requiere un usuario en Supabase Auth con un registro asociado
 
 ## 7. API
 
-Base: `/api/v1`. Todos los endpoints, salvo `/health`, requieren el encabezado `Authorization: Bearer <JWT de Supabase>`.
+Base: `/api/v1`. Todos los endpoints, salvo `/health`, `/politicas-datos/vigente` y `/publico/*`, requieren el encabezado `Authorization: Bearer <JWT de Supabase>`.
 
 - **Documentación:** `GET /api/docs` (Swagger UI) y `GET /api/openapi.json`. El contrato vive en [`backend/openapi/openapi.yaml`](backend/openapi/openapi.yaml); una prueba verifica que todas las rutas estén documentadas y CI valida el contrato con `npm run lint:openapi`.
 - **Errores:** formato único `{ "error": { "codigo", "mensaje", "detalles"?, "requestId" } }`. Los datos inválidos responden `400 VALIDACION` con un elemento en `detalles` por cada campo a corregir. Cada respuesta incluye `X-Request-Id`.
@@ -252,6 +254,8 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, requieren el encabezado `
 | GET | `/health` | Público | Estado del servicio | Implementado |
 | GET | `/me` | Admin, Operario | Usuario, rol, establecimiento y vencimiento de la sesión | Implementado |
 | GET | `/politicas-datos/vigente` | Público | Política de tratamiento de datos vigente (versión y texto) | Implementado |
+| GET | `/publico/seguimiento/:codigo` | Público | Estado del lavado para el cliente final, sin datos personales (HU-18) | Implementado |
+| GET | `/publico/seguimiento/:codigo/eventos` | Público | Cambios de estado en tiempo real por Server-Sent Events (HU-18) | Implementado |
 | GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes por nombre, teléfono o placa | Implementado |
 | GET | `/clientes/:id` | Admin, Operario | Detalle de cliente con sus vehículos | Implementado |
 | POST | `/clientes` | Admin, Operario | Registrar cliente con autorización de datos y versión de la política (`politicaVersion`) | Implementado |
@@ -297,6 +301,12 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 | ZARU-14 | HU-13 Branding de la sede | 5 | Should | `Branding.jsx` | `establecimiento.routes.js` |
 | ZARU-66 | HU-14 Recuperar la contraseña | 2 | Should | `RecuperarContrasena.jsx` · `RestablecerContrasena.jsx` | Supabase Auth |
 | ZARU-68 | HU-16 Reportes de servicios y afluencia | 5 | Could | `Reportes.jsx` | `reportes.routes.js` |
+
+Épica 2 — Interfaz del cliente final (`ZARU-30`).
+
+| Jira | Historia | Puntos | MoSCoW | Frontend | Backend |
+|---|---|---|---|---|---|
+| ZARU-34 | HU-18 Seguimiento en tiempo real del estado del lavado | 8 | Must | `Seguimiento.jsx` · `EnlaceSeguimiento.jsx` | `seguimiento.controller.js` · `shared/seguimiento.js` (SSE + Supabase Realtime) |
 
 Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
 

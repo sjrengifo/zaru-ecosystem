@@ -48,6 +48,20 @@ Recibes este correo porque dejaste tu vehículo en ${nombreSede}. Es un mensaje 
 </body></html>`;
 }
 
+/**
+ * HU-18: enlace a la página pública de seguimiento del lavado. Null si la orden no trae código.
+ * Usa la URL del panel (FRONTEND_URL), que también sirve la vista móvil del cliente final.
+ */
+export function enlaceSeguimiento(codigo, base = process.env.FRONTEND_URL || 'http://localhost:5173') {
+  if (!codigo) return null;
+  return `${String(base).replace(/\/+$/, '')}/seguimiento/${encodeURIComponent(codigo)}`;
+}
+
+function botonSeguimiento(enlace, color) {
+  if (!enlace) return '';
+  return `<p style="margin:16px 0 0"><a href="${escaparHtml(enlace)}" style="display:inline-block;padding:10px 18px;background:${color};color:#fff;border-radius:8px;font-weight:600;text-decoration:none">Ver el estado de mi lavado</a></p>`;
+}
+
 function placaHtml(placa) {
   return `<span style="display:inline-block;padding:4px 10px;background:#ffd400;border:2px solid #111827;border-radius:6px;font-weight:700;letter-spacing:2px">${escaparHtml(placa)}</span>`;
 }
@@ -61,6 +75,7 @@ export function plantillaIngreso({ establecimiento, cliente, orden, vehiculo, se
   const filas = servicios
     .map((s) => `<tr><td style="padding:8px 0;border-bottom:1px solid #f1f5f9">${escaparHtml(s.nombre)}</td><td align="right" style="padding:8px 0;border-bottom:1px solid #f1f5f9">${formatoPesos(s.precio)}</td></tr>`)
     .join('');
+  const enlace = enlaceSeguimiento(orden?.codigo_seguimiento);
   const descuento = Number(orden?.descuento ?? 0) > 0
     ? `<tr><td style="padding:8px 0;color:#166534">Descuento</td><td align="right" style="padding:8px 0;color:#166534">−${formatoPesos(orden.descuento)}</td></tr>`
     : '';
@@ -73,7 +88,8 @@ ${filas}
 ${descuento}
 <tr><td style="padding:10px 0;font-weight:700">Total a pagar en el punto</td><td align="right" style="padding:10px 0;font-weight:700">${formatoPesos(orden?.total)}</td></tr>
 </table>
-<p style="margin:16px 0 0">Te escribiremos de nuevo cuando esté listo para recoger. Mientras tanto, aprovecha tu tiempo.</p>`;
+<p style="margin:16px 0 0">Te escribiremos de nuevo cuando esté listo para recoger. Mientras tanto, aprovecha tu tiempo.</p>
+${botonSeguimiento(enlace, colorSeguro(establecimiento?.color_primario))}`;
 
   const texto = [
     `Hola ${primerNombre(cliente?.nombre)}, recibimos tu vehículo ${vehiculo?.placa} en ${sede} el ${formatoFechaHora(orden?.created_at)}.`,
@@ -84,6 +100,7 @@ ${descuento}
     `Total a pagar en el punto: ${formatoPesos(orden?.total)}`,
     '',
     'Te escribiremos de nuevo cuando esté listo para recoger.',
+    ...(enlace ? ['', `Sigue el estado de tu lavado en tiempo real: ${enlace}`] : []),
   ].join('\n');
 
   return {

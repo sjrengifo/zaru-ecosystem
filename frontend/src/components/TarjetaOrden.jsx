@@ -2,6 +2,7 @@
 // Muestra los datos obligatorios (placa, servicio, hora de ingreso y estado) y
 // conserva la acción de HU-10 para avanzar la orden al siguiente estado.
 import { formatoMoneda } from '../lib/formato.js';
+import EnlaceSeguimiento from './EnlaceSeguimiento.jsx';
 import { correosPorEvento, etiquetaCorreo } from '../lib/avisoCorreo.js';
 import {
   ESTADOS_ORDEN,
@@ -63,7 +64,13 @@ export default function TarjetaOrden({ orden, onAvanzar, avanzando, ahora }) {
         {orden.codigo_seguimiento && (
           <div>
             <dt>Código</dt>
-            <dd>{orden.codigo_seguimiento}</dd>
+            <dd>
+              {orden.estado === 'entregado' ? (
+                orden.codigo_seguimiento
+              ) : (
+                <EnlaceSeguimiento codigo={orden.codigo_seguimiento} placa={placa} />
+              )}
+            </dd>
           </div>
         )}
         {orden.estado === 'entregado' && orden.entregada_at ? (

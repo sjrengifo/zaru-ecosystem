@@ -299,6 +299,24 @@ label { display: block; font-size: 14px; }
 .tarjeta-vehiculo-datos dd { margin: 0; color: var(--color-texto); overflow-wrap: anywhere; }
 .tarjeta-vehiculo-accion { width: 100%; padding-inline: 10px; font-size: 13px; }
 
+/* HU-18: código de seguimiento con acciones para compartir el enlace con el cliente. */
+.enlace-seguimiento { display: inline-flex; align-items: center; gap: 2px; }
+.enlace-seguimiento-codigo { margin-right: 4px; letter-spacing: 0.04em; }
+.enlace-seguimiento-boton {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  color: var(--color-primario);
+  background: transparent;
+  cursor: pointer;
+}
+.enlace-seguimiento-boton:hover { background: var(--color-primario-suave); }
+.enlace-seguimiento-boton:focus-visible { outline: 2px solid var(--color-primario); outline-offset: 1px; }
+
 /* HU-11: notificación flotante y no bloqueante. No usa <dialog>, así el admin
    puede seguir operando el tablero mientras la ve. */
 .alerta-toast-contenedor {
