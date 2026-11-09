@@ -1139,7 +1139,10 @@ components:
             totalPasos: { type: integer, example: 5 }
         etapas:
           type: array
-          description: Recorrido del lavado. `secado` es opcional y queda `omitida` si no se usó.
+          description: >-
+            Línea de tiempo del lavado (HU-19): todas las etapas en orden, con las completadas, la actual
+            y las pendientes. `secado` es opcional y queda `omitida` si no se usó; al entregar el vehículo
+            todas las etapas quedan completadas.
           items:
             type: object
             properties:
@@ -1148,7 +1151,8 @@ components:
               completada: { type: boolean }
               actual: { type: boolean }
               omitida: { type: boolean }
-              at: { type: [string, 'null'], format: date-time }
+              at: { type: [string, 'null'], format: date-time, description: Hora en que la orden llegó a la etapa }
+              terminadaAt: { type: [string, 'null'], format: date-time, description: Hora en que terminó la etapa (solo si está completada) }
         estadoDesde: { type: [string, 'null'], format: date-time }
         ingresoAt: { type: [string, 'null'], format: date-time }
         entregaEstimadaAt: { type: [string, 'null'], format: date-time }
