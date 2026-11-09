@@ -149,6 +149,94 @@ describe('HU-18 CA1 · indicador de la etapa actual', () => {
   });
 });
 
+describe('HU-19 · línea de tiempo de las etapas del lavado', () => {
+  const historialCompleto = [
+    { estado: 'en_lavado', created_at: '2026-11-08T14:05:00Z', revertido: false },
+    { estado: 'secado', created_at: '2026-11-08T14:20:00Z', revertido: false },
+    { estado: 'listo', created_at: '2026-11-08T14:30:00Z', revertido: false },
+    { estado: 'entregado', created_at: '2026-11-08T14:45:00Z', revertido: false },
+  ];
+
+  it('CA1: todas las etapas en orden, con completadas, la actual y las pendientes', () => {
+    const etapas = construirEtapas(ordenBase({ estado: 'en_lavado', historial: historialCompleto.slice(0, 1) }));
+    expect(etapas.map((e) => e.estado)).toEqual(['recibido', 'en_lavado', 'secado', 'listo', 'entregado']);
+    expect(etapas.map((e) => (e.completada ? 'hecho' : e.actual ? 'actual' : 'pendiente'))).toEqual([
+      'hecho', 'actual', 'pendiente', 'pendiente', 'pendiente',
+    ]);
+    expect(etapas.filter((e) => e.actual)).toHaveLength(1);
+  });
+
+  it('CA2: cada etapa completada trae la hora en que terminó; la actual y las pendientes no', () => {
+    const etapas = construirEtapas(ordenBase({ estado: 'listo', historial: historialCompleto.slice(0, 3) }));
+    expect(etapas.map((e) => e.terminadaAt)).toEqual([
+      '2026-11-08T14:05:00Z', // en cola termina al empezar el lavado
+      '2026-11-08T14:20:00Z', // el lavado termina al empezar el secado
+      '2026-11-08T14:30:00Z', // el secado termina al quedar listo
+      null,
+      null,
+    ]);
+  });
+
+  it('CA2: si no hubo secado, el lavado termina cuando el vehículo quedó listo', () => {
+    const etapas = construirEtapas(ordenBase({
+      estado: 'listo',
+      historial: [
+        { estado: 'en_lavado', created_at: '2026-11-08T14:05:00Z' },
+        { estado: 'listo', created_at: '2026-11-08T14:25:00Z' },
+      ],
+    }));
+    expect(etapas[1].terminadaAt).toBe('2026-11-08T14:25:00Z');
+    expect(etapas[2]).toMatchObject({ omitida: true, terminadaAt: null });
+  });
+
+  it('CA2: un cambio revertido no cuenta como fin de la etapa', () => {
+    const etapas = construirEtapas(ordenBase({
+      estado: 'en_lavado',
+      historial: [
+        { estado: 'en_lavado', created_at: '2026-11-08T14:05:00Z' },
+        { estado: 'secado', created_at: '2026-11-08T14:10:00Z', revertido: true },
+      ],
+    }));
+    expect(etapas[1]).toMatchObject({ actual: true, completada: false, terminadaAt: null });
+  });
+
+  it('CA3: al entregar, todas las etapas quedan completadas con su hora de fin', () => {
+    const etapas = construirEtapas(ordenBase({ estado: 'entregado', historial: historialCompleto }));
+    expect(etapas.every((e) => e.completada)).toBe(true);
+    expect(etapas.map((e) => e.terminadaAt)).toEqual([
+      '2026-11-08T14:05:00Z',
+      '2026-11-08T14:20:00Z',
+      '2026-11-08T14:30:00Z',
+      '2026-11-08T14:45:00Z',
+      '2026-11-08T14:45:00Z', // "Entregado" termina en el momento de la entrega
+    ]);
+  });
+
+  it('CA3: si el historial no trae la entrega, usa la hora registrada en la orden', () => {
+    const etapas = construirEtapas(ordenBase({
+      estado: 'entregado',
+      entregada_at: '2026-11-08T14:46:00Z',
+      historial: historialCompleto.slice(0, 3),
+    }));
+    expect(etapas[3].terminadaAt).toBe('2026-11-08T14:46:00Z');
+    expect(etapas[4]).toMatchObject({ completada: true, at: '2026-11-08T14:46:00Z', terminadaAt: '2026-11-08T14:46:00Z' });
+  });
+
+  it('CA3: un secado que no se usó también aparece completado al entregar, sin hora', () => {
+    const etapas = construirEtapas(ordenBase({
+      estado: 'entregado',
+      historial: [
+        { estado: 'en_lavado', created_at: '2026-11-08T14:05:00Z' },
+        { estado: 'listo', created_at: '2026-11-08T14:25:00Z' },
+        { estado: 'entregado', created_at: '2026-11-08T14:40:00Z' },
+      ],
+    }));
+    expect(etapas.every((e) => e.completada)).toBe(true);
+    expect(etapas[2]).toMatchObject({ omitida: true, at: null, terminadaAt: null });
+    expect(etapas[1].terminadaAt).toBe('2026-11-08T14:25:00Z');
+  });
+});
+
 describe('HU-18 · límite de códigos no válidos', () => {
   it('bloquea el origen tras los fallos permitidos y lo libera al pasar la ventana', () => {
     let reloj = 0;

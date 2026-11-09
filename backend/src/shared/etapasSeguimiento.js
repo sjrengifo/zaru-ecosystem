@@ -48,25 +48,42 @@ function horasPorEstado(orden) {
 }
 
 /**
- * Recorrido del lavado para la línea de pasos.
- * `secado` es opcional: si la orden pasó de lavado a listo sin secado, ese paso queda `omitida`.
- * `entregado` es el final del servicio: al llegar ahí también queda completada.
+ * Línea de tiempo del lavado (HU-18 CA1, HU-19).
+ * - `completada`, `actual` y pendiente (ninguna de las dos) para pintar cada etapa (HU-19 CA1).
+ * - `at`: hora en que la orden llegó a la etapa; `terminadaAt`: hora en que terminó (HU-19 CA2).
+ *   Una etapa termina cuando la orden llega a la siguiente que sí vivió; "Entregado" termina al entregar.
+ * - `secado` es opcional: si la orden pasó de lavado a listo sin secado, ese paso queda `omitida`.
+ * - Al llegar a "Entregado" todas las etapas quedan completadas, también un secado omitido (HU-19 CA3).
  */
 export function construirEtapas(orden) {
   const actual = POSICION.get(orden.estado) ?? 0;
   const terminado = orden.estado === 'entregado';
   const horas = horasPorEstado(orden);
-  return ETAPAS.map((etapa, i) => {
+  // Si el historial no trae la entrega, se usa la hora registrada en la orden.
+  if (terminado && !horas.has('entregado') && orden.entregada_at) horas.set('entregado', orden.entregada_at);
+
+  const etapas = ETAPAS.map((etapa, i) => {
     const omitida = i < actual && etapa.estado === 'secado' && !horas.has('secado');
     return {
       estado: etapa.estado,
       titulo: etapa.titulo,
-      completada: (i < actual || (terminado && i === actual)) && !omitida,
+      completada: terminado || (i < actual && !omitida),
       actual: i === actual,
       omitida,
       at: i <= actual && !omitida ? horas.get(etapa.estado) ?? null : null,
+      terminadaAt: null,
     };
   });
+
+  // Cada etapa vivida termina cuando empieza la siguiente que también se vivió.
+  let fin = terminado ? etapas[actual].at : null;
+  for (let i = actual; i >= 0; i -= 1) {
+    const etapa = etapas[i];
+    if (etapa.omitida) continue;
+    if (etapa.completada) etapa.terminadaAt = fin;
+    fin = etapa.at ?? fin;
+  }
+  return etapas;
 }
 
 const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;

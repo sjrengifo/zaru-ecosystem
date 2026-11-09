@@ -2,7 +2,7 @@
 //
 // /seguimiento/:codigo
 //   CA1: indicador claro de la etapa actual (en cola, lavado iniciado, secado, listo, entregado)
-//        con el recorrido completo, el vehículo, los servicios y el total, con la marca de la sede.
+//        con la línea de tiempo (HU-19), el vehículo, los servicios y el total, con la marca de la sede.
 //   CA2: la pantalla se actualiza sola cuando el operario cambia el estado en el panel.
 // /seguimiento
 //   Formulario para escribir el código si el cliente no llegó desde el enlace.
@@ -28,7 +28,7 @@ import MarcaZaru from '../components/MarcaZaru.jsx';
 import { useSeguimiento } from '../hooks/useSeguimiento.js';
 import { formatoMoneda } from '../lib/formato.js';
 import { horaBogota } from '../lib/dashboard.js';
-import { anuncioEtapa, avance, normalizarCodigo } from '../lib/seguimiento.js';
+import { anuncioEtapa, avance, normalizarCodigo, vistaEtapa } from '../lib/seguimiento.js';
 import '../styles/seguimiento.css';
 
 const ICONO_ETAPA = {
@@ -162,14 +162,19 @@ function IndicadorEtapa({ seguimiento }) {
   );
 }
 
-function Recorrido({ etapas }) {
+/**
+ * HU-19 — Línea de tiempo de las etapas del lavado.
+ * CA1: todas las etapas en orden; las completadas con check, la actual resaltada y las pendientes en gris.
+ * CA2: cada etapa completada muestra la hora en que terminó.
+ * CA3: al entregar el vehículo todas aparecen completadas (la API ya las marca así).
+ */
+function LineaDeTiempo({ etapas }) {
   return (
-    <section className="seg-tarjeta" aria-labelledby="seg-recorrido">
-      <h2 id="seg-recorrido">Recorrido</h2>
+    <section className="seg-tarjeta" aria-labelledby="seg-linea-tiempo">
+      <h2 id="seg-linea-tiempo">Línea de tiempo</h2>
       <ol className="seg-pasos">
         {etapas.map((etapa) => {
-          // El paso final (entregado) es actual y completado a la vez: se muestra con su check.
-          const clase = etapa.completada ? 'hecho' : etapa.actual ? 'actual' : etapa.omitida ? 'omitido' : 'pendiente';
+          const { clase, hora, estadoLector } = vistaEtapa(etapa);
           return (
             <li key={etapa.estado} className={`seg-paso seg-paso-${clase}`} aria-current={etapa.actual ? 'step' : undefined}>
               <span className="seg-paso-marca" aria-hidden="true">
@@ -177,10 +182,8 @@ function Recorrido({ etapas }) {
               </span>
               <span className="seg-paso-titulo">{etapa.titulo}</span>
               <span className="seg-paso-hora">
-                {etapa.omitida ? 'No aplica' : etapa.at ? horaBogota(etapa.at) : ''}
-                <span className="solo-lectores">
-                  {etapa.completada ? ' (completada)' : etapa.actual ? ' (etapa actual)' : etapa.omitida ? '' : ' (pendiente)'}
-                </span>
+                {hora}
+                <span className="solo-lectores">{` (${estadoLector})`}</span>
               </span>
             </li>
           );
@@ -293,7 +296,7 @@ function VistaSeguimiento({ codigo }) {
       <Encabezado establecimiento={seguimiento.establecimiento} />
       <EstadoConexion conexion={conexion} />
       <IndicadorEtapa seguimiento={seguimiento} />
-      <Recorrido etapas={seguimiento.etapas} />
+      <LineaDeTiempo etapas={seguimiento.etapas} />
       <Resumen seguimiento={seguimiento} />
       <p className="seg-codigo">
         Código de seguimiento: <strong>{seguimiento.codigo}</strong>
