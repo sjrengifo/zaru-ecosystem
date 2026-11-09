@@ -1,4 +1,5 @@
-// HU-18 — Reglas de la pantalla de seguimiento del cliente final, sin React.
+// HU-18 / HU-19 — Reglas de la pantalla de seguimiento del cliente final, sin React.
+import { horaBogota } from './dashboard.js';
 
 /** Mismo formato que acepta la API: letras y números, sin espacios ni guiones. */
 const FORMATO_CODIGO = /^[0-9A-Z]{6,16}$/;
@@ -37,4 +38,26 @@ export function esMasReciente(actual, recibido) {
   if (!recibido) return false;
   if (!actual) return true;
   return Number(recibido.version ?? 0) >= Number(actual.version ?? 0);
+}
+
+/**
+ * HU-19 — Cómo se pinta una etapa de la línea de tiempo.
+ * - completada (CA1, CA3): con check y "Terminó HH:MM" (CA2). Un secado omitido en una orden
+ *   entregada también queda completado, pero dice "No aplica" porque no tiene hora.
+ * - actual (CA1): resaltada, con la hora en que empezó.
+ * - pendiente (CA1): en gris y sin hora.
+ */
+export function vistaEtapa(etapa) {
+  if (etapa.completada) {
+    return {
+      clase: 'hecho',
+      hora: etapa.omitida ? 'No aplica' : etapa.terminadaAt ? `Terminó ${horaBogota(etapa.terminadaAt)}` : '',
+      estadoLector: 'completada',
+    };
+  }
+  if (etapa.actual) {
+    return { clase: 'actual', hora: etapa.at ? `Desde ${horaBogota(etapa.at)}` : '', estadoLector: 'etapa actual' };
+  }
+  if (etapa.omitida) return { clase: 'omitido', hora: 'No aplica', estadoLector: 'no aplica' };
+  return { clase: 'pendiente', hora: '', estadoLector: 'pendiente' };
 }

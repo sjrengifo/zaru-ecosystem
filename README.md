@@ -218,6 +218,8 @@ Para HU-46, el proveedor `consola` permite probar el flujo sin enviar correos re
 
 HU-18 publica la pantalla del cliente final en `/seguimiento/:codigo` (sin sesión). El correo de ingreso incluye el enlace, armado con `FRONTEND_URL`, y cada tarjeta del tablero permite copiarlo para compartirlo. No requiere migraciones ni variables nuevas.
 
+HU-19 agrega a esa pantalla la línea de tiempo del lavado: todas las etapas en orden, las completadas con check y la hora en que terminaron (`terminadaAt`), la actual resaltada y las pendientes en gris. Al entregar el vehículo todas quedan completadas. Tampoco requiere migraciones.
+
 HU-57 incorpora el panel de superadministración para registrar establecimientos, invitar al administrador inicial, consultar periodos de prueba, activar, suspender y reenviar invitaciones. HU-59 centraliza los módulos permitidos por rol en el backend (`GET /me` y middleware `requiereModulo`) y usa esos permisos para filtrar el menú y proteger la navegación del frontend.
 
 ### Ejecución
@@ -307,6 +309,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 | Jira | Historia | Puntos | MoSCoW | Frontend | Backend |
 |---|---|---|---|---|---|
 | ZARU-34 | HU-18 Seguimiento en tiempo real del estado del lavado | 8 | Must | `Seguimiento.jsx` · `EnlaceSeguimiento.jsx` | `seguimiento.controller.js` · `shared/seguimiento.js` (SSE + Supabase Realtime) |
+| ZARU-39 | HU-19 Visualizar la línea de tiempo de las etapas del lavado | 5 | Should | `Seguimiento.jsx` (`LineaDeTiempo`) · `lib/seguimiento.js` | `shared/etapasSeguimiento.js` (`construirEtapas`) |
 
 Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
 

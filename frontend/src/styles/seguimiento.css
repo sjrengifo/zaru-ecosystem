@@ -158,7 +158,7 @@
   color: var(--color-texto-suave);
 }
 
-/* ---------- Recorrido ---------- */
+/* ---------- Línea de tiempo (HU-19): hecho con check, actual resaltada, pendiente en gris ---------- */
 .seg-pasos { list-style: none; margin: 0; padding: 0; }
 .seg-paso {
   position: relative;
@@ -208,7 +208,9 @@
 .seg-paso-omitido .seg-paso-titulo { text-decoration: line-through; }
 .seg-paso-omitido .seg-paso-marca { border-style: dashed; }
 .seg-paso-actual .seg-paso-titulo { color: var(--color-primario); font-weight: 700; }
-.seg-paso-hora { font-size: 13px; color: var(--color-texto-suave); font-variant-numeric: tabular-nums; }
+.seg-paso-hora { font-size: 13px; color: var(--color-texto-suave); font-variant-numeric: tabular-nums; text-align: right; }
+.seg-paso-actual .seg-paso-hora { color: var(--color-primario); font-weight: 600; }
+.seg-paso-pendiente .seg-paso-marca { background: var(--color-borde); }
 
 /* ---------- Resumen del servicio ---------- */
 .seg-vehiculo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; color: var(--color-texto-suave); }

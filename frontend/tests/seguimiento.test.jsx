@@ -5,7 +5,7 @@ import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Seguimiento from '../src/pages/Seguimiento.jsx';
 import TarjetaOrden from '../src/components/TarjetaOrden.jsx';
-import { anuncioEtapa, avance, enlaceSeguimiento, esMasReciente, normalizarCodigo } from '../src/lib/seguimiento.js';
+import { anuncioEtapa, avance, enlaceSeguimiento, esMasReciente, normalizarCodigo, vistaEtapa } from '../src/lib/seguimiento.js';
 
 const ETAPAS = [
   ['recibido', 'En cola'],
@@ -29,7 +29,9 @@ function seguimiento(estado = 'recibido', version = 1) {
       completada: i < posicion || (terminado && i === posicion),
       actual: i === posicion,
       omitida: false,
-      at: i <= posicion ? '2026-11-08T14:00:00Z' : null,
+      at: i <= posicion ? `2026-11-08T14:${String(i * 10).padStart(2, '0')}:00Z` : null,
+      terminadaAt:
+        i < posicion || (terminado && i === posicion) ? `2026-11-08T14:${String((i + (terminado && i === posicion ? 0 : 1)) * 10).padStart(2, '0')}:00Z` : null,
     })),
     entregaEstimadaAt: '2026-11-08T14:40:00Z',
     vehiculo: { placa: 'ABC123', marca: 'Mazda', color: 'Rojo' },
@@ -107,6 +109,47 @@ describe('HU-18 · reglas de la pantalla', () => {
   it('un evento atrasado no devuelve la pantalla a una etapa anterior', () => {
     expect(esMasReciente(seguimiento('secado', 3), seguimiento('en_lavado', 2))).toBe(false);
     expect(esMasReciente(seguimiento('en_lavado', 2), seguimiento('secado', 3))).toBe(true);
+  });
+});
+
+describe('HU-19 · línea de tiempo de las etapas del lavado', () => {
+  const clases = (container) => [...container.querySelectorAll('.seg-paso')].map((li) => li.className.replace('seg-paso ', ''));
+  const horas = (container) => [...container.querySelectorAll('.seg-paso-hora')].map((el) => el.firstChild?.nodeType === 3 ? el.firstChild.textContent : '');
+
+  it('CA1: muestra todas las etapas en orden, con completadas, la actual resaltada y las pendientes en gris', async () => {
+    fetch.mockImplementation(() => respuesta(200, seguimiento('secado', 3)));
+    const { container } = abrir();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Línea de tiempo' })).toBeInTheDocument();
+    expect([...container.querySelectorAll('.seg-paso-titulo')].map((el) => el.textContent)).toEqual(ETAPAS.map(([, t]) => t));
+    expect(clases(container)).toEqual(['seg-paso-hecho', 'seg-paso-hecho', 'seg-paso-actual', 'seg-paso-pendiente', 'seg-paso-pendiente']);
+    expect(container.querySelector('[aria-current="step"] .seg-paso-titulo').textContent).toBe('Secado');
+  });
+
+  it('CA2: las etapas completadas muestran la hora en que terminaron', async () => {
+    fetch.mockImplementation(() => respuesta(200, seguimiento('secado', 3)));
+    const { container } = abrir();
+    await screen.findByRole('heading', { level: 2, name: 'Línea de tiempo' });
+    const [cola, lavado, secado, listo, entregado] = horas(container);
+    expect(cola).toMatch(/^Terminó \d/);
+    expect(lavado).toMatch(/^Terminó \d/);
+    expect(cola).not.toBe(lavado);
+    expect(secado).toMatch(/^Desde \d/);
+    expect(listo).toBe('');
+    expect(entregado).toBe('');
+  });
+
+  it('CA3: con el vehículo entregado, todas las etapas aparecen completadas con su hora', async () => {
+    fetch.mockImplementation(() => respuesta(200, seguimiento('entregado', 5)));
+    const { container } = abrir();
+    await screen.findByRole('heading', { level: 1, name: 'Entregado' });
+    expect(clases(container).every((c) => c === 'seg-paso-hecho')).toBe(true);
+    expect(horas(container).every((h) => h.startsWith('Terminó '))).toBe(true);
+  });
+
+  it('vistaEtapa: un secado omitido dice "No aplica", completado solo si ya se entregó', () => {
+    expect(vistaEtapa({ omitida: true, completada: false, actual: false })).toMatchObject({ clase: 'omitido', hora: 'No aplica' });
+    expect(vistaEtapa({ omitida: true, completada: true, actual: false })).toMatchObject({ clase: 'hecho', hora: 'No aplica' });
+    expect(vistaEtapa({ completada: false, actual: false })).toEqual({ clase: 'pendiente', hora: '', estadoLector: 'pendiente' });
   });
 });
 
