@@ -69,11 +69,13 @@ function Contenido({ token, datos, onConfirmado }) {
         <CircleCheck className="baja-icono baja-icono-ok" size={44} aria-hidden="true" />
         <h1>Listo, ya no recibirás {datos.nombreTipo.toLowerCase()}</h1>
         <p>
-          Retiramos tu autorización para {queDejas} de {sede.nombre}. Quedó registrado el{' '}
+          Retiramos tu autorización para {queDejas} de {sede.nombre}.
+        </p>
+        <p className="baja-registro">
+          Registrado el{' '}
           <strong>
             <time dateTime={revocadaAt}>{formatoFechaHora(revocadaAt)}</time>
           </strong>
-          .
         </p>
         <p className="baja-nota">Si cambias de opinión, pídelo en el establecimiento y lo activamos de nuevo.</p>
       </section>

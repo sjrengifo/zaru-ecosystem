@@ -21,3 +21,14 @@ export const NOMBRE_CANAL = {
 
 export const nombreCanal = (canal) => NOMBRE_CANAL[canal] ?? canal ?? '—';
 export const nombreTipo = (tipo) => NOMBRE_TIPO[tipo] ?? tipo;
+
+/**
+ * CA4: cómo se lee cada fila del historial (de la más reciente a la más antigua). Una fila sin
+ * autorizar es "Retirada" solo si antes estaba otorgada; si nunca se otorgó, es "No otorgada".
+ */
+export function decisionDe(filas, i) {
+  const fila = filas[i];
+  if (fila.otorgado) return 'Otorgada';
+  const anterior = filas.slice(i + 1).find((f) => f.tipo === fila.tipo);
+  return anterior?.otorgado ? 'Retirada' : 'No otorgada';
+}

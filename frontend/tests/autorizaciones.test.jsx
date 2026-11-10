@@ -109,6 +109,7 @@ describe('perfil del cliente: estado, cambio y evidencia', () => {
     api.get.mockResolvedValue([
       { tipo: 'comerciales', otorgado: false, canal: 'enlace_baja', politicaVersion: '1.1', fecha: '2026-11-05T14:30:00Z' },
       { tipo: 'comerciales', otorgado: true, canal: 'panel', politicaVersion: '1.0', fecha: '2026-10-01T13:00:00Z' },
+      { tipo: 'comerciales', otorgado: false, canal: 'panel', politicaVersion: '1.0', fecha: '2026-09-01T13:00:00Z' },
     ]);
     render(<AutorizacionesCliente cliente={cliente} esAdmin />);
     fireEvent.click(screen.getByRole('button', { name: /Ver historial/ }));
@@ -119,6 +120,7 @@ describe('perfil del cliente: estado, cambio y evidencia', () => {
     expect(filas[0]).toHaveTextContent(`${formatoFechaHora('2026-11-05T14:30:00Z')} · Enlace "dejar de recibir" · Política v1.1`);
     expect(filas[1]).toHaveTextContent('Otorgada');
     expect(filas[1]).toHaveTextContent('Política v1.0');
+    expect(filas[2]).toHaveTextContent('No otorgada');
   });
 
   it('la hora se muestra en hora de Colombia', () => {
