@@ -22,7 +22,10 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-30 · autorizaciones de comunicacion
   async function limpiar() {
     if (!admin) return;
     await admin.from('ordenes').delete().like('codigo_seguimiento', 'HU30%');
-    await admin.from('vehiculos').delete().in('placa', Object.values(PLACA));
+    // La orden del ingreso por la API tiene un código aleatorio: se borra por el vehículo.
+    const { data: vehiculos } = await admin.from('vehiculos').select('id').eq('establecimiento_id', EST_A).in('placa', Object.values(PLACA));
+    if (vehiculos?.length) await admin.from('ordenes').delete().in('vehiculo_id', vehiculos.map((v) => v.id));
+    await admin.from('vehiculos').delete().eq('establecimiento_id', EST_A).in('placa', Object.values(PLACA));
     await admin.from('clientes').delete().in('telefono', Object.values(TEL)); // la evidencia cae en cascada
     await admin.from('servicios').delete().like('nombre', '[Prueba HU-30]%');
   }
