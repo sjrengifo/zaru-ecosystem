@@ -16,6 +16,7 @@ import * as me from '../controllers/me.controller.js';
 import * as politicas from '../controllers/politicas.controller.js';
 import * as seguimiento from '../controllers/seguimiento.controller.js';
 import * as publico from '../controllers/publico.controller.js';
+import * as baja from '../controllers/baja.controller.js';
 import { validar } from '../shared/validar.js';
 import { busquedaPublica } from '../schemas/publico.schemas.js';
 
@@ -60,6 +61,10 @@ router.get('/publico/seguimiento/:codigo/eventos', seguimiento.eventos);
 // HU-17: el cliente final entra desde el enlace o el QR de su sede con la placa o el celular.
 router.get('/publico/sedes/:slug', publico.sede);
 router.post('/publico/sedes/:slug/buscar', validar({ body: busquedaPublica }), publico.buscar);
+
+// HU-30 CA3: el cliente deja de recibir avisos o promociones desde el enlace del correo, sin sesión.
+router.get('/publico/baja/:token', baja.consultar);
+router.post('/publico/baja/:token', baja.confirmar);
 
 // Todo lo demás requiere sesión.
 router.use(requiereSesion);

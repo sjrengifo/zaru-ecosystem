@@ -10,6 +10,7 @@ import Icono from './Icono.jsx';
 import AvisoClienteExistente from './AvisoClienteExistente.jsx';
 import PieFormulario from './PieFormulario.jsx';
 import Cargando from './Cargando.jsx';
+import CasillasNotificaciones, { AUTORIZACIONES_INICIALES, camposAutorizacion } from './CasillasNotificaciones.jsx';
 
 const CAMPOS = ['nombre', 'telefono', 'correo', 'autorizacionDatos'];
 
@@ -35,6 +36,8 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
   const [telefono, setTelefono] = useState('');
   const [correo, setCorreo] = useState('');
   const [autoriza, setAutoriza] = useState(false);
+  // HU-30 CA1: avisos del servicio y promociones, por separado y desmarcadas.
+  const [comunicaciones, setComunicaciones] = useState(AUTORIZACIONES_INICIALES);
   const [politica, setPolitica] = useState(null);
   const [errorPolitica, setErrorPolitica] = useState('');
   const [errores, setErrores] = useState({});
@@ -67,7 +70,7 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
   }
 
   function intentarCerrar() {
-    const hayDatos = nombre || telefono || correo || autoriza;
+    const hayDatos = nombre || telefono || correo || autoriza || comunicaciones.notificaciones || comunicaciones.comerciales;
     if (hayDatos && !enviando) setConfirmarDescarte(true);
     else if (!enviando) onCancelar();
   }
@@ -109,6 +112,7 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
         correo,
         autorizacionDatos: true,
         politicaVersion: politica.version,
+        ...camposAutorizacion(comunicaciones),
       });
       onCreado(cliente);
     } catch (err) {
@@ -229,6 +233,14 @@ export default function FormularioCliente({ onCreado, onAbrirExistente, onCancel
               </label>
             </div>
             {errores.autorizacionDatos && <MensajeError id="cliente-autoriza-error">{errores.autorizacionDatos}</MensajeError>}
+
+            <CasillasNotificaciones
+              prefijo="cliente"
+              valores={comunicaciones}
+              onCambio={setComunicaciones}
+              deshabilitado={!politica}
+              politicaVersion={politica?.version}
+            />
           </section>
 
           {errorGeneral && (

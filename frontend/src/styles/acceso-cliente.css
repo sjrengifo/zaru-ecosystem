@@ -183,3 +183,11 @@
   .enlace-clientes { grid-template-columns: 1fr; justify-items: center; text-align: center; }
   .enlace-clientes-acciones { justify-content: center; }
 }
+
+/* HU-30 — "Dejar de recibir" y política pública. */
+.baja-tarjeta { padding: 28px 20px 22px; }
+.baja-tarjeta h1 { text-wrap: balance; }
+.baja-icono { display: block; margin: 0 auto 12px; color: var(--color-texto-suave); }
+.baja-icono-ok { color: var(--color-exito); }
+.baja-tarjeta .boton { width: 100%; margin-top: 4px; }
+.baja-tarjeta .baja-nota { margin: 16px 0 0; font-size: 13px; }
