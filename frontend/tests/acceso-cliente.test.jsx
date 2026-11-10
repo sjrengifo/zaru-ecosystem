@@ -120,7 +120,7 @@ describe('acceso con la placa o el celular', () => {
     enviar();
     const aviso = await screen.findByRole('alert');
     expect(aviso).toHaveTextContent('El vehículo no se encuentra en servicio actualmente.');
-    expect(aviso).toHaveTextContent(/pregunta en la recepción/);
+    expect(aviso).toHaveTextContent('Revisa que la placa esté bien escrita o pregunta en la recepción del car wash.');
     expect(campo()).toHaveValue('ZZZ999');
   });
 

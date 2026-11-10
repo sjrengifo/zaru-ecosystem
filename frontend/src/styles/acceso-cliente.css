@@ -177,7 +177,7 @@
   font-size: 13px;
 }
 .enlace-clientes-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
-.enlace-clientes-acciones .boton { min-height: 40px; padding: 8px 14px; font-size: 14px; }
+.enlace-clientes-acciones .boton { min-height: 40px; padding: 8px 14px; font-size: 14px; text-decoration: none; }
 
 @media (max-width: 560px) {
   .enlace-clientes { grid-template-columns: 1fr; justify-items: center; text-align: center; }

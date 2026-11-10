@@ -181,7 +181,7 @@ function FormularioAcceso({ slug, sede }) {
             <p className="acceso-aviso-titulo">{aviso.texto.replace(/\.?$/, '.')}</p>
             {aviso.tipo === 'sin-servicio' && (
               <p>
-                Revisa que {esPlaca ? 'la placa' : 'el celular'} esté bien escrito o pregunta en la recepción del car wash.
+                Revisa que {esPlaca ? 'la placa esté bien escrita' : 'el celular esté bien escrito'} o pregunta en la recepción del car wash.
               </p>
             )}
           </div>
