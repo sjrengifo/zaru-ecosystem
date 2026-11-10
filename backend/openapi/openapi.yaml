@@ -230,6 +230,52 @@ paths:
                 error: { codigo: NO_ENCONTRADO, mensaje: El vehículo no se encuentra en servicio actualmente, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
 
+  /publico/baja/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Token firmado del enlace "dejar de recibir" de un correo (HU-30 CA3). Solo sirve para esa autorización de ese cliente.
+        schema: { type: string, maxLength: 500 }
+    get:
+      tags: [Acceso del cliente]
+      operationId: consultarBaja
+      summary: Qué autorización revoca el enlace "dejar de recibir"
+      description: |
+        Datos para la pantalla de confirmación: tipo de autorización, si sigue autorizada y la marca de la sede.
+        No incluye datos personales. Un token alterado, o de un cliente que pidió eliminar sus datos, responde `404`.
+      security: []
+      responses:
+        '200':
+          description: Autorización del enlace.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BajaPublica' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+    post:
+      tags: [Acceso del cliente]
+      operationId: confirmarBaja
+      summary: Dejar de recibir avisos o promociones (sin iniciar sesión)
+      description: |
+        Revoca la autorización de inmediato y la registra como evidencia con canal `enlace_baja`, fecha, hora y
+        versión de la política (HU-30 CA3 y CA4). Es `POST` para que las vistas previas de los correos, que abren
+        los enlaces solas, no den de baja a nadie. Repetirlo no agrega filas nuevas.
+      security: []
+      responses:
+        '200':
+          description: Revocación confirmada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/BajaPublica' }
+                  - type: object
+                    properties:
+                      revocadaAt: { type: [string, 'null'], format: date-time }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
   /me:
     get:
       tags: [Sesión]
@@ -409,6 +455,37 @@ paths:
                 - { tipo: tratamiento_datos, otorgado: true, canal: panel, politicaVersion: '1.0', fecha: '2026-10-28T14:05:12Z' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /clientes/{id}/autorizaciones:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Datos personales]
+      operationId: cambiarAutorizacionCliente
+      summary: Otorgar o revocar una autorización de notificaciones
+      description: |
+        El titular pide en el establecimiento recibir o dejar de recibir avisos del servicio o promociones
+        (HU-30). Se guarda como evidencia nueva con fecha, hora, canal `panel`, versión vigente de la política
+        y el usuario que lo registró (CA4). Si la autorización ya estaba así, no se agrega ninguna fila (`cambio: false`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CambioAutorizacion' }
+            example: { tipo: comerciales, otorgado: false }
+      responses:
+        '200':
+          description: Autorizaciones vigentes después del cambio.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cambio: { type: boolean }
+                  autorizaciones: { $ref: '#/components/schemas/Autorizaciones' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /vehiculos:
@@ -1356,6 +1433,8 @@ components:
         telefono: { type: string, pattern: '^3\d{9}$', description: Celular colombiano de 10 dígitos. }
         correo: { type: string, format: email, maxLength: 254, description: Obligatorio desde la política 1.1; es un canal de notificación (HU-46). }
         autorizacionDatos: { type: boolean, const: true, description: Autorización de tratamiento de datos (Ley 1581 de 2012). }
+        autorizaNotificaciones: { type: boolean, default: false, description: 'HU-30 CA1: casilla separada y desmarcada por defecto para los avisos del estado del vehículo.' }
+        autorizaComerciales: { type: boolean, default: false, description: 'HU-30 CA1: casilla separada y desmarcada por defecto para promociones del establecimiento.' }
         politicaVersion: { type: string, pattern: '^\d+\.\d+$', description: Versión de la política aceptada (de GET /politicas-datos/vigente). }
 
     Politica:
@@ -1365,6 +1444,43 @@ components:
         titulo: { type: string }
         contenido: { type: string, description: Texto de la política en Markdown. }
         vigenteDesde: { type: string, format: date-time }
+
+    CambioAutorizacion:
+      type: object
+      required: [tipo, otorgado]
+      properties:
+        tipo: { type: string, enum: [notificaciones_servicio, comerciales] }
+        otorgado: { type: boolean, description: true para autorizar; false para revocar. }
+
+    AutorizacionVigente:
+      type: object
+      properties:
+        otorgado: { type: boolean }
+        fecha: { type: [string, 'null'], format: date-time }
+        canal: { type: [string, 'null'], enum: [panel, app, enlace_baja, migracion, null] }
+        politicaVersion: { type: [string, 'null'] }
+
+    Autorizaciones:
+      type: object
+      description: Autorizaciones vigentes del titular (HU-30). Las campañas comerciales solo van a quien tiene `comerciales.otorgado` (CA2).
+      properties:
+        tratamientoDatos: { $ref: '#/components/schemas/AutorizacionVigente' }
+        notificacionesServicio: { $ref: '#/components/schemas/AutorizacionVigente' }
+        comerciales: { $ref: '#/components/schemas/AutorizacionVigente' }
+
+    BajaPublica:
+      type: object
+      properties:
+        tipo: { type: string, enum: [notificaciones_servicio, comerciales] }
+        nombreTipo: { type: string, example: Promociones y ofertas }
+        autorizado: { type: boolean }
+        sede:
+          type: object
+          properties:
+            nombre: { type: string }
+            logoUrl: { type: [string, 'null'] }
+            colorPrimario: { type: [string, 'null'] }
+            colorSecundario: { type: [string, 'null'] }
 
     Consentimiento:
       type: object
@@ -1417,6 +1533,7 @@ components:
             vehiculos:
               type: array
               items: { $ref: '#/components/schemas/Vehiculo' }
+            autorizaciones: { $ref: '#/components/schemas/Autorizaciones' }
 
     Vehiculo:
       type: object

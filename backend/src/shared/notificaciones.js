@@ -15,6 +15,7 @@
 import { cifrar, descifrar, estaCifrado } from './cifrado.js';
 import { proveedorCorreo, conTiempoMaximo, enmascararCorreo } from './correo.js';
 import { PLANTILLAS } from './plantillasCorreo.js';
+import { enlaceBaja, puedeRecibir, TIPOS } from './autorizaciones.js';
 
 export const EVENTOS = { RECIBIDA: 'orden.recibida', LISTA: 'orden.lista' };
 export const MAX_INTENTOS = 3;
@@ -26,16 +27,13 @@ const COLUMNAS_ORDEN =
 const dormir = (ms) => new Promise((resolver) => setTimeout(resolver, ms));
 const resumen = (estado, extra = {}) => ({ canal: 'correo', estado, ...extra });
 
-/** El cliente revocó expresamente los avisos del servicio (última evidencia de consentimientos, HU-51). */
-async function avisosRevocados(tenant, clienteId) {
-  const { data, error } = await tenant
-    .listar('consentimientos', 'otorgado, created_at')
-    .eq('cliente_id', clienteId)
-    .eq('tipo', 'notificaciones_servicio')
-    .order('created_at', { ascending: false })
-    .limit(1);
-  if (error) throw error;
-  return data?.[0]?.otorgado === false;
+/** HU-30 CA3: enlace "dejar de recibir estos avisos". Si no se puede firmar, el correo sale sin él. */
+function enlaceDeBaja(tenant, clienteId) {
+  try {
+    return enlaceBaja({ establecimientoId: tenant.establecimientoId, clienteId, tipo: TIPOS.servicio });
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -62,7 +60,8 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
     const correo = correoGuardado ? descifrar(correoGuardado)?.trim() : '';
     if (!correo) return { resumen: resumen('omitida', { motivo: 'sin_correo' }), enviar: sinEnvio };
 
-    if (await avisosRevocados(tenant, cliente.id)) {
+    // HU-30: solo se envía si el titular autorizó los avisos del servicio y no los revocó.
+    if (!(await puedeRecibir(tenant, cliente.id, TIPOS.servicio))) {
       return { resumen: resumen('omitida', { motivo: 'revocado' }), enviar: sinEnvio };
     }
 
@@ -76,6 +75,7 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
       orden,
       vehiculo,
       servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
+      enlaceBaja: enlaceDeBaja(tenant, cliente.id),
     });
 
     let fila;

@@ -1,4 +1,4 @@
-// HU-03 CA3, HU-04, HU-05, HU-06 y HU-52 · Perfil de un cliente: sus datos, sus vehículos con su historial y las opciones de editarlo, agregar vehículos y eliminarlo.
+// HU-03 CA3, HU-04, HU-05, HU-06, HU-30 y HU-52 · Perfil de un cliente: sus datos, sus vehículos con su historial y las opciones de editarlo, agregar vehículos y eliminarlo.
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 import { TIPOS_VEHICULO } from '../lib/validacionVehiculo.js';
@@ -10,6 +10,7 @@ import DetalleVehiculo from './DetalleVehiculo.jsx';
 import Notificacion from './Notificacion.jsx';
 import Icono from './Icono.jsx';
 import Cargando from './Cargando.jsx';
+import AutorizacionesCliente from './AutorizacionesCliente.jsx';
 
 export default function DetalleCliente({ id, onEditar, onAbrirCliente, onVehiculoRegistrado, onEliminado }) {
   const rol = useRol();
@@ -88,6 +89,15 @@ export default function DetalleCliente({ id, onEditar, onAbrirCliente, onVehicul
                 </div>
               </dl>
             </section>
+
+            {/* HU-30: avisos del servicio y promociones; el administrador ve además la evidencia (CA4). */}
+            <AutorizacionesCliente
+              cliente={cliente}
+              esAdmin={rol === 'admin'}
+              onCambio={({ nombre, otorgado }) =>
+                setConfirmacion({ id: Date.now(), titulo: otorgado ? 'Autorización registrada' : 'Autorización retirada', detalle: `${nombre} · ${cliente.nombre}` })
+              }
+            />
 
             <section className="perfil-tarjeta" aria-labelledby="perfil-vehiculos-titulo">
               <div className="perfil-encabezado">

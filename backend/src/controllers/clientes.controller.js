@@ -5,6 +5,7 @@
 import { AppError, noEncontrado } from '../shared/errores.js';
 import { cifrar, descifrarCampos } from '../shared/cifrado.js';
 import { registrarAuditoria } from '../shared/auditoria.js';
+import { autorizacionesDe, registrarAutorizacion } from '../shared/autorizaciones.js';
 
 /** Quita los caracteres que alteran la sintaxis de filtros de PostgREST (coma, paréntesis, comodines). */
 const textoBuscable = (texto) => String(texto).replace(/[,()*%\\]/g, ' ').trim();
@@ -55,7 +56,9 @@ export async function listar(req, res, next) {
 
 export async function obtener(req, res, next) {
   try {
-    res.json(descifrarCampos(await req.tenant.obtener('clientes', req.params.id, '*, vehiculos(*)', 'Cliente')));
+    const cliente = descifrarCampos(await req.tenant.obtener('clientes', req.params.id, '*, vehiculos(*)', 'Cliente'));
+    // HU-30: autorizaciones vigentes del titular (avisos del servicio y promociones).
+    res.json({ ...cliente, autorizaciones: await autorizacionesDe(req.tenant, cliente.id) });
   } catch (err) {
     next(err);
   }
@@ -94,6 +97,8 @@ export async function crear(req, res, next) {
         p_canal: 'panel',
         p_ip: req.ip ?? null,
         p_registrado_por: req.ctx.usuarioId,
+        p_autoriza_notificaciones: req.body.autorizaNotificaciones,
+        p_autoriza_comerciales: req.body.autorizaComerciales,
       });
     } catch (err) {
       // CA3: dos registros simultáneos pasan la consulta anterior y la base rechaza el segundo;
@@ -153,6 +158,27 @@ export async function eliminar(req, res, next) {
       detalle: { vehiculos: resultado.vehiculos, ordenesConservadas: resultado.ordenes },
     });
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * HU-30: el titular otorga o revoca en el establecimiento una autorización de notificaciones.
+ * Queda como evidencia con canal 'panel', la versión vigente de la política y quién lo registró (CA4).
+ */
+export async function actualizarAutorizacion(req, res, next) {
+  try {
+    await req.tenant.obtener('clientes', req.params.id, 'id', 'Cliente');
+    const { cambio, autorizaciones } = await registrarAutorizacion(req.tenant, {
+      clienteId: req.params.id,
+      tipo: req.body.tipo,
+      otorgado: req.body.otorgado,
+      canal: 'panel',
+      ip: req.ip ?? null,
+      usuarioId: req.ctx.usuarioId,
+    });
+    res.json({ cambio, autorizaciones });
   } catch (err) {
     next(err);
   }

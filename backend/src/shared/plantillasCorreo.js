@@ -24,7 +24,7 @@ const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
 const colorSeguro = (color) => (COLOR_HEX.test(color ?? '') ? color : '#2563EB');
 const primerNombre = (nombre) => String(nombre ?? '').trim().split(/\s+/)[0] || 'cliente';
 
-function marco({ establecimiento, titulo, cuerpoHtml }) {
+function marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja = null }) {
   const color = colorSeguro(establecimiento?.color_primario);
   const nombreSede = escaparHtml(establecimiento?.nombre ?? 'Zaru');
   const encabezado = establecimiento?.logo_url
@@ -41,7 +41,7 @@ function marco({ establecimiento, titulo, cuerpoHtml }) {
 ${cuerpoHtml}
 </td></tr>
 <tr><td style="padding:16px 24px;background:#f9fafb;color:#6b7280;font-size:12px">
-Recibes este correo porque dejaste tu vehículo en ${nombreSede}. Es un mensaje automático: por favor no respondas.
+Recibes este correo porque dejaste tu vehículo en ${nombreSede}. Es un mensaje automático: por favor no respondas.${enlaceBaja ? `<br><a href="${escaparHtml(enlaceBaja)}" style="color:#6b7280">Dejar de recibir estos avisos</a>` : ''}
 </td></tr>
 </table>
 </td></tr></table>
@@ -62,6 +62,9 @@ function botonSeguimiento(enlace, color) {
   return `<p style="margin:16px 0 0"><a href="${escaparHtml(enlace)}" style="display:inline-block;padding:10px 18px;background:${color};color:#fff;border-radius:8px;font-weight:600;text-decoration:none">Ver el estado de mi lavado</a></p>`;
 }
 
+/** HU-30 CA3: versión en texto plano del enlace "dejar de recibir". */
+const pieTexto = (enlaceBaja) => (enlaceBaja ? ['', `¿No quieres recibir más estos avisos? ${enlaceBaja}`] : []);
+
 function placaHtml(placa) {
   return `<span style="display:inline-block;padding:4px 10px;background:#ffd400;border:2px solid #111827;border-radius:6px;font-weight:700;letter-spacing:2px">${escaparHtml(placa)}</span>`;
 }
@@ -70,7 +73,7 @@ function placaHtml(placa) {
  * CA1: confirmación de ingreso con los servicios solicitados.
  * @param {{ establecimiento, cliente, orden, vehiculo, servicios: Array<{nombre, precio}> }} datos
  */
-export function plantillaIngreso({ establecimiento, cliente, orden, vehiculo, servicios = [] }) {
+export function plantillaIngreso({ establecimiento, cliente, orden, vehiculo, servicios = [], enlaceBaja = null }) {
   const sede = establecimiento?.nombre ?? 'el car wash';
   const filas = servicios
     .map((s) => `<tr><td style="padding:8px 0;border-bottom:1px solid #f1f5f9">${escaparHtml(s.nombre)}</td><td align="right" style="padding:8px 0;border-bottom:1px solid #f1f5f9">${formatoPesos(s.precio)}</td></tr>`)
@@ -101,17 +104,18 @@ ${botonSeguimiento(enlace, colorSeguro(establecimiento?.color_primario))}`;
     '',
     'Te escribiremos de nuevo cuando esté listo para recoger.',
     ...(enlace ? ['', `Sigue el estado de tu lavado en tiempo real: ${enlace}`] : []),
+    ...pieTexto(enlaceBaja),
   ].join('\n');
 
   return {
     asunto: `Recibimos tu vehículo ${vehiculo?.placa ?? ''} en ${sede}`.replace(/\s+/g, ' ').trim(),
-    html: marco({ establecimiento, titulo: 'Tu vehículo ya está con nosotros', cuerpoHtml }),
+    html: marco({ establecimiento, titulo: 'Tu vehículo ya está con nosotros', cuerpoHtml, enlaceBaja }),
     texto,
   };
 }
 
 /** CA2: aviso de que el vehículo está listo para recoger. */
-export function plantillaListo({ establecimiento, cliente, orden, vehiculo }) {
+export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enlaceBaja = null }) {
   const sede = establecimiento?.nombre ?? 'el car wash';
   const cuerpoHtml = `
 <p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, tu vehículo ${placaHtml(vehiculo?.placa)} está <strong>listo para recoger</strong> en ${escaparHtml(sede)}.</p>
@@ -120,12 +124,13 @@ export function plantillaListo({ establecimiento, cliente, orden, vehiculo }) {
 
   return {
     asunto: `Tu vehículo ${vehiculo?.placa ?? ''} está listo para recoger`.replace(/\s+/g, ' ').trim(),
-    html: marco({ establecimiento, titulo: '¡Tu vehículo está listo!', cuerpoHtml }),
+    html: marco({ establecimiento, titulo: '¡Tu vehículo está listo!', cuerpoHtml, enlaceBaja }),
     texto: [
       `Hola ${primerNombre(cliente?.nombre)}, tu vehículo ${vehiculo?.placa} está listo para recoger en ${sede}.`,
       `Valor a pagar en el punto: ${formatoPesos(orden?.total)}`,
       '',
       '¡Gracias por confiar en nosotros!',
+      ...pieTexto(enlaceBaja),
     ].join('\n'),
   };
 }

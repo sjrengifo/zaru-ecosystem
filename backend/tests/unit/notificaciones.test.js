@@ -29,7 +29,8 @@ function orden(correo) {
 function tenantCon({ correo = cifrar('luis@correo.com'), revocado = false } = {}) {
   const tenant = crearTenantFalso({
     ordenes: [{ data: orden(correo), error: null }],
-    consentimientos: [{ data: revocado ? [{ otorgado: false }] : [], error: null }],
+    // HU-30: autorización vigente de los avisos del servicio (vista autorizaciones_vigentes).
+    autorizaciones_vigentes: [{ data: [{ tipo: 'notificaciones_servicio', otorgado: !revocado, canal: 'panel', created_at: '2026-11-01T10:00:00Z' }], error: null }],
     establecimientos: [{ data: { nombre: 'Lavadero Norte', color_primario: '#2563EB' }, error: null }],
   });
   tenant.crear.mockResolvedValue({ id: 'nnnnnnnn-0000-4000-8000-000000000003' });
@@ -78,7 +79,7 @@ describe('HU-46 · preparar el correo', () => {
     await expect(enviar()).resolves.toBeNull();
   });
 
-  it('respeta la revocación expresa de avisos del servicio (HU-51)', async () => {
+  it('HU-30: no envía si el titular revocó o no autorizó los avisos del servicio', async () => {
     const tenant = tenantCon({ revocado: true });
     const { resumen } = await prepararCorreo(tenant, { evento: EVENTOS.LISTA, ordenId: ORDEN_ID });
     expect(resumen).toMatchObject({ estado: 'omitida', motivo: 'revocado' });
@@ -101,7 +102,7 @@ describe('HU-46 · preparar el correo', () => {
   it('solo consulta datos del establecimiento de la sesión (usa req.tenant)', async () => {
     const tenant = tenantCon();
     await prepararCorreo(tenant, { evento: EVENTOS.RECIBIDA, ordenId: ORDEN_ID });
-    expect(tenant.consultas.map((c) => c.tabla)).toEqual(['ordenes', 'consentimientos', 'establecimientos']);
+    expect(tenant.consultas.map((c) => c.tabla)).toEqual(['ordenes', 'autorizaciones_vigentes', 'establecimientos']);
   });
 });
 

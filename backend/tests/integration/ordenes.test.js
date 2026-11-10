@@ -163,8 +163,13 @@ describe.skipIf(!hayEntornoIntegracion)(`Órdenes${hayEntornoIntegracion ? '' : 
 
       const { data: cliente } = await admin.from('clientes').select('id, correo').eq('telefono', TEL.nuevo).single();
       expect(cliente.correo).not.toBe('hu08-nuevo@example.com');
-      const { data: consentimientos } = await admin.from('consentimientos').select('tipo').eq('cliente_id', cliente.id);
-      expect(consentimientos).toEqual([{ tipo: 'tratamiento_datos' }]);
+      // HU-30 CA1: sin marcar las casillas, avisos y promociones quedan sin autorizar.
+      const { data: consentimientos } = await admin.from('consentimientos').select('tipo, otorgado').eq('cliente_id', cliente.id).order('tipo');
+      expect(consentimientos).toEqual([
+        { tipo: 'comerciales', otorgado: false },
+        { tipo: 'notificaciones_servicio', otorgado: false },
+        { tipo: 'tratamiento_datos', otorgado: true },
+      ]);
       const { data: vehiculo } = await admin.from('vehiculos').select('placa, cliente_id').eq('placa', PLACA.nuevo).single();
       expect(vehiculo.cliente_id).toBe(cliente.id);
     });

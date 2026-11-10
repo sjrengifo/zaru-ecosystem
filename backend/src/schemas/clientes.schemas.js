@@ -27,6 +27,9 @@ export const clienteNuevo = z.object({
   autorizacionDatos: z.literal(true, {
     errorMap: () => ({ message: 'La autorización de tratamiento de datos es obligatoria (Ley 1581 de 2012)' }),
   }),
+  // HU-30 CA1: dos casillas separadas, desmarcadas por defecto y opcionales.
+  autorizaNotificaciones: z.boolean({ invalid_type_error: 'La autorización de avisos debe ser sí o no' }).optional().default(false),
+  autorizaComerciales: z.boolean({ invalid_type_error: 'La autorización de promociones debe ser sí o no' }).optional().default(false),
   // HU-51 CA2: versión de la política que el titular vio y aceptó (GET /politicas-datos/vigente).
   politicaVersion: z
     .string({ required_error: 'Indica la versión de la política de datos aceptada', invalid_type_error: 'La versión de la política debe ser texto' })
@@ -36,6 +39,14 @@ export const clienteNuevo = z.object({
 export const clienteCambios = z
   .object({ nombre: nombre.optional(), telefono: telefono.optional(), correo: correo.optional() })
   .refine((v) => Object.values(v).some((x) => x !== undefined), { message: 'Envía al menos un dato para actualizar' });
+
+/** HU-30: otorgar o revocar una autorización desde el panel (el titular lo pide en el establecimiento). */
+export const cambioAutorizacion = z.object({
+  tipo: z.enum(['notificaciones_servicio', 'comerciales'], {
+    errorMap: () => ({ message: 'Indica la autorización: notificaciones_servicio o comerciales' }),
+  }),
+  otorgado: z.boolean({ required_error: 'Indica si el titular autoriza o revoca', invalid_type_error: 'Indica si el titular autoriza o revoca' }),
+});
 
 export const busquedaClientes = z.object({
   buscar: z.string().trim().max(60, 'La búsqueda admite máximo 60 caracteres').optional(),
