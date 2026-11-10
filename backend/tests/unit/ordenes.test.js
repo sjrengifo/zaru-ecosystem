@@ -6,8 +6,8 @@ process.env.ZARU_CLAVE_CIFRADO ||= Buffer.alloc(32).toString('base64');
 // HU-46: el aviso al cliente se prueba en notificaciones.test.js; aquí se aísla para no tocar el tenant falso.
 vi.mock('../../src/shared/notificaciones.js', () => ({ programarNotificacion: vi.fn(async () => ({ estado: 'omitida' })) }));
 
-import { cambioEstadoOrden, ordenNueva } from '../../src/schemas/ordenes.schemas.js';
-import { cambiarEstado, crear } from '../../src/controllers/ordenes.controller.js';
+import { cambioEstadoOrden, novedadNueva, ordenNueva } from '../../src/schemas/ordenes.schemas.js';
+import { cambiarEstado, crear, registrarNovedad } from '../../src/controllers/ordenes.controller.js';
 import { AppError, noEncontrado } from '../../src/shared/errores.js';
 import { descifrar } from '../../src/shared/cifrado.js';
 
@@ -118,7 +118,12 @@ describe('POST /ordenes', () => {
 
     expect(error).toBeUndefined();
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(datos).toMatchObject({ estado: 'recibido', total: 55000, codigoSeguimiento: 'ABCDEFGHJK' });
+    expect(datos).toMatchObject({
+      estado: 'recibido',
+      total: 55000,
+      codigoSeguimiento: 'ABCDEFGHJK',
+      entregaEstimadaAt: '2026-11-02T15:10:00.000Z',
+    });
     expect(datos.servicios[0]).toEqual({ id: SERVICIO_1, nombre: 'Lavado básico', precio: 25000, duracionMin: 30, descuento: 0 });
     expect(tenant.obtener).toHaveBeenNthCalledWith(1, 'vehiculos', VEHICULO, 'id', 'Vehículo');
     expect(tenant.rpc).toHaveBeenCalledWith('crear_orden', {
@@ -277,6 +282,114 @@ describe('PATCH /ordenes/:id/estado', () => {
     });
 
     const { error } = await ejecutarCambio(peticionCambio({ estado: 'en_lavado' }, tenant));
+    expect(error).toMatchObject({ codigo: 'NO_ENCONTRADO', status: 404 });
+    expect(tenant.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('esquema de la novedad', () => {
+  const errores = (datos) => novedadNueva.safeParse(datos).error?.issues.map((i) => [i.path.join('.'), i.message]);
+
+  it('CA2: acepta una demora con minutos y limpia el mensaje', () => {
+    expect(novedadNueva.parse({ tipo: 'demora', minutosExtra: 15, mensaje: '  Segundo lavado  ' })).toEqual({
+      tipo: 'demora',
+      minutosExtra: 15,
+      mensaje: 'Segundo lavado',
+    });
+    expect(novedadNueva.parse({ tipo: 'otro', mensaje: '  ' })).toMatchObject({ tipo: 'otro', mensaje: null });
+  });
+
+  it('exige minutos en una demora y los prohíbe en los demás tipos', () => {
+    expect(errores({ tipo: 'demora' })[0][0]).toBe('minutosExtra');
+    expect(errores({ tipo: 'demora', minutosExtra: 0 })[0][0]).toBe('minutosExtra');
+    expect(errores({ tipo: 'otro', minutosExtra: 10 })[0][0]).toBe('minutosExtra');
+    expect(errores({ tipo: 'desconocido' })[0][0]).toBe('tipo');
+  });
+
+  it('limita el mensaje a 300 caracteres', () => {
+    expect(errores({ tipo: 'otro', mensaje: 'x'.repeat(301) })[0][0]).toBe('mensaje');
+  });
+});
+
+describe('POST /ordenes/:id/novedades', () => {
+  const NOVEDAD = {
+    id: '66666666-6666-4666-8666-666666666666',
+    ordenId: ORDEN.id,
+    tipo: 'demora',
+    mensaje: null,
+    minutosExtra: 15,
+    fotos: [],
+    createdAt: '2026-11-02T14:30:00.000Z',
+    entregaEstimadaAt: '2026-11-02T15:25:00.000Z',
+    version: 2,
+  };
+
+  const peticionNovedad = (cuerpo, tenant) => ({
+    tenant,
+    ctx: { usuarioId: 'p1' },
+    params: { id: ORDEN.id },
+    body: novedadNueva.parse(cuerpo),
+  });
+
+  async function ejecutarNovedad(req) {
+    const res = { status: vi.fn(() => res), json: vi.fn() };
+    const next = vi.fn();
+    await registrarNovedad(req, res, next);
+    return { res, datos: res.json.mock.calls[0]?.[0], error: next.mock.calls[0]?.[0] };
+  }
+
+  it('CA2: registra la demora y devuelve la nueva entrega estimada', async () => {
+    const tenant = tenantCon({ rpc: async () => NOVEDAD });
+    const { res, datos, error } = await ejecutarNovedad(peticionNovedad({ tipo: 'demora', minutosExtra: 15 }, tenant));
+
+    expect(error).toBeUndefined();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(datos).toEqual(NOVEDAD);
+    expect(tenant.obtener).toHaveBeenCalledWith('ordenes', ORDEN.id, 'id', 'Orden');
+    expect(tenant.rpc).toHaveBeenCalledWith('registrar_novedad', {
+      p_orden_id: ORDEN.id,
+      p_tipo: 'demora',
+      p_mensaje: null,
+      p_minutos_extra: 15,
+      p_creada_por: 'p1',
+    });
+  });
+
+  it('registra una novedad sin minutos y normaliza el mensaje vacío', async () => {
+    const tenant = tenantCon({ rpc: async () => ({ ...NOVEDAD, tipo: 'otro', minutosExtra: null, version: 1 }) });
+    const { error } = await ejecutarNovedad(peticionNovedad({ tipo: 'otro', mensaje: '  ' }, tenant));
+
+    expect(error).toBeUndefined();
+    expect(tenant.rpc).toHaveBeenCalledWith('registrar_novedad', {
+      p_orden_id: ORDEN.id,
+      p_tipo: 'otro',
+      p_mensaje: null,
+      p_minutos_extra: null,
+      p_creada_por: 'p1',
+    });
+  });
+
+  it('una orden entregada responde 409', async () => {
+    const tenant = tenantCon({
+      rpc: async () => {
+        throw Object.assign(new Error('Una orden entregada ya no admite novedades'), {
+          code: 'P0001',
+          hint: 'CONFLICTO',
+        });
+      },
+    });
+
+    const { error } = await ejecutarNovedad(peticionNovedad({ tipo: 'demora', minutosExtra: 10 }, tenant));
+    expect(error).toMatchObject({ codigo: 'CONFLICTO', status: 409 });
+  });
+
+  it('una orden de otro establecimiento responde 404 y no llama a la función', async () => {
+    const tenant = tenantCon();
+    tenant.obtener = vi.fn(async () => {
+      throw noEncontrado('Orden');
+    });
+
+    const { error } = await ejecutarNovedad(peticionNovedad({ tipo: 'otro' }, tenant));
     expect(error).toMatchObject({ codigo: 'NO_ENCONTRADO', status: 404 });
     expect(tenant.rpc).not.toHaveBeenCalled();
   });

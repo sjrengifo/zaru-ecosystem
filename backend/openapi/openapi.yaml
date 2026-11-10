@@ -616,6 +616,46 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /ordenes/{id}/novedades:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Órdenes]
+      operationId: registrarNovedadOrden
+      summary: Registrar una novedad del vehículo
+      description: >-
+        HU-20 y RF-F7-17. El operario registra una novedad sobre una orden en curso. Si el tipo
+        es `demora`, `minutosExtra` es obligatorio y la entrega estimada suma esos minutos; el
+        seguimiento público recibe la nueva hora sin recargar. Los demás tipos no cambian la
+        entrega estimada y no admiten `minutosExtra`. Una orden entregada responde `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovedadNueva' }
+            examples:
+              demora:
+                summary: Reportar 15 minutos de demora
+                value: { tipo: demora, minutosExtra: 15, mensaje: El vehículo requiere un segundo lavado }
+              dano:
+                summary: Registrar un daño preexistente
+                value: { tipo: dano_preexistente, mensaje: Rayón en la puerta delantera }
+      responses:
+        '201':
+          description: Novedad registrada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Novedad' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La orden ya fue entregada y no admite novedades.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /promociones:
     get:
       tags: [Promociones]
@@ -1182,7 +1222,7 @@ components:
             logoUrl: { type: [string, 'null'] }
             colorPrimario: { type: string }
             colorSecundario: { type: string }
-        version: { type: integer, description: Aumenta con cada cambio de estado. }
+        version: { type: integer, description: Aumenta con cada cambio de estado o de la entrega estimada. }
 
     Error:
       type: object
@@ -1424,6 +1464,33 @@ components:
         duracionMin: { type: integer }
         descuento: { type: number, description: Descuento aplicado por la mejor promoción vigente. }
 
+    NovedadNueva:
+      type: object
+      required: [tipo]
+      properties:
+        tipo: { type: string, enum: [demora, dano_preexistente, objeto_encontrado, otro] }
+        mensaje: { type: [string, 'null'], maxLength: 300 }
+        minutosExtra:
+          type: [integer, 'null']
+          minimum: 1
+          description: Obligatorio solo para `demora`; se suma a la entrega estimada.
+      additionalProperties: false
+
+    Novedad:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ordenId: { type: string, format: uuid }
+        tipo: { type: string, enum: [demora, dano_preexistente, objeto_encontrado, otro] }
+        mensaje: { type: [string, 'null'] }
+        minutosExtra: { type: [integer, 'null'] }
+        fotos:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+        entregaEstimadaAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer }
+
     OrdenCambioEstado:
       description: Indica un estado nuevo o la reversión del último cambio, pero no ambos.
       oneOf:
@@ -1443,7 +1510,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
-        version: { type: integer, minimum: 1, description: Se incrementa en cada cambio de estado. }
+        version: { type: integer, minimum: 1, description: Se incrementa en cada cambio de estado o de la entrega estimada. }
         subtotal: { type: number }
         descuento: { type: number }
         total: { type: number }

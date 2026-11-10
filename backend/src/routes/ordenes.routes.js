@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { requiereRol } from '../middlewares/auth.js';
 import { validar } from '../shared/validar.js';
-import { cambioEstadoOrden, ordenNueva } from '../schemas/ordenes.schemas.js';
+import { cambioEstadoOrden, novedadNueva, ordenNueva } from '../schemas/ordenes.schemas.js';
 import * as ctrl from '../controllers/ordenes.controller.js';
 
 const router = Router();
@@ -10,5 +10,6 @@ const router = Router();
 router.get('/activas', requiereRol('admin', 'operario'), ctrl.listarActivas); // para el dashboard (HU-09)
 router.post('/', requiereRol('admin', 'operario'), validar({ body: ordenNueva }), ctrl.crear); // ingreso de vehículo (HU-08)
 router.patch('/:id/estado', requiereRol('admin', 'operario'), validar({ body: cambioEstadoOrden }), ctrl.cambiarEstado); // avanzar estado (HU-10)
+router.post('/:id/novedades', requiereRol('admin', 'operario'), validar({ body: novedadNueva }), ctrl.registrarNovedad);
 
 export default router;

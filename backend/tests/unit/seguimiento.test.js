@@ -137,6 +137,11 @@ describe('HU-18 CA1 · indicador de la etapa actual', () => {
     });
   });
 
+  it('HU-20 CA1: incluye la hora estimada de entrega', () => {
+    const s = armarSeguimiento(ordenBase(), sede);
+    expect(s.entregaEstimadaAt).toBe('2026-11-08T14:40:00Z');
+  });
+
   it('no expone datos personales del cliente ni identificadores internos (RNF-F5-04)', () => {
     const orden = ordenBase({
       vehiculo: { placa: 'ABC123', cliente: { nombre: 'Ana Pérez', telefono: '3001234567', correo: 'ana@correo.com' } },
