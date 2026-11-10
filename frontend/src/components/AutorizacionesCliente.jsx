@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { BellOff, BellRing, History } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatoFechaHora } from '../lib/formato.js';
-import { TIPOS_AUTORIZACION, nombreCanal, nombreTipo } from '../lib/autorizaciones.js';
+import { TIPOS_AUTORIZACION, decisionDe, nombreCanal, nombreTipo } from '../lib/autorizaciones.js';
 import Cargando from './Cargando.jsx';
 
 function Historial({ clienteId, recargas }) {
@@ -31,7 +31,7 @@ function Historial({ clienteId, recargas }) {
         <li key={`${f.fecha}-${f.tipo}-${i}`}>
           <div className="historial-fila">
             <span className="autorizacion-nombre">{nombreTipo(f.tipo)}</span>
-            <span className={`insignia ${f.otorgado ? 'insignia-ok' : 'insignia-retirada'}`}>{f.otorgado ? 'Otorgada' : 'Retirada'}</span>
+            <span className={`insignia ${f.otorgado ? 'insignia-ok' : 'insignia-retirada'}`}>{decisionDe(filas, i)}</span>
           </div>
           <span className="texto-suave">
             <time dateTime={f.fecha}>{formatoFechaHora(f.fecha)}</time> · {nombreCanal(f.canal)} · {f.politicaVersion ? `Política v${f.politicaVersion}` : 'Sin versión de política'}
