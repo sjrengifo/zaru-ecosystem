@@ -97,6 +97,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `ordenes` | Orden de servicio y su estado (`recibido` → `en_lavado` → `listo` → `entregado`) | HU-08, HU-10 |
 | `orden_servicios` | Servicios de cada orden con el precio y la duración vigentes al momento de crearla | HU-07, HU-08 |
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
+| `novedades` | Novedades del vehículo; una demora actualiza la entrega estimada | HU-20, HU-37 |
 | `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
 | `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
 | `politicas_datos` | Versiones de la política de tratamiento de datos; una versión publicada no se modifica ([texto v1.0](docs/legal/politica-tratamiento-datos-v1.0.md), [texto v1.1](docs/legal/politica-tratamiento-datos-v1.1.md)) | HU-51 |
@@ -229,6 +230,8 @@ HU-30 separa dos autorizaciones del cliente, además del tratamiento de datos: l
 
 HU-19 agrega a esa pantalla la línea de tiempo del lavado: todas las etapas en orden, las completadas con check y la hora en que terminaron (`terminadaAt`), la actual resaltada y las pendientes en gris. Al entregar el vehículo todas quedan completadas. Tampoco requiere migraciones.
 
+HU-20 expone el registro de novedades de una orden para el operario. Una novedad `demora` exige `minutosExtra`, suma esos minutos a la entrega estimada y sube la versión de la orden para que el seguimiento del cliente reciba la nueva hora por SSE. La entrega estimada deja de mostrarse cuando el vehículo está listo o entregado. Requiere aplicar la migración `20261109120000_hu20_novedades_demora.sql`.
+
 HU-34 incorpora **Notificaciones** en el menú del administrador: bitácora por sede con fecha, hora, cliente, placa, canal, tipo y estado, filtros combinables (placa, rango de fechas, canal, estado, tipo), paginación y detalle de cada intento con el error real del proveedor. Los destinos se muestran enmascarados (`300****567`, `yel****@gmail.com`) porque el backend los descifra solo para enmascararlos. Los envíos se procesan en un worker del servidor con reintentos exponenciales acotados (solo errores recuperables) y, si el correo de "listo" agota sus intentos, un SMS alterno cuando `SMS_PROVEEDOR` está configurado y el cliente autorizó avisos. "Enviada" significa aceptada por el proveedor; "Entregada" requiere el acuse de entrega del proveedor. Requiere la migración `20261110150000_hu34_hu23_hu24_historiales.sql`.
 
 HU-23/HU-24 publican el **historial de servicios del cliente final** en `/s/{slug}/historial`. El cliente confirma su identidad con placa + celular registrados y recibe un pase firmado de 30 minutos (HMAC, sin sesión de panel); con él ve solo sus órdenes entregadas, de la más reciente a la más antigua, filtra por placa y abre el detalle de una única orden. El establecimiento y el cliente salen del pase firmado, nunca de un id de la URL. Comparte la migración de HU-34 (índices de historial).
@@ -289,9 +292,10 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, `/politicas-datos/vigente
 | GET | `/vehiculos/:id/historial` | Admin, Operario | Historial de servicios | Implementado |
 | GET | `/servicios` | Admin, Operario | Catálogo de servicios | Implementado |
 | POST / PUT | `/servicios`, `/servicios/:id` | Admin | Crear, editar o desactivar servicio | Pendiente |
-| GET | `/ordenes/activas` | Admin, Operario | Órdenes en curso para el dashboard | Pendiente |
-| POST | `/ordenes` | Admin, Operario | Crear orden de servicio | Pendiente |
-| PATCH | `/ordenes/:id/estado` | Admin, Operario | Avanzar estado de la orden | Pendiente |
+| GET | `/ordenes/activas` | Admin, Operario | Órdenes en curso para el dashboard | Implementado |
+| POST | `/ordenes` | Admin, Operario | Crear orden de servicio | Implementado |
+| PATCH | `/ordenes/:id/estado` | Admin, Operario | Avanzar estado de la orden | Implementado |
+| POST | `/ordenes/:id/novedades` | Admin, Operario | Registrar una novedad; una demora actualiza la entrega estimada (HU-20) | Implementado |
 | GET | `/promociones` | Admin, Operario | Listar promociones | Pendiente |
 | POST / PUT | `/promociones`, `/promociones/:id` | Admin | Crear o editar promoción | Pendiente |
 | GET / POST / PUT | `/usuarios`, `/usuarios/:id` | Admin | Gestión de operarios | Pendiente |

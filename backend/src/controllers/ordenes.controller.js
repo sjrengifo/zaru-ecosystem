@@ -168,6 +168,32 @@ export async function cambiarEstado(req, res, next) {
   }
 }
 
+export async function registrarNovedad(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { tipo, mensaje, minutosExtra } = req.body;
+
+    await req.tenant.obtener('ordenes', id, 'id', 'Orden');
+
+    let novedad;
+    try {
+      novedad = await req.tenant.rpc('registrar_novedad', {
+        p_orden_id: id,
+        p_tipo: tipo,
+        p_mensaje: mensaje ?? null,
+        p_minutos_extra: minutosExtra ?? null,
+        p_creada_por: req.ctx.usuarioId,
+      });
+    } catch (err) {
+      throw traducirErrorEstado(err);
+    }
+
+    res.status(201).json(novedad);
+  } catch (err) {
+    next(err);
+  }
+}
+
 /** HU-09: órdenes que siguen en el car wash (todo lo que no se ha entregado), de la más antigua a la más reciente. */
 export async function listarActivas(req, res, next) {
   try {

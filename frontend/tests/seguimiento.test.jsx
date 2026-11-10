@@ -279,6 +279,44 @@ describe('HU-18 CA2 · actualización automática', () => {
   });
 });
 
+describe('HU-20 · tiempo estimado de entrega', () => {
+  it('CA1: muestra la hora estimada de entrega en la hora de Bogotá', async () => {
+    abrir();
+    await screen.findByRole('heading', { level: 1, name: 'En cola' });
+    expect(screen.getByText(/Entrega estimada: 09:40/)).toBeInTheDocument();
+  });
+
+  it('CA2: una demora actualiza la hora estimada sin recargar', async () => {
+    abrir();
+    await screen.findByRole('heading', { level: 1, name: 'En cola' });
+    const fuente = EventSourceFalso.instancias[0];
+
+    act(() =>
+      fuente.emitir('estado', {
+        ...seguimiento('en_lavado', 2),
+        entregaEstimadaAt: '2026-11-08T15:15:00Z',
+      }),
+    );
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Lavado iniciado' })).toBeInTheDocument();
+    expect(screen.getByText(/Entrega estimada: 10:15/)).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('CA3: con el vehículo listo o entregado no muestra una hora estimada', async () => {
+    fetch.mockImplementation(() => respuesta(200, seguimiento('listo', 4)));
+    const { unmount } = abrir();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Listo para recoger' })).toBeInTheDocument();
+    expect(screen.queryByText(/Entrega estimada/)).not.toBeInTheDocument();
+    unmount();
+
+    fetch.mockImplementation(() => respuesta(200, seguimiento('entregado', 5)));
+    abrir();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Entregado' })).toBeInTheDocument();
+    expect(screen.queryByText(/Entrega estimada/)).not.toBeInTheDocument();
+  });
+});
+
 describe('HU-18 · enlace en el tablero del operario', () => {
   const orden = (extra = {}) => ({
     id: 'o1', estado: 'en_lavado', estado_desde: new Date().toISOString(), created_at: new Date().toISOString(),
