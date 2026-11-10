@@ -1,0 +1,185 @@
+/* HU-17 — Acceso del cliente final con la placa o el celular (web móvil primero).
+   Se apoya en seguimiento.css (.seguimiento, .seg-contenido, .seg-tarjeta) y en los tokens globales. */
+
+.acceso-tarjeta { padding: 22px 20px 20px; }
+
+.acceso-titulo {
+  margin: 0 0 6px;
+  font-family: var(--fuente-display);
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  text-align: center;
+}
+.acceso-intro { margin: 0 auto 20px; max-width: 34ch; color: var(--color-texto-suave); text-align: center; }
+
+/* Placa / Celular */
+.acceso-modos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 18px;
+  border-radius: 12px;
+  background: var(--color-encabezado-tabla);
+  border: 1px solid var(--color-borde);
+}
+.acceso-modo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-texto-suave);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color var(--transicion), color var(--transicion), box-shadow var(--transicion);
+}
+.acceso-modo:hover { color: var(--color-texto); }
+.acceso-modo[aria-checked='true'] {
+  color: var(--color-texto);
+  background: var(--color-superficie);
+  box-shadow: var(--sombra-1), 0 0 0 1px color-mix(in srgb, var(--color-primario) 25%, transparent);
+}
+.acceso-modo[aria-checked='true'] svg { color: var(--color-primario); }
+
+.acceso-etiqueta { display: block; margin-bottom: 8px; text-align: center; }
+
+.acceso-campo { position: relative; display: flex; align-items: center; }
+.acceso-campo input { margin: 0; text-align: center; }
+
+/* La placa se escribe sobre una placa colombiana: amarilla, borde negro, letras grandes. */
+.acceso-campo-placa input {
+  min-height: 72px;
+  padding: 8px 12px;
+  border: 3px solid #111827;
+  border-radius: 12px;
+  background: var(--color-placa);
+  color: #111827;
+  font-family: var(--fuente-display);
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.35), 0 4px 0 #111827;
+}
+.acceso-campo-placa input::placeholder { color: rgba(17, 24, 39, 0.28); }
+.acceso-campo-placa input:focus {
+  border-color: #111827;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.35), 0 4px 0 #111827, 0 0 0 6px color-mix(in srgb, var(--color-primario) 30%, transparent);
+}
+
+.acceso-campo-celular input {
+  min-height: 60px;
+  padding-left: 64px;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.acceso-prefijo {
+  position: absolute;
+  left: 14px;
+  padding-right: 10px;
+  border-right: 1px solid var(--color-borde);
+  color: var(--color-texto-suave);
+  font-weight: 650;
+  pointer-events: none;
+}
+
+.acceso-ayuda { margin: 10px 0 0; font-size: 13px; color: var(--color-texto-suave); text-align: center; }
+.acceso-tarjeta .seg-error-campo { margin-top: 10px; text-align: center; }
+
+.acceso-boton { margin-top: 18px; }
+
+/* CA4 y errores */
+.acceso-aviso {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid;
+  border-radius: 12px;
+  font-size: 14px;
+  animation: acceso-aparecer 0.2s ease-out;
+}
+.acceso-aviso svg { flex-shrink: 0; margin-top: 1px; }
+.acceso-aviso p { margin: 0; }
+.acceso-aviso p + p { margin-top: 4px; color: var(--color-texto-suave); }
+.acceso-aviso-titulo { font-weight: 650; }
+.acceso-aviso-sin-servicio { color: var(--color-texto); border-color: color-mix(in srgb, var(--color-primario) 30%, var(--color-borde)); background: var(--color-primario-suave); }
+.acceso-aviso-sin-servicio svg { color: var(--color-primario); }
+.acceso-aviso-limite,
+.acceso-aviso-error { color: var(--color-advertencia); border-color: var(--color-advertencia-borde); background: var(--color-advertencia-fondo); }
+
+/* Varios vehículos con el mismo celular */
+.acceso-opciones { margin-top: 18px; }
+.acceso-opciones-titulo { margin: 0 0 10px; font-weight: 650; text-align: center; }
+.acceso-opciones ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.acceso-opcion {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-borde);
+  border-radius: 12px;
+  color: var(--color-texto);
+  text-decoration: none;
+  transition: border-color var(--transicion), box-shadow var(--transicion);
+}
+.acceso-opcion:hover { border-color: var(--color-primario); box-shadow: var(--sombra-2); }
+.acceso-opcion .placa { font-size: 16px; }
+.acceso-opcion-texto { flex: 1; color: var(--color-texto-suave); font-size: 14px; }
+
+.acceso-codigo { margin: 20px 0 0; font-size: 14px; color: var(--color-texto-suave); text-align: center; }
+.acceso-codigo a { color: var(--color-primario); font-weight: 650; }
+
+@keyframes acceso-aparecer { from { opacity: 0; transform: translateY(-4px); } }
+
+@media (max-width: 360px) {
+  .acceso-campo-placa input { font-size: 30px; letter-spacing: 0.1em; }
+  .acceso-titulo { font-size: 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acceso-aviso { animation: none; }
+  .acceso-modo, .acceso-opcion { transition: none; }
+}
+
+/* ---------- Panel: enlace y QR para los clientes (Branding) ---------- */
+.enlace-clientes { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center; margin-top: var(--espacio); }
+.enlace-clientes h3 { margin: 0 0 4px; }
+.enlace-clientes p { margin: 0 0 12px; }
+.enlace-clientes-qr {
+  display: grid;
+  place-items: center;
+  width: 148px;
+  height: 148px;
+  padding: 8px;
+  border: 1px solid var(--color-borde);
+  border-radius: 14px;
+  background: #fff;
+}
+.enlace-clientes-qr svg, .enlace-clientes-qr img { display: block; width: 100%; height: 100%; }
+.enlace-clientes-url {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-encabezado-tabla);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+.enlace-clientes-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.enlace-clientes-acciones .boton { min-height: 40px; padding: 8px 14px; font-size: 14px; }
+
+@media (max-width: 560px) {
+  .enlace-clientes { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .enlace-clientes-acciones { justify-content: center; }
+}

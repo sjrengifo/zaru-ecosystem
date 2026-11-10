@@ -18,6 +18,7 @@ import Reportes from './pages/Reportes.jsx';
 import Superadmin from './pages/Superadmin.jsx';
 import AceptarInvitacion from './pages/AceptarInvitacion.jsx';
 import Seguimiento from './pages/Seguimiento.jsx';
+import AccesoCliente from './pages/AccesoCliente.jsx';
 
 const protegida = (ruta, elemento) => <RutaProtegida roles={rolesDeRuta(ruta)}>{elemento}</RutaProtegida>;
 const conModulo = (modulo, pagina) => <RequiereModulo modulo={modulo}>{pagina}</RequiereModulo>;
@@ -31,6 +32,8 @@ export default function App() {
       {/* HU-18: pantalla pública del cliente final; no usa la sesión del panel. */}
       <Route path="/seguimiento" element={<Seguimiento />} />
       <Route path="/seguimiento/:codigo" element={<Seguimiento />} />
+      {/* HU-17: el cliente entra desde el enlace o el QR de su sede con la placa o el celular. */}
+      <Route path="/s/:slug" element={<AccesoCliente />} />
       <Route path="/superadmin" element={protegida('/superadmin', <Superadmin />)} />
 
       <Route element={<RutaProtegida><Layout /></RutaProtegida>}>

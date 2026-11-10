@@ -64,6 +64,8 @@ tags:
     description: HU-16
   - name: Seguimiento
     description: HU-18 (cliente final, sin sesión)
+  - name: Acceso del cliente
+    description: HU-17 (cliente final, sin sesión ni contraseña)
 security:
   - bearerPanel: []
 
@@ -166,6 +168,66 @@ paths:
                 event: estado
                 data: {"codigo":"7KQ2M9XH4P","estado":"en_lavado","etapa":{"estado":"en_lavado","titulo":"Lavado iniciado","paso":2,"totalPasos":5}}
         '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
+  /publico/sedes/{slug}:
+    get:
+      tags: [Acceso del cliente]
+      operationId: obtenerSedePublica
+      summary: Nombre y marca de la sede del enlace del cliente final
+      description: |
+        Datos de la pantalla de inicio de la web móvil (HU-17 CA2 y CA3): el cliente llega desde el enlace o el
+        código QR de su car wash (`/s/{slug}`). Solo devuelve nombre, logo y colores. Una sede inexistente o
+        suspendida responde el mismo `404`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugSede'
+      responses:
+        '200':
+          description: Sede pública.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SedePublica' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /publico/sedes/{slug}/buscar:
+    post:
+      tags: [Acceso del cliente]
+      operationId: buscarVehiculoEnServicio
+      summary: Acceder al seguimiento con la placa o el celular
+      description: |
+        El cliente escribe su placa o su celular, sin contraseña (HU-17 CA1 y CA2). Si tiene una orden activa
+        (no entregada) en la sede, recibe su código de seguimiento para abrir `/seguimiento/{codigo}` (HU-18).
+        Con celular puede haber una orden por cada vehículo del cliente.
+
+        Si no hay orden activa responde `404` con el mensaje "El vehículo no se encuentra en servicio
+        actualmente", idéntico esté o no registrada la placa o el celular (HU-17 CA4). Nunca devuelve nombre,
+        celular ni correo. Tras 5 búsquedas sin resultado en 10 minutos desde el mismo origen responde `429`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugSede'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BusquedaPublica' }
+            examples:
+              placa: { value: { placa: abc 123 } }
+              celular: { value: { celular: '300 123 4567' } }
+      responses:
+        '200':
+          description: Órdenes activas encontradas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResultadoBusquedaPublica' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '404':
+          description: Sin orden activa (o sede inexistente).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: { codigo: NO_ENCONTRADO, mensaje: El vehículo no se encuentra en servicio actualmente, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
 
   /me:
@@ -1050,6 +1112,13 @@ components:
       schema: { type: string }
 
   parameters:
+    SlugSede:
+      name: slug
+      in: path
+      required: true
+      description: Identificador público de la sede en su enlace (HU-17). Minúsculas, letras, números y guiones.
+      schema: { type: string, pattern: '^[a-z0-9]+(-[a-z0-9]+)*$', maxLength: 60 }
+      example: car-wash-demo-cali
     CodigoSeguimiento:
       name: codigo
       in: path
@@ -1123,6 +1192,36 @@ components:
             error: { codigo: NO_IMPLEMENTADO, mensaje: Pendiente de desarrollo (HU-05), requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
 
   schemas:
+    SedePublica:
+      type: object
+      description: Lo que el cliente final ve de su sede (HU-17). Los colores son null si la sede no los configuró.
+      required: [slug, nombre]
+      properties:
+        slug: { type: string, example: car-wash-demo-cali }
+        nombre: { type: string, example: Car Wash Demo Cali }
+        logoUrl: { type: [string, 'null'], format: uri }
+        colorPrimario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
+        colorSecundario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
+    BusquedaPublica:
+      type: object
+      description: Placa O celular (exactamente uno). Se ignoran espacios, guiones y el prefijo +57.
+      properties:
+        placa: { type: string, maxLength: 30, example: ABC123 }
+        celular: { type: string, maxLength: 30, example: '3001234567' }
+    ResultadoBusquedaPublica:
+      type: object
+      required: [sede, resultados]
+      properties:
+        sede: { $ref: '#/components/schemas/SedePublica' }
+        resultados:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [codigo, placa]
+            properties:
+              codigo: { type: string, example: 7KQ2M9XH4P }
+              placa: { type: string, example: ABC123 }
     Seguimiento:
       type: object
       description: Vista pública de una orden para el cliente final (HU-18). Sin datos personales.
