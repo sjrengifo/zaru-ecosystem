@@ -83,8 +83,21 @@ begin
 end
 $$;
 
--- La versión de 9 parámetros ya no la usa nadie (clientes.controller y crear_orden pasan 11).
-drop function if exists public.crear_cliente_con_consentimiento(uuid, text, text, text, boolean, text, text, inet, uuid);
+-- La versión de 9 parámetros queda como compatibilidad mientras se despliega el backend nuevo (el
+-- anterior la sigue llamando): registra ambas autorizaciones como no otorgadas, igual que unas casillas
+-- sin marcar. Se puede eliminar en una migración posterior.
+create or replace function public.crear_cliente_con_consentimiento(
+  p_establecimiento_id uuid, p_nombre text, p_telefono text, p_correo text, p_autoriza boolean,
+  p_politica_version text, p_canal text, p_ip inet, p_registrado_por uuid
+) returns setof clientes
+language sql security definer set search_path = public as $$
+  select * from public.crear_cliente_con_consentimiento(
+    p_establecimiento_id, p_nombre, p_telefono, p_correo, p_autoriza, p_politica_version, p_canal, p_ip, p_registrado_por, false, false);
+$$;
+revoke execute on function public.crear_cliente_con_consentimiento(uuid, text, text, text, boolean, text, text, inet, uuid)
+  from public, anon, authenticated;
+grant execute on function public.crear_cliente_con_consentimiento(uuid, text, text, text, boolean, text, text, inet, uuid)
+  to service_role;
 
 ---------------------------------------------------------------------------
 -- 2. Estado de los clientes registrados antes de HU-30 (CA4)
