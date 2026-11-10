@@ -7,14 +7,21 @@ import { formatoDia } from '../lib/formato.js';
 import { obtenerPoliticaVigente } from '../services/baja.js';
 import '../styles/seguimiento.css';
 
+/** Negrillas del texto de la política (**texto**), sin interpretar HTML. */
+function conNegrillas(texto) {
+  return texto.split(/(\*\*[^*]+\*\*)/g).map((parte, i) =>
+    parte.startsWith('**') && parte.endsWith('**') ? <strong key={i}>{parte.slice(2, -2)}</strong> : parte,
+  );
+}
+
 function parrafos(contenido) {
   return contenido
     .split(/\n+/)
     .map((linea) => linea.trim())
-    .filter(Boolean)
+    .filter((linea) => linea && !linea.startsWith('# ')) // el título principal ya está en el encabezado
     .map((linea, i) => {
       const texto = linea.replace(/^#+\s*/, '');
-      return linea.startsWith('#') ? <h2 key={i}>{texto}</h2> : <p key={i}>{texto}</p>;
+      return linea.startsWith('#') ? <h2 key={i}>{texto.replaceAll('**', '')}</h2> : <p key={i}>{conNegrillas(texto)}</p>;
     });
 }
 
