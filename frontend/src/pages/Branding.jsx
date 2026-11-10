@@ -1,6 +1,7 @@
 // HU-13 · Branding de la sede (ZARU-14): logo y colores con vista previa antes de guardar.
 // CA1: la vista previa cambia en vivo con el logo y los colores elegidos, sin guardar nada.
 // CA2: al guardar, el panel aplica el branding (Layout.jsx) y queda disponible para el cliente final.
+// HU-17 CA2: también muestra el enlace y el código QR de la sede para los clientes finales.
 // CA3: un archivo de otro formato o de más de 2 MB se rechaza aquí y en la API, indicando los requisitos.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
@@ -12,6 +13,7 @@ import MensajeError from '../components/MensajeError.jsx';
 import Notificacion from '../components/Notificacion.jsx';
 import VistaPreviaBranding from '../components/VistaPreviaBranding.jsx';
 import Cargando from '../components/Cargando.jsx';
+import EnlaceClientes from '../components/EnlaceClientes.jsx';
 
 const COLORES = [
   { clave: 'primario', columna: 'color_primario', campoApi: 'colorPrimario', etiqueta: 'Color primario', uso: 'Encabezado y botones' },
@@ -239,6 +241,9 @@ export default function Branding() {
           sinGuardar={hayCambios}
         />
       </div>
+
+      {/* HU-17 CA2: enlace y QR con los que el cliente final entra a seguir su vehículo. */}
+      {establecimiento.slug && <EnlaceClientes slug={establecimiento.slug} nombre={establecimiento.nombre} />}
     </section>
   );
 }

@@ -126,18 +126,20 @@ Este documento fija las convenciones y el catálogo de endpoints. El detalle for
 | PUT | `/establecimiento/branding` | admin | HU-13 CA1 |
 | POST | `/establecimiento/logo` | admin | HU-13 CA1, CA3 (multipart) |
 
-### Cliente final (F5) — prefijo `/publico/{slug}`
+### Cliente final (F5) — prefijo `/publico/sedes/{slug}`
+
+La sede va bajo `/publico/sedes/` para que ningún slug choque con `/publico/seguimiento` (HU-17).
 
 | Método | Ruta | Rol | HU |
 |---|---|---|---|
-| GET | `/publico/{slug}` | publico | HU-22 (branding de la sede) |
-| POST | `/publico/{slug}/buscar` | publico | HU-17, HU-17 (placa o celular) |
+| GET | `/publico/sedes/{slug}` | publico | HU-17 CA2 y CA3, HU-22 (nombre y marca de la sede) |
+| POST | `/publico/sedes/{slug}/buscar` | publico | HU-17 CA1 y CA4 (placa o celular) |
 | GET | `/publico/seguimiento/{codigo}` | publico | HU-18, HU-21, HU-25 |
 | GET | `/publico/seguimiento/{codigo}/eventos` | publico | HU-18 CA2, HU-45 (SSE) |
-| GET | `/publico/{slug}/promociones` | publico | HU-26, HU-26 |
-| GET | `/publico/{slug}/promociones/{id}` | publico | HU-27 |
-| POST | `/publico/{slug}/otp` | publico | ADR-05 (solicitar código) |
-| POST | `/publico/{slug}/otp/verificar` | publico | ADR-05 (emite sesión `cliente`) |
+| GET | `/publico/sedes/{slug}/promociones` | publico | HU-26, HU-26 |
+| GET | `/publico/sedes/{slug}/promociones/{id}` | publico | HU-27 |
+| POST | `/publico/sedes/{slug}/otp` | publico | ADR-05 (solicitar código) |
+| POST | `/publico/sedes/{slug}/otp/verificar` | publico | ADR-05 (emite sesión `cliente`) |
 | GET | `/cliente/vehiculos` | cliente | HU-23 CA2 |
 | GET | `/cliente/historial` | cliente | HU-23, HU-23 |
 | GET | `/cliente/historial/{ordenId}` | cliente | HU-24, HU-25 |

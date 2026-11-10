@@ -218,6 +218,8 @@ Para HU-46, el proveedor `consola` permite probar el flujo sin enviar correos re
 
 HU-18 publica la pantalla del cliente final en `/seguimiento/:codigo` (sin sesión). El correo de ingreso incluye el enlace, armado con `FRONTEND_URL`, y cada tarjeta del tablero permite copiarlo para compartirlo. No requiere migraciones ni variables nuevas.
 
+HU-17 da a cada sede un enlace público, `/s/{slug}` (el slug se genera solo con el nombre del establecimiento), que el administrador comparte o imprime como código QR desde **Branding**. El cliente escribe su placa o su celular, sin contraseña, y entra directo al seguimiento de su vehículo. Si no tiene un servicio activo ve el mensaje "El vehículo no se encuentra en servicio actualmente", el mismo esté o no registrado, y tras 5 búsquedas sin resultado en 10 minutos la API responde `429`. Requiere la migración `20261110120000_hu17_enlace_publico_sede.sql`.
+
 HU-19 agrega a esa pantalla la línea de tiempo del lavado: todas las etapas en orden, las completadas con check y la hora en que terminaron (`terminadaAt`), la actual resaltada y las pendientes en gris. Al entregar el vehículo todas quedan completadas. Tampoco requiere migraciones.
 
 HU-57 incorpora el panel de superadministración para registrar establecimientos, invitar al administrador inicial, consultar periodos de prueba, activar, suspender y reenviar invitaciones. HU-59 centraliza los módulos permitidos por rol en el backend (`GET /me` y middleware `requiereModulo`) y usa esos permisos para filtrar el menú y proteger la navegación del frontend.
@@ -256,6 +258,8 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, `/politicas-datos/vigente
 | GET | `/health` | Público | Estado del servicio | Implementado |
 | GET | `/me` | Admin, Operario | Usuario, rol, establecimiento y vencimiento de la sesión | Implementado |
 | GET | `/politicas-datos/vigente` | Público | Política de tratamiento de datos vigente (versión y texto) | Implementado |
+| GET | `/publico/sedes/:slug` | Público | Nombre y marca de la sede del enlace del cliente final (HU-17) | Implementado |
+| POST | `/publico/sedes/:slug/buscar` | Público | Acceso con la placa o el celular, sin contraseña (HU-17) | Implementado |
 | GET | `/publico/seguimiento/:codigo` | Público | Estado del lavado para el cliente final, sin datos personales (HU-18) | Implementado |
 | GET | `/publico/seguimiento/:codigo/eventos` | Público | Cambios de estado en tiempo real por Server-Sent Events (HU-18) | Implementado |
 | GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes por nombre, teléfono o placa | Implementado |
@@ -308,6 +312,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 
 | Jira | Historia | Puntos | MoSCoW | Frontend | Backend |
 |---|---|---|---|---|---|
+| ZARU-33 | HU-17 Acceder a la plataforma móvil con la placa o el celular, sin contraseña | 5 | Must | `AccesoCliente.jsx` · `EnlaceClientes.jsx` (QR en Branding) · `lib/accesoCliente.js` | `publico.controller.js` · `shared/accesoCliente.js` · migración `hu17_enlace_publico_sede` |
 | ZARU-34 | HU-18 Seguimiento en tiempo real del estado del lavado | 8 | Must | `Seguimiento.jsx` · `EnlaceSeguimiento.jsx` | `seguimiento.controller.js` · `shared/seguimiento.js` (SSE + Supabase Realtime) |
 | ZARU-39 | HU-19 Visualizar la línea de tiempo de las etapas del lavado | 5 | Should | `Seguimiento.jsx` (`LineaDeTiempo`) · `lib/seguimiento.js` | `shared/etapasSeguimiento.js` (`construirEtapas`) |
 
