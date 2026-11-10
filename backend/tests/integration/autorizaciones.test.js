@@ -24,6 +24,7 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-30 · autorizaciones de comunicacion
     await admin.from('ordenes').delete().like('codigo_seguimiento', 'HU30%');
     await admin.from('vehiculos').delete().in('placa', Object.values(PLACA));
     await admin.from('clientes').delete().in('telefono', Object.values(TEL)); // la evidencia cae en cascada
+    await admin.from('servicios').delete().like('nombre', '[Prueba HU-30]%');
   }
 
   beforeAll(async () => {
@@ -86,7 +87,7 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-30 · autorizaciones de comunicacion
     });
 
     it('el registro de un ingreso con cliente nuevo también las guarda', async () => {
-      const { data: servicio } = await admin.from('servicios').select('id').eq('establecimiento_id', EST_A).eq('activo', true).limit(1).single().throwOnError();
+      const { data: servicio } = await admin.from('servicios').insert({ establecimiento_id: EST_A, nombre: '[Prueba HU-30] Lavado', precio: 20000, duracion_min: 30 }).select().single().throwOnError();
       const res = await request(app).post('/api/v1/ordenes').use(con('A')).send({
         servicioIds: [servicio.id],
         nuevoVehiculo: {
