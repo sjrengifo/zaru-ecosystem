@@ -56,7 +56,8 @@ insert into consentimientos (establecimiento_id, cliente_id, otorgado, canal, po
 select establecimiento_id, id, false, 'app', privado.politica_vigente() from clientes where telefono = '3005100003';
 select pg_temp.verificar('CA2: revocar es agregar un registro nuevo (el historial se conserva)',
   (select count(*) = 2 and bool_or(otorgado) and bool_or(not otorgado)
-   from consentimientos k join clientes c on c.id = k.cliente_id where c.telefono = '3005100003'),
+   from consentimientos k join clientes c on c.id = k.cliente_id
+   where c.telefono = '3005100003' and k.tipo = 'tratamiento_datos'), -- HU-30 agrega avisos y promociones aparte
   '2 registros: otorgado y revocado');
 create temp table titular_borrado as select id from clientes where telefono = '3005100003';
 delete from clientes where telefono = '3005100003';
@@ -67,6 +68,29 @@ select pg_temp.verificar('Seguridad: el público y los usuarios del panel no pue
   not has_function_privilege('anon', 'public.crear_cliente_con_consentimiento(uuid, text, text, text, boolean, text, text, inet, uuid)', 'execute')
   and not has_function_privilege('authenticated', 'public.crear_cliente_con_consentimiento(uuid, text, text, text, boolean, text, text, inet, uuid)', 'execute'),
   'solo service_role');
+
+-- HU-30: avisos del servicio y promociones, separados y con la decisión vigente.
+select pg_temp.verificar('HU-30: la firma con las dos casillas tampoco la ejecuta el público ni el panel',
+  not has_function_privilege('anon', 'public.crear_cliente_con_consentimiento(uuid, text, text, text, boolean, text, text, inet, uuid, boolean, boolean)', 'execute')
+  and not has_function_privilege('authenticated', 'public.crear_cliente_con_consentimiento(uuid, text, text, text, boolean, text, text, inet, uuid, boolean, boolean)', 'execute'),
+  'solo service_role');
+create temp table hu30_cliente as
+select id, establecimiento_id from public.crear_cliente_con_consentimiento(
+  (select id from establecimientos limit 1), 'Titular HU-30', '3005100030', null, true,
+  privado.politica_vigente(), 'panel', null, null, true, false);
+select pg_temp.verificar('HU-30 CA1: se guardan las tres autorizaciones con lo que eligió el titular',
+  (select array_agg(tipo || ':' || otorgado order by tipo) from consentimientos where cliente_id = (select id from hu30_cliente))
+    = array['comerciales:false', 'notificaciones_servicio:true', 'tratamiento_datos:true'],
+  'promociones no, avisos sí');
+insert into consentimientos (establecimiento_id, cliente_id, tipo, otorgado, canal, politica_version)
+select establecimiento_id, id, 'notificaciones_servicio', false, 'enlace_baja', privado.politica_vigente() from hu30_cliente;
+select pg_temp.verificar('HU-30 CA3: la vista autorizaciones_vigentes toma la decisión más reciente',
+  (select not otorgado and canal = 'enlace_baja' from autorizaciones_vigentes
+   where cliente_id = (select id from hu30_cliente) and tipo = 'notificaciones_servicio'),
+  'revocado por el enlace');
+select pg_temp.verificar('HU-30: la vista no es legible para el público',
+  not has_table_privilege('anon', 'public.autorizaciones_vigentes', 'select'), 'sin acceso anónimo');
+delete from clientes where id = (select id from hu30_cliente);
 
 \o
 \set QUIET off

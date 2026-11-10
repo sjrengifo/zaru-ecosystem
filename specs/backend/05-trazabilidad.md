@@ -68,7 +68,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 
 | HU | Jira | Pts | MoSCoW | Responsable | Fase | Requisitos | Escenarios | Prueba | Estado |
 |---|---|---|---|---|---|---|---|---|---|
-| HU-17 Acceder a la plataforma móvil con la placa o el celular, sin contraseña | ZARU-33 | 5 | Must | — | F5 | RF-F5-02, 03 | ESC-F5-01, 02 | — | Pendiente |
+| HU-17 Acceder a la plataforma móvil con la placa o el celular, sin contraseña | ZARU-33 | 5 | Must | Samuel | F5 | RF-F5-02, 03 | ESC-F5-01, 02 | `tests/unit/acceso-cliente.test.js` · `tests/integration/acceso-cliente.test.js` · `frontend/tests/acceso-cliente.test.jsx` | Cubierta |
 | HU-18 Seguimiento en tiempo real del estado del lavado | ZARU-34 | 8 | Must | — | F5 | RF-F5-04, 05, 07, 08 · RNF-F5-04, 05 | ESC-F5-03, 04, 06 | `tests/unit/seguimiento.test.js`, `tests/integration/seguimiento.test.js`, `frontend/tests/seguimiento.test.jsx` | En desarrollo |
 | HU-19 Visualizar la línea de tiempo de las etapas del lavado | ZARU-39 | 5 | Should | — | F5 | RF-F5-04 | ESC-F5-03 | `tests/unit/seguimiento.test.js`, `frontend/tests/seguimiento.test.jsx` | En desarrollo |
 | HU-20 Consultar el tiempo estimado de entrega de mi vehículo | ZARU-69 | 3 | Should | — | F5 | RF-F5-04 · RF-F3-04 | ESC-F3-01 | — | Pendiente |
@@ -88,7 +88,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 |---|---|---|---|---|---|---|---|---|---|
 | HU-28 Notificación automática por cambio de estado del vehículo | ZARU-17 | 8 | Must | — | F3, F6 | RF-F3-07, 08, RF-F6-01 a 05 | ESC-F3-05, ESC-F6-01 a 04 | — | Pendiente |
 | HU-29 Selección del canal de notificación preferido | ZARU-18 | 5 | Should | — | F6 | RF-F6-07 a 10 | ESC-F6-05, 06 | — | Pendiente |
-| HU-30 Autorización y revocación del tratamiento de datos para notificaciones (ley 1581 de 2012) | ZARU-19 | 5 | Must | — | F2, F6, F7 | RF-F2-03 a 05, RF-F6-24, 25 | ESC-F2-03, ESC-F6-14 | — | Pendiente |
+| HU-30 Autorización y revocación del tratamiento de datos para notificaciones (ley 1581 de 2012) | ZARU-19 | 5 | Must | Samuel | F2, F6, F7 | RF-F2-03 a 05, RF-F6-24, 25 | ESC-F2-03, ESC-F6-14 | `tests/unit/autorizaciones.test.js` · `tests/integration/autorizaciones.test.js` · `database/pruebas/05_consentimientos.sql` · `frontend/tests/autorizaciones.test.jsx` | Cubierta |
 | HU-31 Configuración de los estados que generan notificación | ZARU-20 | 3 | Should | — | F6 | RF-F6-12 a 14 | ESC-F6-07, 08 | — | Pendiente |
 | HU-32 Personalización de plantillas de mensajes con la marca de la sede | ZARU-21 | 5 | Could | — | F7 | RF-F7-01 a 05 | ESC-F7-01 a 03 | — | Pendiente |
 | HU-33 Reintento y canal alterno ante fallas de envío | ZARU-22 | 8 | Should | — | F6 | RF-F6-16 a 19 | ESC-F6-09 a 11 | — | Pendiente |
