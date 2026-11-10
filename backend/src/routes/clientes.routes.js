@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import { validar } from '../shared/validar.js';
 import { requiereRol } from '../middlewares/auth.js';
-import { clienteNuevo, clienteCambios, busquedaClientes } from '../schemas/clientes.schemas.js';
+import { clienteNuevo, clienteCambios, busquedaClientes, cambioAutorizacion } from '../schemas/clientes.schemas.js';
 import * as ctrl from '../controllers/clientes.controller.js';
 
 const router = Router();
@@ -14,6 +14,7 @@ router.get('/:id', ctrl.obtener);                                      // GET  /
 router.post('/', validar({ body: clienteNuevo }), ctrl.crear);         // POST /api/v1/clientes
 router.put('/:id', validar({ body: clienteCambios }), ctrl.actualizar); // PUT  /api/v1/clientes/:id
 router.delete('/:id', requiereRol('admin'), ctrl.eliminar);            // DELETE /api/v1/clientes/:id  (HU-52)
-router.get('/:id/consentimientos', requiereRol('admin'), ctrl.consentimientos); // HU-51: evidencia de autorización
+router.get('/:id/consentimientos', requiereRol('admin'), ctrl.consentimientos); // HU-51 y HU-30 CA4: evidencia de autorización
+router.put('/:id/autorizaciones', validar({ body: cambioAutorizacion }), ctrl.actualizarAutorizacion); // HU-30: otorgar o revocar
 
 export default router;

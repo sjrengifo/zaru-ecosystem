@@ -25,6 +25,8 @@ function archivos(dir) {
 // - auditoria.js y politicas.js: utilidades compartidas.
 // - accesoCliente.js (HU-17): igual que seguimiento.js, solo busca la sede por su slug (único en la
 //   plataforma) y el resto lo lee con el acceso del tenant de esa sede.
+// - bajaPublica.js (HU-30): el enlace "dejar de recibir" no tiene sesión; el token firmado trae el
+//   establecimiento y el resto se lee con el acceso del tenant de ese establecimiento.
 // - seguimiento.js (HU-18): el cliente final no tiene sesión; solo busca la orden por su código de
 //   seguimiento (único en la plataforma) y el resto lo lee con el acceso del tenant de esa orden.
 const PERMITIDOS = new Set([
@@ -34,6 +36,7 @@ const PERMITIDOS = new Set([
   'shared/politicas.js',
   'shared/seguimiento.js',
   'shared/accesoCliente.js',
+  'shared/bajaPublica.js',
   'middlewares/auth.js',
   'controllers/superadmin.controller.js',
   'controllers/usuarios.controller.js',

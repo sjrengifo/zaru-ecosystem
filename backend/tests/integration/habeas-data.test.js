@@ -60,7 +60,8 @@ describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? ''
       // HU-03 CA1: el cliente queda con la fecha de autorización registrada.
       expect(new Date(res.body.fecha_autorizacion).getTime()).toBeGreaterThanOrEqual(antes - 5000);
 
-      const { data } = await admin.from('consentimientos').select('*').eq('cliente_id', clienteId);
+      // HU-30: además quedan las dos autorizaciones de comunicaciones, sin marcar.
+      const { data } = await admin.from('consentimientos').select('*').eq('cliente_id', clienteId).eq('tipo', 'tratamiento_datos');
       expect(data).toHaveLength(1);
       expect(data[0]).toMatchObject({
         establecimiento_id: EST_A,
@@ -77,7 +78,12 @@ describe.skipIf(!hayEntornoIntegracion)(`Habeas Data${hayEntornoIntegracion ? ''
     it('el administrador consulta la evidencia de autorización del cliente', async () => {
       const res = await request(app).get(`/api/v1/clientes/${clienteId}/consentimientos`).use(con('A'));
       expect(res.status).toBe(200);
-      expect(res.body).toEqual([{ tipo: 'tratamiento_datos', otorgado: true, canal: 'panel', politicaVersion: politicaVigente, fecha: expect.any(String) }]);
+      expect(res.body).toHaveLength(3);
+      expect(res.body).toEqual(expect.arrayContaining([
+        { tipo: 'tratamiento_datos', otorgado: true, canal: 'panel', politicaVersion: politicaVigente, fecha: expect.any(String) },
+        { tipo: 'notificaciones_servicio', otorgado: false, canal: 'panel', politicaVersion: politicaVigente, fecha: expect.any(String) },
+        { tipo: 'comerciales', otorgado: false, canal: 'panel', politicaVersion: politicaVigente, fecha: expect.any(String) },
+      ]));
     });
 
     it('otro establecimiento no puede consultar esa evidencia', async () => {

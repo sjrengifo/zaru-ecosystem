@@ -19,3 +19,14 @@ export const formatoDia = (dia) => {
   const [anio, mes, d] = dia.split('-').map(Number);
   return new Date(anio, mes - 1, d).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
 };
+
+// HU-30 CA4: fecha y hora exactas de una autorización, siempre en hora de Colombia.
+const FECHA_HORA = new Intl.DateTimeFormat('es-CO', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'America/Bogota',
+});
+export const formatoFechaHora = (fecha) => FECHA_HORA.format(new Date(fecha));

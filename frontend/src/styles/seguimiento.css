@@ -272,3 +272,10 @@
   .seg-etapa-icono svg { animation: none !important; }
   .seg-progreso > span { transition: none; }
 }
+
+/* HU-30 — Política de tratamiento de datos pública. */
+.politica-publica { max-width: 720px; }
+.politica-publica article { padding: 24px 22px; line-height: 1.6; }
+.politica-publica h1 { margin: 0 0 4px; font-family: var(--fuente-display); font-size: 24px; }
+.politica-publica h2 { margin: 20px 0 6px; font-size: 17px; }
+.politica-publica p { margin: 0 0 10px; }

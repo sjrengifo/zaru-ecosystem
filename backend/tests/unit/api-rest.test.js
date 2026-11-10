@@ -132,7 +132,8 @@ describe('CA2: errores estándar', () => {
       .post('/clientes')
       .send({ nombre: '  Ana Gómez ', telefono: '3001234567', correo: ' ana@correo.com ', autorizacionDatos: true, politicaVersion: '1.0', establecimiento_id: 'otro' });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ nombre: 'Ana Gómez', telefono: '3001234567', correo: 'ana@correo.com', autorizacionDatos: true, politicaVersion: '1.0' });
+    // HU-30: las dos casillas de notificaciones llegan desmarcadas si no se envían.
+    expect(res.body).toEqual({ nombre: 'Ana Gómez', telefono: '3001234567', correo: 'ana@correo.com', autorizacionDatos: true, autorizaNotificaciones: false, autorizaComerciales: false, politicaVersion: '1.0' });
   });
 
   it('una edición sin datos responde 400 con un mensaje claro', async () => {

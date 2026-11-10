@@ -1622,3 +1622,28 @@ textarea {
   .superadmin-tabla-encabezado { flex-direction: column; align-items: stretch; }
   .buscador { max-width: none; }
 }
+/* ---------- HU-30: autorizaciones de comunicaciones ---------- */
+.autorizaciones-notificaciones { display: flex; flex-direction: column; gap: 8px; margin: var(--espacio) 0 0; padding: 0; border: 0; min-width: 0; }
+.autorizaciones-notificaciones legend { padding: 0; margin-bottom: 4px; font-weight: 700; }
+.autorizaciones-notificaciones > p { margin: 0; font-size: 13px; }
+.enlace-politica { display: inline-flex; align-items: center; gap: 4px; color: var(--color-primario-hover); font-weight: 600; }
+.lista-autorizaciones { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lista-autorizaciones li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}
+.lista-autorizaciones li.autorizada { border-color: color-mix(in srgb, var(--color-exito) 35%, var(--color-borde)); }
+.lista-autorizaciones li.autorizada .perfil-dato-icono { color: var(--color-exito); }
+.autorizacion-datos { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 160px; }
+.autorizacion-datos .texto-suave { font-size: 13px; }
+.autorizacion-nombre { font-weight: 600; }
+.historial-autorizaciones { display: flex; flex-direction: column; gap: 0; margin: 12px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--color-borde); }
+.historial-autorizaciones li { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--color-borde); }
+.historial-autorizaciones .texto-suave { font-size: 13px; }
+.historial-fila { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.insignia-retirada { color: var(--color-texto-suave); background: var(--color-fondo, #f1f5f9); }

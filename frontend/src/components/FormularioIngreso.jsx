@@ -9,6 +9,7 @@ import CampoTexto from './CampoTexto.jsx';
 import MensajeError from './MensajeError.jsx';
 import PieFormulario from './PieFormulario.jsx';
 import Cargando from './Cargando.jsx';
+import CasillasNotificaciones, { AUTORIZACIONES_INICIALES, camposAutorizacion } from './CasillasNotificaciones.jsx';
 
 const CAMPOS = ['placa', 'tipo', 'marca', 'color', 'nombre', 'telefono', 'correo', 'autorizacionDatos', 'servicioIds', 'observaciones'];
 
@@ -46,6 +47,8 @@ export default function FormularioIngreso({ onCreada, onCancelar }) {
   const [telefono, setTelefono] = useState('');
   const [correo, setCorreo] = useState('');
   const [autoriza, setAutoriza] = useState(false);
+  // HU-30 CA1: avisos del servicio y promociones del cliente nuevo, por separado y desmarcadas.
+  const [comunicaciones, setComunicaciones] = useState(AUTORIZACIONES_INICIALES);
   const [servicios, setServicios] = useState(null);
   const [promociones, setPromociones] = useState([]);
   const [seleccion, setSeleccion] = useState([]);
@@ -150,7 +153,7 @@ export default function FormularioIngreso({ onCreada, onCancelar }) {
   function intentarCerrar() {
     if (enviando) return;
     const hayDatos =
-      placa || nombre || telefono || correo || autoriza || marca || color || observaciones || seleccion.length > 0;
+      placa || nombre || telefono || correo || autoriza || comunicaciones.notificaciones || comunicaciones.comerciales || marca || color || observaciones || seleccion.length > 0;
     if (hayDatos) setConfirmarDescarte(true);
     else onCancelar();
   }
@@ -221,6 +224,7 @@ export default function FormularioIngreso({ onCreada, onCancelar }) {
               correo,
               autorizacionDatos: true,
               politicaVersion: politica.version,
+              ...camposAutorizacion(comunicaciones),
             },
             vehiculo: { placa: placaNormalizada, tipo, marca, color },
           },
@@ -440,6 +444,14 @@ export default function FormularioIngreso({ onCreada, onCancelar }) {
                 </label>
               </div>
               {errores.autorizacionDatos && <MensajeError id="ingreso-autoriza-error">{errores.autorizacionDatos}</MensajeError>}
+
+              <CasillasNotificaciones
+                prefijo="ingreso"
+                valores={comunicaciones}
+                onCambio={setComunicaciones}
+                deshabilitado={!politica}
+                politicaVersion={politica?.version}
+              />
             </section>
           )}
 

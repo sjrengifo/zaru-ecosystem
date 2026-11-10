@@ -19,6 +19,8 @@ import Superadmin from './pages/Superadmin.jsx';
 import AceptarInvitacion from './pages/AceptarInvitacion.jsx';
 import Seguimiento from './pages/Seguimiento.jsx';
 import AccesoCliente from './pages/AccesoCliente.jsx';
+import BajaNotificaciones from './pages/BajaNotificaciones.jsx';
+import PoliticaDatos from './pages/PoliticaDatos.jsx';
 
 const protegida = (ruta, elemento) => <RutaProtegida roles={rolesDeRuta(ruta)}>{elemento}</RutaProtegida>;
 const conModulo = (modulo, pagina) => <RequiereModulo modulo={modulo}>{pagina}</RequiereModulo>;
@@ -34,6 +36,9 @@ export default function App() {
       <Route path="/seguimiento/:codigo" element={<Seguimiento />} />
       {/* HU-17: el cliente entra desde el enlace o el QR de su sede con la placa o el celular. */}
       <Route path="/s/:slug" element={<AccesoCliente />} />
+      {/* HU-30: "dejar de recibir" desde el correo y la política que enlazan las casillas de autorización. */}
+      <Route path="/baja/:token" element={<BajaNotificaciones />} />
+      <Route path="/politica-datos" element={<PoliticaDatos />} />
       <Route path="/superadmin" element={protegida('/superadmin', <Superadmin />)} />
 
       <Route element={<RutaProtegida><Layout /></RutaProtegida>}>
