@@ -73,7 +73,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-19 Visualizar la línea de tiempo de las etapas del lavado | ZARU-39 | 5 | Should | — | F5 | RF-F5-04 | ESC-F5-03 | `tests/unit/seguimiento.test.js`, `frontend/tests/seguimiento.test.jsx` | En desarrollo |
 | HU-20 Consultar el tiempo estimado de entrega de mi vehículo | ZARU-69 | 3 | Should | — | F5 | RF-F5-04 · RF-F3-04 | ESC-F3-01 | — | Pendiente |
 | HU-21 Visualización del detalle de servicios contratados | ZARU-40 | 3 | Should | — | F5 | RF-F5-04 | ESC-F5-03 | — | Pendiente |
-| HU-22 Personalización del branding de la sede en la app | ZARU-41 | 5 | Should | — | F4, F5 | RF-F4-09, RF-F5-01 | ESC-F4-05 | — | Pendiente |
+| HU-22 Personalización del branding de la sede en la app | ZARU-41 | 5 | Should | María José | F4, F5 | RF-F4-09, RF-F5-01 | ESC-F4-05 | `tests/integration/branding-cliente.test.js` · `frontend/tests/branding-cliente.test.jsx` | En desarrollo |
 | HU-23 Consulta del historial de servicios del vehículo | ZARU-35 | 3 | Should | — | F5 | RF-F5-13, 14 | ESC-F5-09 | — | Pendiente |
 | HU-24 Consultar el detalle de un servicio del historial | ZARU-43 | 3 | Could | — | F5 | RF-F5-15 | ESC-F5-10 | — | Pendiente |
 | HU-25 Identificación de garantías adicionales (Rain Insure) | ZARU-37 | 2 | Could | — | F2, F5 | RF-F2-16, RF-F5-15 | ESC-F5-10 | — | Pendiente |
