@@ -29,6 +29,10 @@ function archivos(dir) {
 //   establecimiento y el resto se lee con el acceso del tenant de ese establecimiento.
 // - seguimiento.js (HU-18): el cliente final no tiene sesión; solo busca la orden por su código de
 //   seguimiento (único en la plataforma) y el resto lo lee con el acceso del tenant de esa orden.
+// - paseCliente.js (HU-23/HU-24): el cliente final tampoco tiene sesión; recibe un pase firmado con
+//   la sede y el cliente, y desde ahí lee con el acceso del tenant de esa sede.
+// - workerNotificaciones.js (HU-34): cola global de envíos en segundo plano, sin petición ni sesión;
+//   cada notificación se procesa con el acceso del tenant de su establecimiento.
 const PERMITIDOS = new Set([
   'config/supabase.js',
   'shared/tenant.js',
@@ -37,6 +41,8 @@ const PERMITIDOS = new Set([
   'shared/seguimiento.js',
   'shared/accesoCliente.js',
   'shared/bajaPublica.js',
+  'shared/paseCliente.js',
+  'shared/workerNotificaciones.js',
   'middlewares/auth.js',
   'controllers/superadmin.controller.js',
   'controllers/usuarios.controller.js',

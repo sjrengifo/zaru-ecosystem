@@ -20,7 +20,8 @@ export const formatoDia = (dia) => {
   return new Date(anio, mes - 1, d).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-// HU-30 CA4: fecha y hora exactas de una autorización, siempre en hora de Colombia.
+// Fecha y hora exactas, siempre en hora de Colombia: autorizaciones (HU-30 CA4), bitácora de
+// notificaciones (HU-34) e historial del cliente (HU-23/HU-24). Sin fecha o con una inválida muestra "—".
 const FECHA_HORA = new Intl.DateTimeFormat('es-CO', {
   day: 'numeric',
   month: 'short',
@@ -29,4 +30,8 @@ const FECHA_HORA = new Intl.DateTimeFormat('es-CO', {
   minute: '2-digit',
   timeZone: 'America/Bogota',
 });
-export const formatoFechaHora = (fecha) => FECHA_HORA.format(new Date(fecha));
+export const formatoFechaHora = (fecha) => {
+  if (!fecha) return '—';
+  const valor = new Date(fecha);
+  return Number.isNaN(valor.getTime()) ? '—' : FECHA_HORA.format(valor);
+};

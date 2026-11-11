@@ -7,10 +7,10 @@
 //      (servicios, usuarios, branding), promociones ni reportes.
 // CA2: el administrador ve todos los módulos; los datos siguen filtrados por su establecimiento (HU-41).
 
-export const MODULOS = ['dashboard', 'clientes', 'vehiculos', 'servicios', 'promociones', 'usuarios', 'branding', 'reportes', 'superadmin'];
+export const MODULOS = ['dashboard', 'clientes', 'vehiculos', 'servicios', 'promociones', 'usuarios', 'branding', 'reportes', 'notificaciones', 'superadmin'];
 
 export const MODULOS_POR_ROL = Object.freeze({
-  admin: Object.freeze(['dashboard', 'clientes', 'vehiculos', 'servicios', 'promociones', 'usuarios', 'branding', 'reportes']),
+  admin: Object.freeze(['dashboard', 'clientes', 'vehiculos', 'servicios', 'promociones', 'usuarios', 'branding', 'reportes', 'notificaciones']),
   operario: Object.freeze(['dashboard', 'clientes', 'vehiculos']),
   superadmin: Object.freeze(['superadmin']),
 });

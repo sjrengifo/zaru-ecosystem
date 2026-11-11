@@ -203,6 +203,11 @@ cp .env.example .env
 | `CORREO_REMITENTE` | Remitente de los avisos, p. ej. `Zaru <notificaciones@tu-dominio.com>` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USUARIO`, `SMTP_CLAVE` | Configuración SMTP cuando `CORREO_PROVEEDOR=smtp`. La clave es **confidencial** |
 | `RESEND_API_KEY` | Clave **confidencial** cuando `CORREO_PROVEEDOR=resend` (requiere un dominio verificado en Resend) |
+| `NOTIFICACIONES_WORKER` | HU-34: `on` (por defecto) procesa la cola en segundo plano; `off` solo la alimenta, sin enviar |
+| `NOTIFICACIONES_ESPERAS_MS` | Esperas entre reintentos, separadas por comas. Por defecto `60000,120000,240000` (1, 2 y 4 minutos) |
+| `SMS_PROVEEDOR` | Canal alterno de HU-34: `consola` (por defecto, escribe en el log), `twilio` o `deshabilitado` |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | Credenciales **confidenciales** cuando `SMS_PROVEEDOR=twilio` (número remitente en formato E.164) |
+| `ZARU_CLAVE_PASE` | Clave opcional de 32 bytes para firmar el pase del historial del cliente (HU-23/HU-24). Si falta se usa `ZARU_CLAVE_CIFRADO` |
 
 **`frontend/.env`**
 
@@ -223,6 +228,10 @@ HU-17 da a cada sede un enlace público, `/s/{slug}` (el slug se genera solo con
 HU-30 separa dos autorizaciones del cliente, además del tratamiento de datos: los **avisos del servicio** (correos de ingreso y de vehículo listo) y las **promociones**. Ambas se marcan en casillas separadas y desmarcadas al registrar el cliente o el ingreso, y se cambian luego desde su perfil. Cada cambio queda en `consentimientos` con fecha, hora, canal y versión de la política, y el administrador ve ese historial en el perfil. Los correos incluyen un enlace "Dejar de recibir estos avisos" (`/baja/{token}`, firmado con una clave derivada de `ZARU_CLAVE_CIFRADO`) que retira la autorización en el momento, sin iniciar sesión. Las campañas de promociones (HU-35) deben filtrar a los destinatarios con `destinatariosComerciales()` de `backend/src/shared/autorizaciones.js`. La política vigente queda pública en `/politica-datos`. Requiere la migración `hu30_autorizacion_notificaciones`; a los clientes que ya existían se les registra la autorización de avisos (finalidad de la política que aceptaron) y no la de promociones.
 
 HU-19 agrega a esa pantalla la línea de tiempo del lavado: todas las etapas en orden, las completadas con check y la hora en que terminaron (`terminadaAt`), la actual resaltada y las pendientes en gris. Al entregar el vehículo todas quedan completadas. Tampoco requiere migraciones.
+
+HU-34 incorpora **Notificaciones** en el menú del administrador: bitácora por sede con fecha, hora, cliente, placa, canal, tipo y estado, filtros combinables (placa, rango de fechas, canal, estado, tipo), paginación y detalle de cada intento con el error real del proveedor. Los destinos se muestran enmascarados (`300****567`, `yel****@gmail.com`) porque el backend los descifra solo para enmascararlos. Los envíos se procesan en un worker del servidor con reintentos exponenciales acotados (solo errores recuperables) y, si el correo de "listo" agota sus intentos, un SMS alterno cuando `SMS_PROVEEDOR` está configurado y el cliente autorizó avisos. "Enviada" significa aceptada por el proveedor; "Entregada" requiere el acuse de entrega del proveedor. Requiere la migración `20261110150000_hu34_hu23_hu24_historiales.sql`.
+
+HU-23/HU-24 publican el **historial de servicios del cliente final** en `/s/{slug}/historial`. El cliente confirma su identidad con placa + celular registrados y recibe un pase firmado de 30 minutos (HMAC, sin sesión de panel); con él ve solo sus órdenes entregadas, de la más reciente a la más antigua, filtra por placa y abre el detalle de una única orden. El establecimiento y el cliente salen del pase firmado, nunca de un id de la URL. Comparte la migración de HU-34 (índices de historial).
 
 HU-57 incorpora el panel de superadministración para registrar establecimientos, invitar al administrador inicial, consultar periodos de prueba, activar, suspender y reenviar invitaciones. HU-59 centraliza los módulos permitidos por rol en el backend (`GET /me` y middleware `requiereModulo`) y usa esos permisos para filtrar el menú y proteger la navegación del frontend.
 

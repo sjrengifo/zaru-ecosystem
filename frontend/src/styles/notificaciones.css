@@ -1,0 +1,74 @@
+/* HU-34 — Bitácora de notificaciones del panel (solo administrador).
+   Se apoya en global.css (.tarjeta, .tabla, .reporte-filtros, .estado-etiqueta, .aviso). */
+
+.envios .encabezado { align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.envios .encabezado .boton { display: inline-flex; align-items: center; gap: 6px; }
+
+.envio-campo { margin: 0; min-width: 128px; }
+.envio-campo label { display: block; margin-bottom: 4px; font-size: 13px; color: var(--color-texto-suave); }
+.envio-campo input,
+.envio-campo select { min-height: 40px; margin: 0; }
+
+.envio-fecha { display: block; white-space: nowrap; }
+.envio-hora { display: block; color: var(--color-texto-suave); font-size: 12px; font-variant-numeric: tabular-nums; }
+.envio-destino { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; white-space: nowrap; }
+
+/* Distintivos de estado del envío. "Enviada" no es lo mismo que "Entregada". */
+.estado-envio-programada { color: #374151; background: #f3f4f6; border-color: #e5e7eb; }
+.estado-envio-pendiente { color: #92400e; background: #fef3c7; border-color: #fde68a; }
+.estado-envio-enviada { color: #1e40af; background: #dbeafe; border-color: #bfdbfe; }
+.estado-envio-entregada { color: #065f46; background: #d1fae5; border-color: #a7f3d0; }
+.estado-envio-fallida { color: #991b1b; background: #fee2e2; border-color: #fecaca; }
+.estado-envio-cancelada { color: var(--color-texto-suave); background: var(--color-fondo); border-style: dashed; }
+
+.envio-paginacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.envio-paginacion p { margin: 0; font-size: 14px; }
+.envio-paginacion-botones { display: flex; gap: 8px; }
+
+.envio-nota {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--color-texto-suave);
+}
+.envio-nota svg { flex-shrink: 0; margin-top: 2px; }
+
+/* ---------- Detalle e intentos ---------- */
+.envio-detalle { display: flex; flex-direction: column; gap: 14px; }
+.envio-detalle-datos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin: 0;
+}
+.envio-detalle-datos > div { min-width: 0; }
+.envio-detalle-datos dt { font-size: 12px; color: var(--color-texto-suave); }
+.envio-detalle-datos dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+
+.envio-intentos-titulo { margin: 4px 0 0; font-size: 15px; }
+.envio-intentos { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.envio-intento {
+  padding: 10px 12px;
+  border: 1px solid var(--color-borde);
+  border-left: 4px solid var(--color-borde);
+  border-radius: 10px;
+  background: var(--color-superficie);
+}
+.envio-intento-enviado { border-left-color: var(--color-exito); }
+.envio-intento-fallido { border-left-color: var(--color-error); }
+.envio-intento-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.envio-intento-meta { margin: 4px 0 0; font-size: 13px; color: var(--color-texto-suave); }
+.envio-intento-error { margin: 6px 0 0; font-size: 13px; color: var(--color-error); overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+  .envio-detalle-datos { grid-template-columns: 1fr; }
+}

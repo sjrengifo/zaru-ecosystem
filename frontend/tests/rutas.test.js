@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { destinoTrasLogin, puedeAcceder, rolesDeRuta, rutaInicio, rutaNormalizada } from '../src/lib/rutas.js';
 import { MENU } from '../src/lib/menu.js';
 
-const CONFIGURACION = ['/servicios', '/promociones', '/usuarios', '/branding', '/reportes'];
+const CONFIGURACION = ['/servicios', '/promociones', '/usuarios', '/branding', '/reportes', '/notificaciones'];
 
 test('CA2: el administrador entra a todas las secciones de configuración', () => {
   for (const ruta of CONFIGURACION) assert.equal(puedeAcceder('admin', ruta), true, ruta);
