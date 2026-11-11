@@ -210,6 +210,10 @@ function FormularioAcceso({ slug, sede }) {
       <p className="acceso-codigo">
         ¿Tienes un código de seguimiento? <Link to="/seguimiento">Escríbelo aquí</Link>
       </p>
+      <p className="acceso-codigo">
+        ¿Ya te entregaron tu vehículo?{' '}
+        <Link to={`/s/${encodeURIComponent(slug)}/historial`}>Consulta tu historial de servicios</Link>
+      </p>
     </section>
   );
 }

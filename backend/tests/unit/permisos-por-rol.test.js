@@ -37,13 +37,13 @@ beforeEach(() => registrarAuditoria.mockClear());
 describe('HU-59 · matriz de permisos', () => {
   it('CA1: el operario solo tiene su trabajo diario (órdenes y vehículos), sin configuración, promociones ni reportes', () => {
     expect(MODULOS_POR_ROL.operario).toEqual(['dashboard', 'clientes', 'vehiculos']);
-    for (const modulo of ['servicios', 'promociones', 'usuarios', 'branding', 'reportes', 'superadmin']) {
+    for (const modulo of ['servicios', 'promociones', 'usuarios', 'branding', 'reportes', 'notificaciones', 'superadmin']) {
       expect(puedeUsar('operario', modulo)).toBe(false);
     }
   });
 
   it('CA2: el administrador tiene todos los módulos de su establecimiento, pero no la administración de Zaru', () => {
-    expect(MODULOS_POR_ROL.admin).toEqual(['dashboard', 'clientes', 'vehiculos', 'servicios', 'promociones', 'usuarios', 'branding', 'reportes']);
+    expect(MODULOS_POR_ROL.admin).toEqual(['dashboard', 'clientes', 'vehiculos', 'servicios', 'promociones', 'usuarios', 'branding', 'reportes', 'notificaciones']);
     expect(puedeUsar('admin', 'superadmin')).toBe(false);
   });
 
@@ -74,6 +74,8 @@ describe('HU-59 CA3 · la API niega las secciones ajenas aunque se escriba la di
     ['PUT', '/api/v1/establecimiento/branding'],
     ['POST', '/api/v1/establecimiento/logo'],
     ['DELETE', '/api/v1/clientes/00000000-0000-4000-8000-000000000001'],
+    ['GET', '/api/v1/notificaciones'],
+    ['GET', '/api/v1/notificaciones/00000000-0000-4000-8000-000000000001'],
     ['GET', '/api/v1/superadmin/establecimientos'],
   ])('operario: %s %s → 403 y queda en la auditoría', async (metodo, ruta) => {
     const res = await request(app)[metodo.toLowerCase()](ruta).use(como('operario')).send({});

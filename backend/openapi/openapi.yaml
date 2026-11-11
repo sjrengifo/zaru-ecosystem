@@ -230,6 +230,122 @@ paths:
                 error: { codigo: NO_ENCONTRADO, mensaje: El vehículo no se encuentra en servicio actualmente, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
 
+  /publico/sedes/{slug}/historial/acceso:
+    post:
+      tags: [Historial del cliente]
+      operationId: accederHistorialCliente
+      summary: Verificar placa y celular para abrir el historial de servicios
+      description: |
+        HU-23. El cliente final confirma que es dueño del vehículo con la **placa + el celular** registrados en
+        esa sede. Si ambos coinciden, recibe un `pase` firmado de vida corta (30 minutos) que debe enviar como
+        `Authorization: Bearer <pase>` en las rutas del historial.
+
+        El pase identifica al establecimiento y al cliente dentro de la firma: no se puede alterar ni usar para
+        otra sede. Si la placa o el celular no coinciden, la respuesta es el mismo `404` exista o no la placa
+        (no revela quién es cliente de la sede). Tras 5 intentos fallidos en 10 minutos desde el mismo origen
+        responde `429`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugSede'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccesoHistorial' }
+            example: { placa: ABC123, celular: '3001234567' }
+      responses:
+        '200':
+          description: Pase emitido para consultar el historial de ese cliente en esa sede.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccesoHistorialRespuesta' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '404':
+          description: La placa y el celular no coinciden con un vehículo de la sede (o la sede no existe).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: { codigo: NO_ENCONTRADO, mensaje: No encontramos un vehículo con esa placa y celular en esta sede, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
+  /publico/cliente/vehiculos:
+    get:
+      tags: [Historial del cliente]
+      operationId: listarVehiculosCliente
+      summary: Vehículos del cliente autenticado con el pase
+      description: HU-23 CA2. Alimenta el filtro por placa del historial. Solo devuelve los vehículos del cliente del pase en esa sede.
+      security:
+        - paseCliente: []
+      responses:
+        '200':
+          description: Vehículos del cliente.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [vehiculos]
+                properties:
+                  vehiculos:
+                    type: array
+                    items: { $ref: '#/components/schemas/VehiculoCliente' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /publico/cliente/historial:
+    get:
+      tags: [Historial del cliente]
+      operationId: listarHistorialCliente
+      summary: Servicios entregados del cliente, del más reciente al más antiguo
+      description: |
+        HU-23. Solo incluye órdenes en estado `entregado` de los vehículos del cliente del pase. Cada registro
+        trae la fecha de entrega, la sede afiliada, la placa y el tipo de lavado (los servicios realizados).
+        Se puede filtrar por una de las placas del cliente con `placa`.
+      security:
+        - paseCliente: []
+      parameters:
+        - name: placa
+          in: query
+          required: false
+          description: Placa del vehículo del cliente por la que se filtra (sin espacios ni guiones).
+          schema: { type: string, pattern: '^[A-Za-z0-9]{5,7}$' }
+          example: ABC123
+      responses:
+        '200':
+          description: Historial de servicios entregados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HistorialCliente' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /publico/cliente/historial/{ordenId}:
+    get:
+      tags: [Historial del cliente]
+      operationId: obtenerDetalleHistorialCliente
+      summary: Detalle de un servicio entregado del cliente
+      description: |
+        HU-24. Devuelve los servicios exactos realizados, la fecha, la sede, la placa y los totales de **una
+        única** orden entregada del cliente del pase. Una orden de otro cliente, de otra sede o todavía no
+        entregada responde el mismo `404`: no se revela que existe.
+      security:
+        - paseCliente: []
+      parameters:
+        - name: ordenId
+          in: path
+          required: true
+          description: Identificador UUID de la orden entregada.
+          schema: { type: string, format: uuid }
+          example: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10
+      responses:
+        '200':
+          description: Detalle del servicio.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DetalleHistorialCliente' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
   /me:
     get:
       tags: [Sesión]
@@ -827,6 +943,91 @@ paths:
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
 
+  /notificaciones:
+    get:
+      tags: [Notificaciones]
+      operationId: listarBitacoraNotificaciones
+      summary: Bitácora de notificaciones del establecimiento (solo administrador)
+      description: |
+        HU-34. Lista las notificaciones enviadas o programadas por el establecimiento de la sesión, con fecha,
+        hora, cliente, placa, canal (correo, SMS o push), tipo (operativa o comercial) y estado. Los filtros se
+        pueden combinar y la paginación es del lado del servidor.
+
+        El destino se devuelve **enmascarado** (`300****567`, `yel****@gmail.com`): el dato original está cifrado
+        y nunca sale completo al panel. `estado: enviada` con `aceptadaPorProveedor: true` significa que el
+        proveedor recibió el mensaje; `entregada: true` solo cuando el proveedor confirmó la entrega
+        (`estado: entregada` o `contenido.entregaConfirmada`). Son estados distintos.
+      parameters:
+        - name: placa
+          in: query
+          required: false
+          description: Placa del vehículo (búsqueda parcial, sin espacios).
+          schema: { type: string }
+          example: ABC123
+        - name: desde
+          in: query
+          required: false
+          description: Primer día del rango (incluido), en formato AAAA-MM-DD y hora de Bogotá.
+          schema: { type: string, format: date }
+          example: '2026-11-01'
+        - name: hasta
+          in: query
+          required: false
+          description: Último día del rango (incluido), en formato AAAA-MM-DD y hora de Bogotá.
+          schema: { type: string, format: date }
+          example: '2026-11-10'
+        - name: canal
+          in: query
+          required: false
+          schema: { type: string, enum: [push, sms, correo] }
+        - name: estado
+          in: query
+          required: false
+          schema: { type: string, enum: [programada, pendiente, enviando, enviada, entregada, fallida, cancelada] }
+        - name: tipo
+          in: query
+          required: false
+          schema: { type: string, enum: [operativa, comercial, recordatorio, novedad, correccion, sistema] }
+        - name: pagina
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: porPagina
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        '200':
+          description: Página de la bitácora, de la más reciente a la más antigua.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BitacoraNotificaciones' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /notificaciones/{id}:
+    get:
+      tags: [Notificaciones]
+      operationId: obtenerBitacoraNotificacion
+      summary: Detalle de una notificación y de cada intento de envío (solo administrador)
+      description: |
+        HU-34. Devuelve el mismo registro enmascarado del listado más `intentos`, la auditoría de cada intento:
+        número, canal, resultado, proveedor, si el error era recuperable, el motivo real y si el proveedor
+        confirmó la entrega. `detalleIntentos: false` significa que la tabla de auditoría todavía no está
+        disponible en el ambiente (el resto de la notificación se muestra igual).
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Notificación con el detalle de sus intentos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificacionDetalle' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
   /usuarios:
     get:
       tags: [Usuarios]
@@ -1105,6 +1306,14 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Token de acceso de Supabase Auth del usuario del panel (dura 1 hora).
+    paseCliente:
+      type: http
+      scheme: bearer
+      bearerFormat: pase
+      description: >-
+        Pase firmado (HMAC) de 30 minutos emitido por POST /publico/sedes/{slug}/historial/acceso (HU-23).
+        Identifica la sede y el cliente verificados con placa + celular. No es un JWT de Supabase; el panel
+        no lo usa.
 
   headers:
     XRequestId:
@@ -1837,3 +2046,188 @@ components:
             properties:
               franja: { type: string }
               vehiculos: { type: integer, minimum: 0 }
+
+    AccesoHistorial:
+      type: object
+      required: [placa, celular]
+      properties:
+        placa:
+          type: string
+          description: Placa del vehículo; se normaliza a mayúsculas y sin espacios.
+          example: ABC123
+        celular:
+          type: string
+          description: Celular registrado para el cliente en esa sede (10 dígitos; acepta +57, espacios y guiones).
+          example: '3001234567'
+
+    AccesoHistorialRespuesta:
+      type: object
+      required: [pase, expiraEn, sede, cliente]
+      properties:
+        pase:
+          type: string
+          description: 'Pase firmado para las rutas del historial. Enviar como `Authorization: Bearer <pase>`.'
+        expiraEn: { type: string, format: date-time }
+        sede:
+          type: object
+          required: [slug, nombre]
+          properties:
+            slug: { type: string }
+            nombre: { type: string }
+        cliente:
+          type: object
+          required: [nombre]
+          properties:
+            nombre: { type: string }
+
+    VehiculoCliente:
+      type: object
+      required: [id, placa]
+      properties:
+        id: { type: string, format: uuid }
+        placa: { type: string }
+        tipo: { type: [string, 'null'] }
+        marca: { type: [string, 'null'] }
+        color: { type: [string, 'null'] }
+
+    ServicioHistorialCliente:
+      type: object
+      required: [nombre, precio]
+      properties:
+        nombre: { type: string }
+        precio: { type: number, minimum: 0 }
+        descuento: { type: number, minimum: 0 }
+
+    RegistroHistorialCliente:
+      type: object
+      required: [id, fecha, sede, placa, tipoLavado, servicios, total]
+      properties:
+        id: { type: string, format: uuid }
+        codigo: { type: [string, 'null'] }
+        fecha: { type: string, format: date-time, description: Fecha de entrega (o de creación si faltara). }
+        sede: { type: [string, 'null'], description: Nombre de la sede afiliada donde se hizo el servicio. }
+        placa: { type: [string, 'null'] }
+        tipoLavado: { type: string, description: 'Servicios realizados, unidos con " + ".' }
+        servicios:
+          type: array
+          items: { $ref: '#/components/schemas/ServicioHistorialCliente' }
+        total: { type: number, minimum: 0 }
+
+    HistorialCliente:
+      type: object
+      required: [cliente, sede, historial, vehiculos]
+      properties:
+        cliente:
+          type: object
+          required: [nombre]
+          properties:
+            nombre: { type: string }
+        sede: { type: [string, 'null'] }
+        historial:
+          type: array
+          items: { $ref: '#/components/schemas/RegistroHistorialCliente' }
+        vehiculos:
+          type: array
+          items: { $ref: '#/components/schemas/VehiculoCliente' }
+
+    DetalleHistorialCliente:
+      type: object
+      required: [cliente, servicio]
+      properties:
+        cliente:
+          type: object
+          required: [nombre]
+          properties:
+            nombre: { type: string }
+        servicio:
+          type: object
+          required: [id, fecha, sede, placa, tipoLavado, servicios, subtotal, descuento, total]
+          properties:
+            id: { type: string, format: uuid }
+            codigo: { type: [string, 'null'] }
+            fecha: { type: string, format: date-time }
+            sede: { type: [string, 'null'] }
+            placa: { type: [string, 'null'] }
+            vehiculo:
+              type: object
+              properties:
+                tipo: { type: [string, 'null'] }
+                marca: { type: [string, 'null'] }
+                color: { type: [string, 'null'] }
+            tipoLavado: { type: string }
+            servicios:
+              type: array
+              items: { $ref: '#/components/schemas/ServicioHistorialCliente' }
+            subtotal: { type: number, minimum: 0 }
+            descuento: { type: number, minimum: 0 }
+            total: { type: number, minimum: 0 }
+
+    Notificacion:
+      type: object
+      required: [id, fecha, tipo, canal, estado, aceptadaPorProveedor, entregada, totalIntentos]
+      properties:
+        id: { type: string, format: uuid }
+        fecha: { type: string, format: date-time }
+        tipo: { type: string, enum: [operativa, comercial, recordatorio, novedad, correccion, sistema] }
+        evento: { type: [string, 'null'], example: orden.lista }
+        canal: { type: string, enum: [push, sms, correo] }
+        estado: { type: string, enum: [programada, pendiente, enviando, enviada, entregada, fallida, cancelada] }
+        cliente: { type: [string, 'null'] }
+        placa: { type: [string, 'null'] }
+        codigoSeguimiento: { type: [string, 'null'] }
+        destino:
+          type: [string, 'null']
+          description: Destino enmascarado; nunca el celular ni el correo completos.
+          example: '300****567'
+        asunto: { type: [string, 'null'] }
+        proveedor: { type: [string, 'null'] }
+        aceptadaPorProveedor: { type: boolean, description: El proveedor recibió el mensaje (estado enviada o entregada). }
+        entregada: { type: boolean, description: El proveedor confirmó la entrega real. }
+        entregadaAt: { type: [string, 'null'], format: date-time }
+        totalIntentos: { type: integer, minimum: 0 }
+        error: { type: [string, 'null'], description: Motivo real del último fallo del proveedor. }
+        programadaPara: { type: [string, 'null'], format: date-time }
+        proximoIntentoAt: { type: [string, 'null'], format: date-time }
+
+    NotificacionIntento:
+      type: object
+      required: [intento, canal, resultado, entregado, fecha]
+      properties:
+        intento: { type: integer, minimum: 1 }
+        canal: { type: string, enum: [push, sms, correo] }
+        resultado: { type: string, enum: [enviado, fallido] }
+        proveedor: { type: [string, 'null'] }
+        idProveedor: { type: [string, 'null'] }
+        entregado: { type: boolean }
+        recuperable: { type: [boolean, 'null'], description: Si el error se podía reintentar. }
+        error: { type: [string, 'null'] }
+        fecha: { type: string, format: date-time }
+
+    NotificacionDetalle:
+      allOf:
+        - $ref: '#/components/schemas/Notificacion'
+        - type: object
+          required: [intentos, detalleIntentos]
+          properties:
+            intentos:
+              type: array
+              items: { $ref: '#/components/schemas/NotificacionIntento' }
+            detalleIntentos:
+              type: boolean
+              description: false si la tabla de auditoría todavía no está aplicada en el ambiente.
+
+    BitacoraNotificaciones:
+      type: object
+      required: [notificaciones, paginacion]
+      properties:
+        notificaciones:
+          type: array
+          items: { $ref: '#/components/schemas/Notificacion' }
+        paginacion:
+          type: object
+          required: [pagina, porPagina, total, totalPaginas]
+          properties:
+            pagina: { type: integer, minimum: 1 }
+            porPagina: { type: integer, minimum: 1 }
+            total: { type: integer, minimum: 0 }
+            totalPaginas: { type: integer, minimum: 0 }

@@ -9,6 +9,7 @@ export const RUTAS = {
   '/promociones': ['admin'],
   '/usuarios': ['admin'],
   '/reportes': ['admin'],
+  '/notificaciones': ['admin'],
   '/branding': ['admin'],
   '/aceptar-invitacion': ['admin', 'operario'],
   '/superadmin': ['superadmin'],

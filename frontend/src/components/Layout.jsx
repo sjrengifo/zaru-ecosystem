@@ -9,7 +9,7 @@ import { leerBranding, guardarBranding, borrarBranding } from '../lib/brandingGu
 import { menuPara, NOMBRE_ROL } from '../lib/permisos.js';
 import { usePerfil } from '../hooks/usePerfil.js';
 import { api } from '../services/api.js';
-import { BadgePercent, BarChart3, Car, LayoutDashboard, LogOut, Palette, Sparkles, UserCog, Users } from 'lucide-react';
+import { BadgePercent, BarChart3, Bell, Car, LayoutDashboard, LogOut, Palette, Sparkles, UserCog, Users } from 'lucide-react';
 import MarcaZaru from './MarcaZaru.jsx';
 
 // Ícono de cada opción del menú. Son decorativos: el texto de la opción da el significado.
@@ -21,6 +21,7 @@ const ICONOS_MENU = {
   '/promociones': BadgePercent,
   '/usuarios': UserCog,
   '/reportes': BarChart3,
+  '/notificaciones': Bell,
   '/branding': Palette,
 };
 

@@ -15,10 +15,12 @@ import Promociones from './pages/Promociones.jsx';
 import Usuarios from './pages/Usuarios.jsx';
 import Branding from './pages/Branding.jsx';
 import Reportes from './pages/Reportes.jsx';
+import HistorialNotificaciones from './pages/HistorialNotificaciones.jsx';
 import Superadmin from './pages/Superadmin.jsx';
 import AceptarInvitacion from './pages/AceptarInvitacion.jsx';
 import Seguimiento from './pages/Seguimiento.jsx';
 import AccesoCliente from './pages/AccesoCliente.jsx';
+import HistorialCliente from './pages/HistorialCliente.jsx';
 
 const protegida = (ruta, elemento) => <RutaProtegida roles={rolesDeRuta(ruta)}>{elemento}</RutaProtegida>;
 const conModulo = (modulo, pagina) => <RequiereModulo modulo={modulo}>{pagina}</RequiereModulo>;
@@ -34,6 +36,8 @@ export default function App() {
       <Route path="/seguimiento/:codigo" element={<Seguimiento />} />
       {/* HU-17: el cliente entra desde el enlace o el QR de su sede con la placa o el celular. */}
       <Route path="/s/:slug" element={<AccesoCliente />} />
+      {/* HU-23 / HU-24: historial y detalle de servicios del cliente final, con placa + celular. */}
+      <Route path="/s/:slug/historial" element={<HistorialCliente />} />
       <Route path="/superadmin" element={protegida('/superadmin', <Superadmin />)} />
 
       <Route element={<RutaProtegida><Layout /></RutaProtegida>}>
@@ -45,6 +49,7 @@ export default function App() {
         <Route path="/usuarios" element={protegida('/usuarios', conModulo('usuarios', <Usuarios />))} />
         <Route path="/branding" element={protegida('/branding', conModulo('branding', <Branding />))} />
         <Route path="/reportes" element={protegida('/reportes', conModulo('reportes', <Reportes />))} />
+        <Route path="/notificaciones" element={protegida('/notificaciones', conModulo('notificaciones', <HistorialNotificaciones />))} />
         <Route path="/aceptar-invitacion" element={<AceptarInvitacion />} />
       </Route>
 
