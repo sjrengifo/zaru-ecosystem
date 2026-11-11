@@ -1652,6 +1652,7 @@ components:
             properties:
               nombre: { type: string }
               precio: { type: number }
+              duracionMin: { type: integer, minimum: 0, description: Duración contratada del servicio. }
         subtotal: { type: number }
         descuento: { type: number }
         total: { type: number }

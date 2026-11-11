@@ -232,6 +232,8 @@ HU-19 agrega a esa pantalla la línea de tiempo del lavado: todas las etapas en 
 
 HU-20 expone el registro de novedades de una orden para el operario. Una novedad `demora` exige `minutosExtra`, suma esos minutos a la entrega estimada y sube la versión de la orden para que el seguimiento del cliente reciba la nueva hora por SSE. La entrega estimada deja de mostrarse cuando el vehículo está listo o entregado. Requiere aplicar la migración `20261109120000_hu20_novedades_demora.sql`.
 
+HU-21 agrega al seguimiento la sección desplegable **Detalle del servicio**: muestra la placa, los servicios contratados con su duración y precio, el descuento y el total. El resumen aclara que el pago se realiza directamente en el establecimiento físico y que la plataforma no procesa pagos en línea. No requiere migraciones.
+
 HU-34 incorpora **Notificaciones** en el menú del administrador: bitácora por sede con fecha, hora, cliente, placa, canal, tipo y estado, filtros combinables (placa, rango de fechas, canal, estado, tipo), paginación y detalle de cada intento con el error real del proveedor. Los destinos se muestran enmascarados (`300****567`, `yel****@gmail.com`) porque el backend los descifra solo para enmascararlos. Los envíos se procesan en un worker del servidor con reintentos exponenciales acotados (solo errores recuperables) y, si el correo de "listo" agota sus intentos, un SMS alterno cuando `SMS_PROVEEDOR` está configurado y el cliente autorizó avisos. "Enviada" significa aceptada por el proveedor; "Entregada" requiere el acuse de entrega del proveedor. Requiere la migración `20261110150000_hu34_hu23_hu24_historiales.sql`.
 
 HU-23/HU-24 publican el **historial de servicios del cliente final** en `/s/{slug}/historial`. El cliente confirma su identidad con placa + celular registrados y recibe un pase firmado de 30 minutos (HMAC, sin sesión de panel); con él ve solo sus órdenes entregadas, de la más reciente a la más antigua, filtra por placa y abre el detalle de una única orden. El establecimiento y el cliente salen del pase firmado, nunca de un id de la URL. Comparte la migración de HU-34 (índices de historial).
@@ -335,6 +337,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 | ZARU-33 | HU-17 Acceder a la plataforma móvil con la placa o el celular, sin contraseña | 5 | Must | `AccesoCliente.jsx` · `EnlaceClientes.jsx` (QR en Branding) · `lib/accesoCliente.js` | `publico.controller.js` · `shared/accesoCliente.js` · migración `hu17_enlace_publico_sede` |
 | ZARU-34 | HU-18 Seguimiento en tiempo real del estado del lavado | 8 | Must | `Seguimiento.jsx` · `EnlaceSeguimiento.jsx` | `seguimiento.controller.js` · `shared/seguimiento.js` (SSE + Supabase Realtime) |
 | ZARU-39 | HU-19 Visualizar la línea de tiempo de las etapas del lavado | 5 | Should | `Seguimiento.jsx` (`LineaDeTiempo`) · `lib/seguimiento.js` | `shared/etapasSeguimiento.js` (`construirEtapas`) |
+| ZARU-40 | HU-21 Visualización del detalle de servicios contratados | 3 | Should | `Seguimiento.jsx` (`DetalleServicio`) · `lib/seguimiento.js` | `shared/etapasSeguimiento.js` · `shared/seguimiento.js` |
 
 Épica 3 — Notificaciones y comunicación con el cliente (`ZARU-15`).
 

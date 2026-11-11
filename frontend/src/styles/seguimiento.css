@@ -222,7 +222,29 @@
 .seg-paso-actual .seg-paso-hora { color: var(--color-primario); font-weight: 600; }
 .seg-paso-pendiente .seg-paso-marca { background: var(--color-borde); }
 
-/* ---------- Resumen del servicio ---------- */
+/* ---------- Detalle del servicio (HU-21) ---------- */
+.seg-tarjeta .seg-detalle-titulo { margin: 0; }
+.seg-detalle-boton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.seg-detalle-boton:focus-visible { outline: 2px solid var(--color-primario); outline-offset: 4px; border-radius: 4px; }
+.seg-detalle-flecha { flex-shrink: 0; transition: transform 180ms ease; }
+.seg-detalle-flecha-abierta { transform: rotate(180deg); }
+.seg-detalle-contenido { padding-top: 12px; }
+
 .seg-vehiculo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; color: var(--color-texto-suave); }
 .seg-servicios { list-style: none; margin: 0; padding: 0; font-size: 15px; }
 .seg-servicios li {
@@ -233,11 +255,13 @@
   border-bottom: 1px solid var(--color-borde);
 }
 .seg-servicios li span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.seg-servicio-nombre { display: flex; flex-direction: column; gap: 2px; }
+.seg-servicio-nombre small { font-size: 12px; font-weight: 500; color: var(--color-texto-suave); }
 .seg-descuento { color: var(--color-exito); }
 .seg-servicios .seg-total { border-bottom: none; font-weight: 800; font-size: 17px; }
 .seg-nota-pago {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin: 8px 0 0;
   padding: 10px 12px;
@@ -246,6 +270,9 @@
   color: var(--color-texto);
   background: var(--color-fondo);
 }
+.seg-nota-pago > svg { flex-shrink: 0; margin-top: 2px; }
+.seg-nota-pago strong { display: block; }
+.seg-nota-pago p { margin: 2px 0 0; font-size: 13px; color: var(--color-texto-suave); }
 
 .seg-codigo { margin: 0; text-align: center; font-size: 13px; color: var(--color-texto-suave); }
 .seg-codigo strong { letter-spacing: 0.08em; color: var(--color-texto); }

@@ -41,7 +41,7 @@ const ordenBase = (cambios = {}) => ({
   total: '25000.00',
   version: 1,
   vehiculo: { placa: 'ABC123', tipo: 'carro', marca: 'Mazda', color: 'Rojo' },
-  servicios: [{ precio: '30000.00', servicio: { nombre: 'Lavado general' } }],
+  servicios: [{ precio: '30000.00', duracion_min: 30, servicio: { nombre: 'Lavado general' } }],
   historial: [],
   ...cambios,
 });
@@ -127,7 +127,7 @@ describe('HU-18 CA1 · indicador de la etapa actual', () => {
 
   it('incluye servicios, total, nota de pago y marca de la sede, con colores seguros', () => {
     const s = armarSeguimiento(ordenBase(), sede);
-    expect(s.servicios).toEqual([{ nombre: 'Lavado general', precio: 30000 }]);
+    expect(s.servicios).toEqual([{ nombre: 'Lavado general', precio: 30000, duracionMin: 30 }]);
     expect(s).toMatchObject({ subtotal: 30000, descuento: 5000, total: 25000, notaPago: NOTA_PAGO });
     expect(s.establecimiento).toEqual({
       nombre: 'Lavadero Norte',
@@ -151,6 +151,29 @@ describe('HU-18 CA1 · indicador de la etapa actual', () => {
     for (const dato of ['Ana', '3001234567', 'ana@correo.com', ORDEN_ID, '00000000-0000-0000-0000-00000000a058']) {
       expect(json).not.toContain(dato);
     }
+  });
+});
+
+describe('HU-21 - detalle de los servicios contratados', () => {
+  it('CA1: lista los servicios de la placa con su duración y precio', () => {
+    const s = armarSeguimiento(ordenBase({
+      servicios: [
+        { precio: '30000.00', duracion_min: 30, servicio: { nombre: 'Lavado general' } },
+        { precio: '15000.00', duracion_min: 20, servicio: { nombre: 'Aspirado' } },
+      ],
+    }), sede);
+
+    expect(s.vehiculo.placa).toBe('ABC123');
+    expect(s.servicios).toEqual([
+      { nombre: 'Lavado general', precio: 30000, duracionMin: 30 },
+      { nombre: 'Aspirado', precio: 15000, duracionMin: 20 },
+    ]);
+  });
+
+  it('CA2: indica que el pago se realiza en el establecimiento', () => {
+    const s = armarSeguimiento(ordenBase(), sede);
+    expect(s.notaPago).toBe(NOTA_PAGO);
+    expect(s.notaPago).toContain('establecimiento');
   });
 });
 

@@ -118,6 +118,7 @@ export function armarSeguimiento(orden, establecimiento = {}) {
     servicios: (orden.servicios ?? []).map((s) => ({
       nombre: s.servicio?.nombre ?? 'Servicio',
       precio: Number(s.precio ?? 0),
+      duracionMin: Number(s.duracion_min ?? 0),
     })),
     subtotal: Number(orden.subtotal ?? 0),
     descuento: Number(orden.descuento ?? 0),

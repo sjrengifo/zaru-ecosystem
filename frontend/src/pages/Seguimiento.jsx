@@ -14,6 +14,7 @@ import {
   Banknote,
   CarFront,
   Check,
+  ChevronDown,
   CircleCheck,
   Clock,
   Droplets,
@@ -193,38 +194,58 @@ function LineaDeTiempo({ etapas }) {
   );
 }
 
-function Resumen({ seguimiento }) {
+function DetalleServicio({ seguimiento }) {
   const { vehiculo, servicios } = seguimiento;
+  const [abierto, setAbierto] = useState(true);
   const detalle = [vehiculo.marca, vehiculo.color].filter(Boolean).join(' · ');
   return (
-    <section className="seg-tarjeta" aria-labelledby="seg-resumen">
-      <h2 id="seg-resumen">Tu servicio</h2>
-      <p className="seg-vehiculo">
-        {vehiculo.placa && <span className="placa placa-grande">{vehiculo.placa}</span>}
-        {detalle && <span>{detalle}</span>}
-      </p>
-      <ul className="seg-servicios">
-        {servicios.map((s, i) => (
-          <li key={`${s.nombre}-${i}`}>
-            <span>{s.nombre}</span>
-            <span>{formatoMoneda(s.precio)}</span>
+    <section className="seg-tarjeta" aria-labelledby="seg-detalle-titulo">
+      <h2 id="seg-detalle-titulo" className="seg-detalle-titulo">
+        <button
+          type="button"
+          className="seg-detalle-boton"
+          aria-expanded={abierto}
+          aria-controls="seg-detalle-contenido"
+          onClick={() => setAbierto((valor) => !valor)}
+        >
+          Detalle del servicio
+          <ChevronDown className={abierto ? 'seg-detalle-flecha seg-detalle-flecha-abierta' : 'seg-detalle-flecha'} size={18} aria-hidden="true" />
+        </button>
+      </h2>
+      <div id="seg-detalle-contenido" className="seg-detalle-contenido" hidden={!abierto}>
+        <p className="seg-vehiculo">
+          {vehiculo.placa && <span className="placa placa-grande">{vehiculo.placa}</span>}
+          {detalle && <span>{detalle}</span>}
+        </p>
+        <ul className="seg-servicios" aria-label={`Servicios asignados${vehiculo.placa ? ` al vehículo ${vehiculo.placa}` : ''}`}>
+          {servicios.map((s, i) => (
+            <li key={`${s.nombre}-${i}`}>
+              <span className="seg-servicio-nombre">
+                {s.nombre}
+                {s.duracionMin > 0 && <small>{s.duracionMin} min</small>}
+              </span>
+              <span>{formatoMoneda(s.precio)}</span>
+            </li>
+          ))}
+          {seguimiento.descuento > 0 && (
+            <li className="seg-descuento">
+              <span>Descuento</span>
+              <span>−{formatoMoneda(seguimiento.descuento)}</span>
+            </li>
+          )}
+          <li className="seg-total">
+            <span>Total</span>
+            <span>{formatoMoneda(seguimiento.total)}</span>
           </li>
-        ))}
-        {seguimiento.descuento > 0 && (
-          <li className="seg-descuento">
-            <span>Descuento</span>
-            <span>−{formatoMoneda(seguimiento.descuento)}</span>
-          </li>
-        )}
-        <li className="seg-total">
-          <span>Total</span>
-          <span>{formatoMoneda(seguimiento.total)}</span>
-        </li>
-      </ul>
-      <p className="seg-nota-pago">
-        <Banknote size={16} aria-hidden="true" />
-        {seguimiento.notaPago}
-      </p>
+        </ul>
+        <div className="seg-nota-pago" role="note" aria-label="Forma de pago">
+          <Banknote size={18} aria-hidden="true" />
+          <div>
+            <strong>Pago directo en el establecimiento físico</strong>
+            <p>{seguimiento.notaPago}. Esta plataforma no procesa pagos en línea.</p>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -303,7 +324,7 @@ function VistaSeguimiento({ codigo, onMarca }) {
       <EstadoConexion conexion={conexion} />
       <IndicadorEtapa seguimiento={seguimiento} />
       <LineaDeTiempo etapas={seguimiento.etapas} />
-      <Resumen seguimiento={seguimiento} />
+      <DetalleServicio seguimiento={seguimiento} />
       <p className="seg-codigo">
         Código de seguimiento: <strong>{seguimiento.codigo}</strong>
       </p>
