@@ -233,6 +233,8 @@ HU-34 incorpora **Notificaciones** en el menú del administrador: bitácora por 
 
 HU-23/HU-24 publican el **historial de servicios del cliente final** en `/s/{slug}/historial`. El cliente confirma su identidad con placa + celular registrados y recibe un pase firmado de 30 minutos (HMAC, sin sesión de panel); con él ve solo sus órdenes entregadas, de la más reciente a la más antigua, filtra por placa y abre el detalle de una única orden. El establecimiento y el cliente salen del pase firmado, nunca de un id de la URL. Comparte la migración de HU-34 (índices de historial).
 
+HU-38 agrega el **centro de notificaciones del cliente final** en `/s/{slug}/notificaciones`, con el mismo pase de HU-23 (si no lo tiene, pide placa + celular). Lista los avisos que le llegaron (estado `enviada` o `entregada`) en los últimos 90 días, del más reciente al más antiguo, y distingue los leídos de los no leídos. La campana del encabezado de la app muestra cuántos faltan por leer. Al abrir un aviso de estado se marca como leído (`notificaciones.leida_at`) y lleva al seguimiento si el vehículo sigue en servicio, o al detalle del servicio en el historial (`/s/{slug}/historial?orden={id}`) si ya se entregó. No requiere migraciones ni variables nuevas.
+
 HU-57 incorpora el panel de superadministración para registrar establecimientos, invitar al administrador inicial, consultar periodos de prueba, activar, suspender y reenviar invitaciones. HU-59 centraliza los módulos permitidos por rol en el backend (`GET /me` y middleware `requiereModulo`) y usa esos permisos para filtrar el menú y proteger la navegación del frontend.
 
 ### Ejecución

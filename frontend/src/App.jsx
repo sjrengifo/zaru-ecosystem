@@ -23,6 +23,7 @@ import AccesoCliente from './pages/AccesoCliente.jsx';
 import BajaNotificaciones from './pages/BajaNotificaciones.jsx';
 import PoliticaDatos from './pages/PoliticaDatos.jsx';
 import HistorialCliente from './pages/HistorialCliente.jsx';
+import NotificacionesCliente from './pages/NotificacionesCliente.jsx';
 
 const protegida = (ruta, elemento) => <RutaProtegida roles={rolesDeRuta(ruta)}>{elemento}</RutaProtegida>;
 const conModulo = (modulo, pagina) => <RequiereModulo modulo={modulo}>{pagina}</RequiereModulo>;
@@ -43,6 +44,8 @@ export default function App() {
       <Route path="/politica-datos" element={<PoliticaDatos />} />
       {/* HU-23 / HU-24: historial y detalle de servicios del cliente final, con placa + celular. */}
       <Route path="/s/:slug/historial" element={<HistorialCliente />} />
+      {/* HU-38: centro de notificaciones del cliente final, con el mismo pase del historial. */}
+      <Route path="/s/:slug/notificaciones" element={<NotificacionesCliente />} />
       <Route path="/superadmin" element={protegida('/superadmin', <Superadmin />)} />
 
       <Route element={<RutaProtegida><Layout /></RutaProtegida>}>

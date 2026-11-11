@@ -66,6 +66,8 @@ tags:
     description: HU-18 (cliente final, sin sesión)
   - name: Acceso del cliente
     description: HU-17 (cliente final, sin sesión ni contraseña)
+  - name: Notificaciones del cliente
+    description: HU-38 (centro de notificaciones de la app, con el pase del historial)
 security:
   - bearerPanel: []
 
@@ -387,6 +389,61 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DetalleHistorialCliente' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /publico/cliente/notificaciones:
+    get:
+      tags: [Notificaciones del cliente]
+      operationId: listarNotificacionesCliente
+      summary: Centro de notificaciones del cliente (últimos 90 días)
+      description: |
+        HU-38 CA1 y CA2. Avisos que **le llegaron** al cliente del pase en esa sede (estado `enviada` o
+        `entregada`) durante los últimos 90 días, del más reciente al más antiguo, con su marca de leída y
+        `noLeidas`, el número de avisos pendientes para el contador de la app.
+
+        HU-38 CA3: cada aviso de estado trae `destino`. Si el vehículo sigue en servicio es
+        `{ pantalla: seguimiento, codigo }`; si ya se entregó, `{ pantalla: historial, ordenId }` para abrir
+        el detalle del servicio. Los demás avisos traen `destino: null`.
+      security:
+        - paseCliente: []
+      responses:
+        '200':
+          description: Avisos del cliente y cuántos siguen sin leer.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CentroNotificacionesCliente' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /publico/cliente/notificaciones/{id}/leida:
+    patch:
+      tags: [Notificaciones del cliente]
+      operationId: marcarNotificacionClienteLeida
+      summary: Marcar un aviso del cliente como leído
+      description: |
+        HU-38. Guarda la fecha y hora en que el cliente abrió el aviso. Repetirlo no cambia esa fecha. Un aviso
+        de otro cliente, de otra sede o que no le llegó responde el mismo `404`.
+      security:
+        - paseCliente: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador UUID del aviso.
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Aviso marcado como leído.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, leida, leidaAt]
+                properties:
+                  id: { type: string, format: uuid }
+                  leida: { type: boolean, const: true }
+                  leidaAt: { type: string, format: date-time }
         '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
@@ -2277,6 +2334,43 @@ components:
             subtotal: { type: number, minimum: 0 }
             descuento: { type: number, minimum: 0 }
             total: { type: number, minimum: 0 }
+
+    NotificacionCliente:
+      type: object
+      required: [id, tipo, categoria, evento, titulo, canal, fecha, leida, placa, destino]
+      properties:
+        id: { type: string, format: uuid }
+        tipo: { type: string, enum: [operativa, comercial, recordatorio, novedad, correccion, sistema] }
+        categoria: { type: string, description: 'Texto visible del tipo, p. ej. "Estado del servicio".' }
+        evento: { type: string, example: orden.lista }
+        titulo: { type: string, example: Tu vehículo ABC123 está listo para recoger }
+        canal: { type: string, enum: [push, sms, correo] }
+        fecha: { type: string, format: date-time }
+        leida: { type: boolean }
+        placa: { type: [string, 'null'] }
+        destino:
+          description: HU-38 CA3. Pantalla a la que lleva un aviso de estado; `null` en los demás.
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [pantalla, codigo]
+              properties:
+                pantalla: { type: string, const: seguimiento }
+                codigo: { type: string }
+            - type: object
+              required: [pantalla, ordenId]
+              properties:
+                pantalla: { type: string, const: historial }
+                ordenId: { type: string, format: uuid }
+
+    CentroNotificacionesCliente:
+      type: object
+      required: [notificaciones, noLeidas]
+      properties:
+        notificaciones:
+          type: array
+          items: { $ref: '#/components/schemas/NotificacionCliente' }
+        noLeidas: { type: integer, minimum: 0, description: HU-38 CA2. Avisos de la lista sin leer. }
 
     Notificacion:
       type: object
