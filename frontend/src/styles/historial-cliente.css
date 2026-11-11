@@ -1,0 +1,104 @@
+/* HU-23 / HU-24 — Historial de servicios del cliente final (web móvil primero).
+   Se apoya en seguimiento.css (.seguimiento, .seg-contenido, .seg-tarjeta) y acceso-cliente.css
+   (formulario placa/celular). */
+
+.historial-etiqueta-celular { margin-top: 14px; }
+
+.historial-panel { padding: 18px; }
+.historial-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.historial-saludo { margin: 0; font-size: 13px; font-weight: 600; color: var(--color-primario); }
+.historial-titulo {
+  margin: 2px 0 4px;
+  font-family: var(--fuente-display);
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.historial-subtitulo { margin: 0; color: var(--color-texto-suave); font-size: 14px; }
+.historial-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--color-borde);
+  border-radius: 999px;
+  color: var(--color-texto-suave);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.historial-volver:hover { color: var(--color-primario); border-color: var(--color-primario); }
+
+.historial-filtro { margin: 16px 0 4px; }
+.historial-filtro label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--color-texto-suave); }
+.historial-filtro select { margin: 0; }
+
+.historial-cargando { padding: 24px 0; }
+
+.historial-lista { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+.historial-item { margin: 0; }
+.historial-tarjeta {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--color-borde);
+  border-radius: 14px;
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transicion), box-shadow var(--transicion), transform var(--transicion);
+}
+.historial-tarjeta:hover { border-color: var(--color-primario); box-shadow: var(--sombra-2); }
+.historial-tarjeta:active { transform: scale(0.995); }
+.historial-tarjeta-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.historial-fecha { font-size: 12px; color: var(--color-texto-suave); text-align: right; }
+.historial-lavado { margin: 10px 0 4px; font-weight: 650; overflow-wrap: anywhere; }
+.historial-sede { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 13px; color: var(--color-texto-suave); }
+.historial-tarjeta-pie { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.historial-total-texto { font-weight: 700; }
+.historial-ver { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; font-weight: 650; color: var(--color-primario); }
+
+.historial-vacio { display: flex; gap: 10px; margin-top: 14px; }
+.historial-vacio svg { flex-shrink: 0; margin-top: 1px; color: var(--color-primario); }
+.historial-vacio p { margin: 0; }
+.historial-vacio-titulo { font-weight: 650; }
+.historial-vacio p + p { margin-top: 4px; color: var(--color-texto-suave); font-size: 14px; }
+
+/* ---------- Detalle (HU-24) ---------- */
+.historial-detalle { display: flex; flex-direction: column; gap: 14px; }
+.historial-detalle-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.historial-detalle-datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; margin: 0; }
+.historial-detalle-datos dt { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--color-texto-suave); }
+.historial-detalle-datos dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+
+.historial-servicios-titulo { margin: 4px 0 0; font-size: 15px; }
+.historial-servicios { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.historial-servicios li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--color-borde);
+  font-size: 14px;
+}
+.historial-servicios li:last-child { border-bottom: 0; }
+
+.historial-totales { display: grid; gap: 4px; margin: 0; padding-top: 8px; border-top: 1px solid var(--color-borde); }
+.historial-totales > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.historial-totales dt { display: flex; align-items: center; gap: 5px; color: var(--color-texto-suave); font-size: 14px; }
+.historial-totales dd { margin: 0; font-weight: 600; }
+.historial-total dt, .historial-total dd { color: var(--color-texto); font-weight: 750; font-size: 16px; }
+
+@media (max-width: 420px) {
+  .historial-detalle-datos { grid-template-columns: 1fr; }
+  .historial-titulo { font-size: 21px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .historial-tarjeta { transition: none; }
+  .historial-tarjeta:active { transform: none; }
+}

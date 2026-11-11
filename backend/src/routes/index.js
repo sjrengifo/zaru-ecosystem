@@ -12,13 +12,17 @@ import usuariosRoutes from './usuarios.routes.js';
 import establecimientoRoutes from './establecimiento.routes.js';
 import superadminRoutes from './superadmin.routes.js';
 import reportesRoutes from './reportes.routes.js';
+import notificacionesRoutes from './notificaciones.routes.js';
 import * as me from '../controllers/me.controller.js';
 import * as politicas from '../controllers/politicas.controller.js';
 import * as seguimiento from '../controllers/seguimiento.controller.js';
 import * as publico from '../controllers/publico.controller.js';
 import * as baja from '../controllers/baja.controller.js';
+import * as cliente from '../controllers/cliente.controller.js';
 import { validar } from '../shared/validar.js';
 import { busquedaPublica } from '../schemas/publico.schemas.js';
+import { accesoHistorial, filtroHistorial, idOrden } from '../schemas/cliente.schemas.js';
+import { requierePase } from '../shared/paseCliente.js';
 
 export const VERSION_API = '1.0.0';
 
@@ -32,6 +36,7 @@ export const MODULOS = [
   ['/establecimiento', establecimientoRoutes],
   ['/superadmin', superadminRoutes],
   ['/reportes', reportesRoutes],
+  ['/notificaciones', notificacionesRoutes],
 ];
 
 export const MODULO_DE_PREFIJO = {
@@ -42,6 +47,7 @@ export const MODULO_DE_PREFIJO = {
   // al registrar un ingreso). POST/PATCH ya exigen requiereRol('admin') en promociones.routes.js.
   '/usuarios': 'usuarios',
   '/reportes': 'reportes',
+  '/notificaciones': 'notificaciones',
 };
 
 const router = Router();
@@ -65,6 +71,13 @@ router.post('/publico/sedes/:slug/buscar', validar({ body: busquedaPublica }), p
 // HU-30 CA3: el cliente deja de recibir avisos o promociones desde el enlace del correo, sin sesión.
 router.get('/publico/baja/:token', baja.consultar);
 router.post('/publico/baja/:token', baja.confirmar);
+// HU-23 / HU-24: historial y detalle de servicios del cliente final. El cliente verifica que es
+// dueño del vehículo con placa + celular y recibe un pase firmado de vida corta; ninguna de estas
+// rutas acepta un id de cliente o de sede ajeno.
+router.post('/publico/sedes/:slug/historial/acceso', validar({ body: accesoHistorial }), cliente.acceso);
+router.get('/publico/cliente/vehiculos', requierePase, cliente.vehiculos);
+router.get('/publico/cliente/historial', requierePase, validar({ query: filtroHistorial }), cliente.historial);
+router.get('/publico/cliente/historial/:ordenId', requierePase, validar({ params: idOrden }), cliente.detalle);
 
 // Todo lo demás requiere sesión.
 router.use(requiereSesion);

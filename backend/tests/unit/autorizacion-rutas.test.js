@@ -85,6 +85,8 @@ const RUTAS_ADMIN = [
   ['POST', '/api/v1/establecimiento/logo'],
   ['GET', '/api/v1/reportes/servicios'],
   ['GET', '/api/v1/reportes/afluencia'],
+  ['GET', '/api/v1/notificaciones'],
+  ['GET', `/api/v1/notificaciones/${ID}`],
 ];
 
 function pedir(metodo, ruta, token, cuerpo = {}) {

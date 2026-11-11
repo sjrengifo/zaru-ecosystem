@@ -8,6 +8,7 @@ export const MENU = [
   { ruta: '/promociones', texto: 'Promociones', soloAdmin: true },
   { ruta: '/usuarios', texto: 'Usuarios', soloAdmin: true },
   { ruta: '/reportes', texto: 'Reportes', soloAdmin: true },
+  { ruta: '/notificaciones', texto: 'Notificaciones', soloAdmin: true },
   { ruta: '/branding', texto: 'Branding', soloAdmin: true },
 ];
 

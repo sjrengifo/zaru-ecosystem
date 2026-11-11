@@ -11,10 +11,11 @@ export const MENU = [
   { modulo: 'usuarios', ruta: '/usuarios', texto: 'Usuarios' },
   { modulo: 'branding', ruta: '/branding', texto: 'Branding' },
   { modulo: 'reportes', ruta: '/reportes', texto: 'Reportes' },
+  { modulo: 'notificaciones', ruta: '/notificaciones', texto: 'Notificaciones' },
 ];
 
 export const MODULOS_POR_ROL = {
-  admin: ['dashboard', 'clientes', 'vehiculos', 'servicios', 'promociones', 'usuarios', 'branding', 'reportes'],
+  admin: ['dashboard', 'clientes', 'vehiculos', 'servicios', 'promociones', 'usuarios', 'branding', 'reportes', 'notificaciones'],
   operario: ['dashboard', 'clientes', 'vehiculos'],
   superadmin: ['superadmin'],
 };
