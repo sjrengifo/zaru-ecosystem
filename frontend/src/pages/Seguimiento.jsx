@@ -240,10 +240,16 @@ function EstadoConexion({ conexion }) {
   );
 }
 
-function VistaSeguimiento({ codigo }) {
+function VistaSeguimiento({ codigo, onMarca }) {
   const { seguimiento, estado, conexion, reintentar } = useSeguimiento(codigo);
   const [anuncio, setAnuncio] = useState('');
   const etapaAnterior = useRef(null);
+
+  // HU-22: los colores de la sede suben a <main> para que el fondo de la página también los use.
+  const { colorPrimario, colorSecundario } = seguimiento?.establecimiento ?? {};
+  useEffect(() => {
+    onMarca?.({ colorPrimario, colorSecundario });
+  }, [colorPrimario, colorSecundario, onMarca]);
 
   // Anuncia el cambio de etapa a los lectores de pantalla (no en la primera carga).
   useEffect(() => {
@@ -311,11 +317,12 @@ function VistaSeguimiento({ codigo }) {
 export default function Seguimiento() {
   const { codigo: enRuta } = useParams();
   const codigo = enRuta ? normalizarCodigo(enRuta) : null;
+  const [marca, setMarca] = useState(null); // HU-22: colores de la sede de la orden consultada
 
   return (
-    <main className="seguimiento">
+    <main className="seguimiento" style={codigo ? estiloMarca(marca) : undefined}>
       {codigo ? (
-        <VistaSeguimiento key={codigo} codigo={codigo} />
+        <VistaSeguimiento key={codigo} codigo={codigo} onMarca={setMarca} />
       ) : (
         <div className="seg-contenido">
           <Encabezado />

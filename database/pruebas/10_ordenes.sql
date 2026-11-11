@@ -138,7 +138,7 @@ select pg_temp.verificar('CA2: crea cliente, consentimiento, vehículo y orden j
   (select c.nombre = 'Cliente Nuevo' and k.otorgado and k.politica_version = privado.politica_vigente()
      and v.placa = 'HU8102' and o.estado = 'recibido'
    from clientes c
-   join consentimientos k on k.cliente_id = c.id
+   join consentimientos k on k.cliente_id = c.id and k.tipo = 'tratamiento_datos' -- HU-30: hay una fila por autorización
    join vehiculos v on v.cliente_id = c.id
    join ordenes o on o.vehiculo_id = v.id
    where c.telefono = '3001000102' and o.id = (select id from ids where clave = 'ca2')), 'una sola transacción');

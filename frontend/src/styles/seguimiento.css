@@ -14,6 +14,16 @@
     var(--color-fondo);
 }
 
+/* HU-22: los tonos derivados se calculan en :root (global.css) con el color de Zaru. Aquí se vuelven a
+   declarar para que se recalculen con el color de la sede que llega como estilo en línea, y así el
+   hover de los botones y los fondos suaves también lleven la marca del establecimiento. */
+.seguimiento,
+.seg-contenido {
+  --color-primario-hover: color-mix(in srgb, var(--color-primario) 82%, #000);
+  --color-primario-suave: color-mix(in srgb, var(--color-primario) 9%, #fff);
+  --color-primario-suave-hover: color-mix(in srgb, var(--color-primario) 17%, #fff);
+}
+
 .seg-contenido {
   display: flex;
   flex-direction: column;
