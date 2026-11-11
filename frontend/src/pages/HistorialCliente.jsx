@@ -6,17 +6,17 @@
 //
 // El establecimiento y el cliente salen del pase firmado: escribir otro id en la URL no da acceso a
 // datos ajenos (la API responde 404/401). Es una página pública, sin sesión del panel.
-import { useEffect, useId, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, CarFront, ChevronRight, Clock, Droplets, Info, MapPin, Receipt, Search, TriangleAlert } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, CarFront, ChevronRight, Clock, Droplets, Info, MapPin, Receipt, TriangleAlert } from 'lucide-react';
 import Cargando from '../components/Cargando.jsx';
+import CampanaNotificaciones from '../components/CampanaNotificaciones.jsx';
+import FormularioPase from '../components/FormularioPase.jsx';
 import MarcaZaru from '../components/MarcaZaru.jsx';
 import Modal from '../components/Modal.jsx';
 import { formatoFechaHora, formatoMoneda } from '../lib/formato.js';
-import { errorBusqueda, formatoCelular, limpiarCelular, limpiarPlaca } from '../lib/accesoCliente.js';
 import { obtenerSede } from '../services/accesoCliente.js';
 import {
-  accederHistorial,
   guardarPase,
   leerPase,
   listarHistorialCliente,
@@ -36,7 +36,7 @@ function estiloMarca(sede) {
   return estilo;
 }
 
-function Encabezado({ sede }) {
+function Encabezado({ sede, slug, pase }) {
   return (
     <header className="seg-encabezado">
       {sede?.logoUrl ? (
@@ -46,143 +46,9 @@ function Encabezado({ sede }) {
       ) : (
         <MarcaZaru tamano={28} gota={false} />
       )}
+      {/* HU-38: acceso al centro de notificaciones con el contador de pendientes. */}
+      {sede && <CampanaNotificaciones slug={slug} pase={pase} />}
     </header>
-  );
-}
-
-/** Formulario de verificación: placa + celular juntos (son la prueba de propiedad del vehículo). */
-function FormularioAcceso({ slug, alEntrar }) {
-  const idBase = useId();
-  const campoPlaca = useRef(null);
-  const [placa, setPlaca] = useState('');
-  const [celular, setCelular] = useState('');
-  const [errores, setErrores] = useState({ placa: '', celular: '' });
-  const [aviso, setAviso] = useState(null); // { tipo: 'no-encontrado' | 'limite' | 'error', texto }
-  const [enviando, setEnviando] = useState(false);
-
-  const enviar = async (evento) => {
-    evento.preventDefault();
-    if (enviando) return;
-    const errorPlaca = errorBusqueda('placa', placa);
-    const errorCelular = errorBusqueda('celular', celular);
-    setErrores({ placa: errorPlaca, celular: errorCelular });
-    setAviso(null);
-    if (errorPlaca || errorCelular) {
-      if (errorPlaca) campoPlaca.current?.focus();
-      return;
-    }
-    setEnviando(true);
-    try {
-      const datos = await accederHistorial(slug, { placa: limpiarPlaca(placa), celular: limpiarCelular(celular) });
-      alEntrar(datos);
-    } catch (err) {
-      if (err.status === 404) {
-        setAviso({
-          tipo: 'no-encontrado',
-          texto: 'No encontramos un vehículo con esa placa y celular en esta sede.',
-        });
-      } else if (err.status === 429) {
-        setAviso({ tipo: 'limite', texto: err.message });
-      } else if (err.status === 400) {
-        setErrores({
-          placa: err.detalles?.find((d) => d.campo === 'placa')?.mensaje ?? '',
-          celular: err.detalles?.find((d) => d.campo === 'celular')?.mensaje ?? '',
-        });
-      } else {
-        setAviso({ tipo: 'error', texto: 'No pudimos conectarnos. Revisa tu conexión e inténtalo de nuevo.' });
-      }
-    } finally {
-      setEnviando(false);
-    }
-  };
-
-  return (
-    <section className="seg-tarjeta acceso-tarjeta" aria-labelledby="historial-acceso-titulo">
-      <h1 id="historial-acceso-titulo" className="acceso-titulo">Mi historial de servicios</h1>
-      <p className="acceso-intro">
-        Verifica tu placa y el celular con el que registraste el vehículo. Solo tú verás tus servicios.
-      </p>
-
-      <form onSubmit={enviar} noValidate>
-        <label htmlFor={`${idBase}-placa`} className="acceso-etiqueta">Placa del vehículo</label>
-        <div className="acceso-campo acceso-campo-placa">
-          <input
-            ref={campoPlaca}
-            id={`${idBase}-placa`}
-            value={placa}
-            onChange={(e) => {
-              setPlaca(limpiarPlaca(e.target.value));
-              setErrores((previos) => ({ ...previos, placa: '' }));
-              setAviso(null);
-            }}
-            inputMode="text"
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="ABC123"
-            aria-invalid={Boolean(errores.placa)}
-            aria-describedby={`${idBase}-placa-ayuda`}
-            disabled={enviando}
-          />
-        </div>
-        <p id={`${idBase}-placa-ayuda`} className={errores.placa ? 'seg-error-campo' : 'acceso-ayuda'} role={errores.placa ? 'alert' : undefined}>
-          {errores.placa || 'Escríbela sin espacios ni guiones.'}
-        </p>
-
-        <label htmlFor={`${idBase}-celular`} className="acceso-etiqueta historial-etiqueta-celular">Número de celular</label>
-        <div className="acceso-campo acceso-campo-celular">
-          <span className="acceso-prefijo" aria-hidden="true">+57</span>
-          <input
-            id={`${idBase}-celular`}
-            value={formatoCelular(celular)}
-            onChange={(e) => {
-              setCelular(limpiarCelular(e.target.value));
-              setErrores((previos) => ({ ...previos, celular: '' }));
-              setAviso(null);
-            }}
-            inputMode="numeric"
-            autoComplete="tel-national"
-            placeholder="300 123 4567"
-            aria-invalid={Boolean(errores.celular)}
-            aria-describedby={`${idBase}-celular-ayuda`}
-            disabled={enviando}
-          />
-        </div>
-        <p id={`${idBase}-celular-ayuda`} className={errores.celular ? 'seg-error-campo' : 'acceso-ayuda'} role={errores.celular ? 'alert' : undefined}>
-          {errores.celular || 'El mismo celular que diste al registrar tu vehículo.'}
-        </p>
-
-        <button type="submit" className="boton boton-grande acceso-boton" disabled={enviando} aria-busy={enviando}>
-          {enviando ? (
-            <>
-              <span className="spinner" aria-hidden="true" />
-              Verificando…
-            </>
-          ) : (
-            <>
-              Ver mis servicios
-              <Search size={18} aria-hidden="true" />
-            </>
-          )}
-        </button>
-      </form>
-
-      {aviso && (
-        <div className={`acceso-aviso acceso-aviso-${aviso.tipo === 'no-encontrado' ? 'sin-servicio' : aviso.tipo}`} role="alert">
-          {aviso.tipo === 'no-encontrado' ? <Info size={20} aria-hidden="true" /> : <TriangleAlert size={20} aria-hidden="true" />}
-          <div>
-            <p className="acceso-aviso-titulo">{aviso.texto.replace(/\.?$/, '.')}</p>
-            {aviso.tipo === 'no-encontrado' && (
-              <p>Revisa que la placa y el celular estén bien escritos o pregunta en la recepción del car wash.</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      <p className="acceso-codigo">
-        <Link to={`/s/${encodeURIComponent(slug)}`}>Volver al inicio</Link>
-      </p>
-    </section>
   );
 }
 
@@ -283,7 +149,9 @@ export default function HistorialCliente() {
   const [historial, setHistorial] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [errorHistorial, setErrorHistorial] = useState('');
-  const [detalleId, setDetalleId] = useState(null);
+  // HU-38 CA3: un aviso de un servicio ya entregado abre su detalle con ?orden=<id>.
+  const [parametros, setParametros] = useSearchParams();
+  const [detalleId, setDetalleId] = useState(() => parametros.get('orden'));
   const [avisoSesion, setAvisoSesion] = useState('');
   const [recargas, setRecargas] = useState(0);
 
@@ -362,7 +230,7 @@ export default function HistorialCliente() {
   return (
     <main className="seguimiento historial-cliente" style={estiloMarca(sede)}>
       <div className="seg-contenido">
-        <Encabezado sede={sede} />
+        <Encabezado sede={sede} slug={slug} pase={pase} />
 
         {cargandoSede ? (
           <Cargando texto="Cargando…" className="seg-cargando" />
@@ -385,7 +253,7 @@ export default function HistorialCliente() {
                 <p>{avisoSesion}</p>
               </div>
             )}
-            <FormularioAcceso slug={slug} alEntrar={alEntrar} />
+            <FormularioPase slug={slug} alEntrar={alEntrar} />
           </>
         ) : (
           <section className="seg-tarjeta historial-panel" aria-labelledby="historial-titulo">
@@ -440,11 +308,14 @@ export default function HistorialCliente() {
         )}
       </div>
 
-      {detalleId && (
+      {detalleId && pase && (
         <DetalleServicio
           pase={pase}
           ordenId={detalleId}
-          onCerrar={() => setDetalleId(null)}
+          onCerrar={() => {
+            setDetalleId(null);
+            if (parametros.has('orden')) setParametros({}, { replace: true });
+          }}
           onVencer={manejarSesionVencida}
         />
       )}

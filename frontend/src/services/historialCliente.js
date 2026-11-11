@@ -2,7 +2,7 @@
 //
 // El acceso se obtiene verificando placa + celular y devuelve un pase firmado de vida corta. El pase
 // se guarda en sessionStorage (se borra al cerrar la pestaña) y viaja en Authorization: Bearer.
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
+export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
 const clavePase = (slug) => `zaru:historial:${slug}`;
 
@@ -23,7 +23,7 @@ export function guardarPase(slug, pase) {
   }
 }
 
-async function leer(respuesta, mensajePorDefecto) {
+export async function leer(respuesta, mensajePorDefecto) {
   const json = await respuesta.json().catch(() => ({}));
   if (!respuesta.ok) {
     const error = new Error(json.error?.mensaje || mensajePorDefecto);
@@ -35,7 +35,7 @@ async function leer(respuesta, mensajePorDefecto) {
   return json;
 }
 
-function conPase(pase, opciones = {}) {
+export function conPase(pase, opciones = {}) {
   return { ...opciones, headers: { ...(opciones.headers ?? {}), Authorization: `Bearer ${pase}` }, cache: 'no-store' };
 }
 

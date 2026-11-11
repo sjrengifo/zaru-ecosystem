@@ -10,6 +10,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, CarFront, ChevronRight, Info, Smartphone, TriangleAlert } from 'lucide-react';
 import Cargando from '../components/Cargando.jsx';
+import CampanaNotificaciones from '../components/CampanaNotificaciones.jsx';
 import MarcaZaru from '../components/MarcaZaru.jsx';
 import { buscarVehiculo, obtenerSede } from '../services/accesoCliente.js';
 import { cuerpoBusqueda, errorBusqueda, formatoCelular, limpiarCelular, limpiarPlaca } from '../lib/accesoCliente.js';
@@ -26,7 +27,7 @@ function estiloMarca(sede) {
   return estilo;
 }
 
-function Encabezado({ sede }) {
+function Encabezado({ sede, slug }) {
   return (
     <header className="seg-encabezado">
       {sede?.logoUrl ? (
@@ -36,6 +37,8 @@ function Encabezado({ sede }) {
       ) : (
         <MarcaZaru tamano={28} gota={false} />
       )}
+      {/* HU-38 CA2: al abrir la app, la campana muestra los avisos sin leer (si el cliente ya verificó su acceso). */}
+      {sede && <CampanaNotificaciones slug={slug} />}
     </header>
   );
 }
@@ -242,7 +245,7 @@ export default function AccesoCliente() {
   return (
     <main className="seguimiento acceso" style={estiloMarca(sede)}>
       <div className="seg-contenido">
-        <Encabezado sede={sede} />
+        <Encabezado sede={sede} slug={slug} />
         {cargando ? (
           <Cargando texto="Cargando…" className="seg-cargando" />
         ) : error?.status === 404 ? (
