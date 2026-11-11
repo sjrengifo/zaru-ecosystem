@@ -1,0 +1,103 @@
+/* HU-38 — Centro de notificaciones del cliente final y campana del encabezado.
+   Usa los tokens globales; el color de la sede llega por --color-primario. */
+
+/* ---------- Campana con contador (CA2) ---------- */
+.seg-encabezado { position: relative; }
+/* El logo o el nombre de la sede siguen centrados sin quedar debajo de la campana. */
+.seg-encabezado:has(.campana-cliente) { padding-inline: 52px; }
+.campana-cliente {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: 2px;
+  border: 1px solid var(--color-borde);
+  border-radius: 50%;
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  transform: translateY(-50%);
+  transition: border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+.campana-cliente:hover,
+.campana-cliente:focus-visible { border-color: var(--color-primario); color: var(--color-primario); box-shadow: var(--sombra-2); }
+.campana-contador {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 2px solid var(--color-superficie);
+  border-radius: 999px;
+  background: var(--color-error);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Lista (CA1) ---------- */
+.notif-lista { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+.notif-item { margin: 0; }
+.notif-tarjeta {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--color-borde);
+  border-radius: 14px;
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 120ms ease;
+}
+.notif-tarjeta:hover { border-color: var(--color-primario); box-shadow: var(--sombra-2); }
+.notif-tarjeta:active { transform: scale(0.995); }
+
+/* No leída: fondo con el tono de la sede, punto y título en negrita. Leída: tono neutro y texto suave. */
+.notif-no-leida {
+  border-color: color-mix(in srgb, var(--color-primario) 35%, var(--color-borde));
+  background: var(--color-primario-suave);
+}
+.notif-leida .notif-titulo { color: var(--color-texto-suave); font-weight: 500; }
+
+.notif-icono {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--color-primario);
+  background: color-mix(in srgb, var(--color-primario) 12%, #fff);
+}
+.notif-leida .notif-icono { color: var(--color-texto-suave); background: var(--color-fondo); }
+
+.notif-cuerpo { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.notif-cabecera { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.notif-categoria { font-size: 12px; font-weight: 650; color: var(--color-primario); text-transform: uppercase; letter-spacing: 0.04em; }
+.notif-leida .notif-categoria { color: var(--color-texto-suave); }
+.notif-fecha { flex-shrink: 0; font-size: 12px; color: var(--color-texto-suave); }
+.notif-titulo { display: flex; align-items: center; gap: 8px; font-weight: 700; overflow-wrap: anywhere; }
+.notif-punto { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--color-primario); }
+.notif-accion { display: inline-flex; align-items: center; gap: 2px; margin-top: 2px; font-size: 13px; font-weight: 650; color: var(--color-primario); }
+
+.notif-pie { display: flex; align-items: flex-start; gap: 6px; margin: 16px 0 0; font-size: 13px; color: var(--color-texto-suave); }
+.notif-pie svg { flex-shrink: 0; margin-top: 3px; }
+
+@media (max-width: 360px) {
+  .notif-cabecera { flex-direction: column; gap: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campana-cliente,
+  .notif-tarjeta { transition: none; }
+  .notif-tarjeta:active { transform: none; }
+}

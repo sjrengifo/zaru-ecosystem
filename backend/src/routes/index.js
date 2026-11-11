@@ -21,7 +21,7 @@ import * as baja from '../controllers/baja.controller.js';
 import * as cliente from '../controllers/cliente.controller.js';
 import { validar } from '../shared/validar.js';
 import { busquedaPublica } from '../schemas/publico.schemas.js';
-import { accesoHistorial, filtroHistorial, idOrden } from '../schemas/cliente.schemas.js';
+import { accesoHistorial, filtroHistorial, idNotificacionCliente, idOrden } from '../schemas/cliente.schemas.js';
 import { requierePase } from '../shared/paseCliente.js';
 
 export const VERSION_API = '1.0.0';
@@ -78,6 +78,9 @@ router.post('/publico/sedes/:slug/historial/acceso', validar({ body: accesoHisto
 router.get('/publico/cliente/vehiculos', requierePase, cliente.vehiculos);
 router.get('/publico/cliente/historial', requierePase, validar({ query: filtroHistorial }), cliente.historial);
 router.get('/publico/cliente/historial/:ordenId', requierePase, validar({ params: idOrden }), cliente.detalle);
+// HU-38: centro de notificaciones del cliente final, con el mismo pase del historial.
+router.get('/publico/cliente/notificaciones', requierePase, cliente.notificaciones);
+router.patch('/publico/cliente/notificaciones/:id/leida', requierePase, validar({ params: idNotificacionCliente }), cliente.notificacionLeida);
 
 // Todo lo demás requiere sesión.
 router.use(requiereSesion);

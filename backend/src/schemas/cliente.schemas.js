@@ -34,3 +34,8 @@ export const filtroHistorial = z.object({
 export const idOrden = z.object({
   ordenId: z.string().uuid('El identificador del servicio no es válido'),
 });
+
+// HU-38: aviso del centro de notificaciones del cliente.
+export const idNotificacionCliente = z.object({
+  id: z.string().uuid('El identificador de la notificación no es válido'),
+});

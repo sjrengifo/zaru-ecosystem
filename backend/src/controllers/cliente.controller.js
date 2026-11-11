@@ -5,6 +5,7 @@
 // acepta un id de cliente, de sede o de orden ajeno.
 import { crearPaseParaCliente } from '../shared/paseCliente.js';
 import { detalleHistorial, listarHistorial, vehiculosDelCliente } from '../shared/historialCliente.js';
+import { listarCentro, marcarLeida } from '../shared/centroNotificaciones.js';
 import { crearLimiteIntentos } from '../shared/limiteIntentos.js';
 
 export const limiteAccesos = crearLimiteIntentos({ maximo: 5 });
@@ -64,6 +65,28 @@ export async function detalle(req, res, next) {
     );
     res.set('Cache-Control', 'no-store');
     res.json({ cliente: { nombre: req.cliente.nombre }, servicio: datos });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** GET /publico/cliente/notificaciones — HU-38 CA1/CA2: avisos de los últimos 90 días y cuántos faltan por leer. */
+export async function notificaciones(req, res, next) {
+  try {
+    const datos = await listarCentro(req.cliente.tenant, req.cliente.clienteId);
+    res.set('Cache-Control', 'no-store');
+    res.json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** PATCH /publico/cliente/notificaciones/:id/leida — HU-38: marca un aviso propio como leído. */
+export async function notificacionLeida(req, res, next) {
+  try {
+    const datos = await marcarLeida(req.cliente.tenant, req.cliente.clienteId, req.params.id);
+    res.set('Cache-Control', 'no-store');
+    res.json(datos);
   } catch (err) {
     next(err);
   }
