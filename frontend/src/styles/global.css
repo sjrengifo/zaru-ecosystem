@@ -1647,3 +1647,33 @@ textarea {
 .historial-autorizaciones .texto-suave { font-size: 13px; }
 .historial-fila { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .insignia-retirada { color: var(--color-texto-suave); background: var(--color-fondo, #f1f5f9); }
+
+/* ---------- HU-33: avisos que no llegaron por ningún canal ---------- */
+.avisos-fallidos {
+  margin-bottom: var(--espacio);
+  padding: 14px 16px;
+  border: 1px solid #fecdca;
+  border-left: 4px solid var(--color-error);
+  border-radius: var(--radio);
+  background: var(--color-error-fondo);
+}
+.avisos-fallidos-encabezado { display: flex; gap: 10px; align-items: flex-start; color: var(--color-error); }
+.avisos-fallidos-encabezado h3 { margin: 0; font-size: 16px; color: var(--color-texto); }
+.avisos-fallidos-encabezado p { margin: 2px 0 0; font-size: 14px; color: var(--color-texto-suave); }
+.avisos-fallidos ul { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.avisos-fallidos li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+}
+.avisos-fallidos-datos { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 160px; }
+.avisos-fallidos-datos .texto-suave { font-size: 13px; }
+.avisos-fallidos-llamar { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+@media (max-width: 640px) {
+  .avisos-fallidos li > .boton, .avisos-fallidos-llamar { flex: 1; justify-content: center; }
+}

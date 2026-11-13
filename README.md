@@ -233,6 +233,8 @@ HU-34 incorpora **Notificaciones** en el menú del administrador: bitácora por 
 
 HU-23/HU-24 publican el **historial de servicios del cliente final** en `/s/{slug}/historial`. El cliente confirma su identidad con placa + celular registrados y recibe un pase firmado de 30 minutos (HMAC, sin sesión de panel); con él ve solo sus órdenes entregadas, de la más reciente a la más antigua, filtra por placa y abre el detalle de una única orden. El establecimiento y el cliente salen del pase firmado, nunca de un id de la URL. Comparte la migración de HU-34 (índices de historial).
 
+HU-33 completa el envío de avisos cuando algo falla. Cada aviso tiene un intento inicial y hasta 3 reintentos a 1, 2 y 4 minutos, en cualquier canal. Si un aviso de "vehículo listo" agota sus intentos, sale por el siguiente canal del cliente que no se haya probado (push → SMS → correo), siempre que tenga el destino registrado y la autorización de avisos vigente (HU-30). Si ya no queda canal, el dashboard del administrador muestra la alerta con la placa y el celular del cliente para llamarlo, hasta que marque "Ya lo contacté" (`GET /notificaciones/fallidas`). Para no enviar duplicados, Resend recibe una clave de idempotencia por notificación, y los webhooks `POST /webhooks/resend` y `POST /webhooks/twilio`, verificados con la firma de cada proveedor, confirman entregas tardías: cancelan los reintentos y alternos pendientes y cierran la alerta. Variables: `RESEND_WEBHOOK_SECRET` (secreto `whsec_…` del webhook de Resend) y `API_URL_PUBLICA` (dirección pública de la API, para el aviso de entrega de Twilio). Sin ellas los webhooks responden `503` y todo lo demás funciona igual. Hoy el SMS sale en modo `consola` (solo el log) hasta que se configure Twilio, y el canal push se habilita con HU-40. Requiere la migración `20261113031900_hu33_reintento_canal_alterno.sql`.
+
 HU-38 agrega el **centro de notificaciones del cliente final** en `/s/{slug}/notificaciones`, con el mismo pase de HU-23 (si no lo tiene, pide placa + celular). Lista los avisos que le llegaron (estado `enviada` o `entregada`) en los últimos 90 días, del más reciente al más antiguo, y distingue los leídos de los no leídos. La campana del encabezado de la app muestra cuántos faltan por leer. Al abrir un aviso de estado se marca como leído (`notificaciones.leida_at`) y lleva al seguimiento si el vehículo sigue en servicio, o al detalle del servicio en el historial (`/s/{slug}/historial?orden={id}`) si ya se entregó. No requiere migraciones ni variables nuevas.
 
 HU-57 incorpora el panel de superadministración para registrar establecimientos, invitar al administrador inicial, consultar periodos de prueba, activar, suspender y reenviar invitaciones. HU-59 centraliza los módulos permitidos por rol en el backend (`GET /me` y middleware `requiereModulo`) y usa esos permisos para filtrar el menú y proteger la navegación del frontend.
@@ -275,6 +277,8 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, `/politicas-datos/vigente
 | POST | `/publico/sedes/:slug/buscar` | Público | Acceso con la placa o el celular, sin contraseña (HU-17) | Implementado |
 | GET | `/publico/baja/:token` | Público | Qué autorización retira el enlace "dejar de recibir" de un correo (HU-30) | Implementado |
 | POST | `/publico/baja/:token` | Público | Retira esa autorización y confirma la hora registrada (HU-30) | Implementado |
+| POST | `/webhooks/resend` | Firma del proveedor | Resend confirma la entrega de un correo (HU-33) | Implementado |
+| POST | `/webhooks/twilio` | Firma del proveedor | Twilio confirma la entrega de un SMS (HU-33) | Implementado |
 | GET | `/publico/seguimiento/:codigo` | Público | Estado del lavado para el cliente final, sin datos personales (HU-18) | Implementado |
 | GET | `/publico/seguimiento/:codigo/eventos` | Público | Cambios de estado en tiempo real por Server-Sent Events (HU-18) | Implementado |
 | GET | `/clientes?buscar=` | Admin, Operario | Listar y buscar clientes por nombre, teléfono o placa | Implementado |
@@ -336,6 +340,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 
 | Jira | Historia | Puntos | MoSCoW | Frontend | Backend |
 |---|---|---|---|---|---|
+| ZARU-22 | HU-33 Reintento y canal alterno ante fallas de envío | 8 | Should | `AvisosFallidos.jsx` (dashboard) · `lib/avisosFallidos.js` | `shared/notificaciones.js` · `shared/confirmacionEntrega.js` · `webhooks.controller.js` · migración `hu33_reintento_canal_alterno` |
 | ZARU-19 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones | 5 | Must | `CasillasNotificaciones.jsx` · `AutorizacionesCliente.jsx` · `BajaNotificaciones.jsx` · `PoliticaDatos.jsx` | `shared/autorizaciones.js` · `shared/bajaPublica.js` · `baja.controller.js` · migración `hu30_autorizacion_notificaciones` |
 
 Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
