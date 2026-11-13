@@ -44,6 +44,7 @@ export function respuestaFalsa() {
     statusCode: 200,
     status: vi.fn(function status(codigo) { this.statusCode = codigo; return this; }),
     json: vi.fn(function json(cuerpo) { this.body = cuerpo; return this; }),
+    set: vi.fn(function set() { return this; }),
   };
 }
 

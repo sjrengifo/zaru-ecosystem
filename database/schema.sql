@@ -5,7 +5,7 @@
 
 
 
-\restrict SGLsftCSCAsdyADqIb2TL1U8UVAcSJXMSsNpYYyGbvrfLi7b32M8gP5XBFq0smq
+\restrict NW43L4oxMQJ4yzY7lyuHZpJ3mx3deR1fJc9vs2wkAwhcE4VPj1hLSGKE04wuM1f
 
 -- Name: privado; Type: SCHEMA; Schema: -; Owner: -
 
@@ -913,6 +913,37 @@ ALTER TABLE public.historial_estados ALTER COLUMN id ADD GENERATED ALWAYS AS IDE
     CACHE 1
 );
 
+-- Name: notificacion_intentos; Type: TABLE; Schema: public; Owner: -
+
+CREATE TABLE public.notificacion_intentos (
+    id bigint NOT NULL,
+    notificacion_id uuid NOT NULL,
+    establecimiento_id uuid NOT NULL,
+    intento smallint NOT NULL,
+    canal text NOT NULL,
+    resultado text NOT NULL,
+    proveedor text,
+    id_proveedor text,
+    entregado boolean DEFAULT false NOT NULL,
+    recuperable boolean,
+    error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT notificacion_intentos_canal_check CHECK ((canal = ANY (ARRAY['push'::text, 'sms'::text, 'correo'::text]))),
+    CONSTRAINT notificacion_intentos_intento_check CHECK ((intento >= 1)),
+    CONSTRAINT notificacion_intentos_resultado_check CHECK ((resultado = ANY (ARRAY['enviado'::text, 'fallido'::text])))
+);
+
+-- Name: notificacion_intentos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+
+ALTER TABLE public.notificacion_intentos ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.notificacion_intentos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
 -- Name: notificaciones; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.notificaciones (
@@ -934,11 +965,23 @@ CREATE TABLE public.notificaciones (
     notificacion_origen_id uuid,
     leida_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    fallo_definitivo_at timestamp with time zone,
+    alerta_atendida_at timestamp with time zone,
+    alerta_atendida_por uuid,
+    CONSTRAINT notificaciones_alerta_coherente CHECK (((alerta_atendida_at IS NULL) OR (fallo_definitivo_at IS NOT NULL))),
     CONSTRAINT notificaciones_canal_check CHECK ((canal = ANY (ARRAY['push'::text, 'sms'::text, 'correo'::text]))),
     CONSTRAINT notificaciones_estado_check CHECK ((estado = ANY (ARRAY['programada'::text, 'pendiente'::text, 'enviando'::text, 'enviada'::text, 'entregada'::text, 'fallida'::text, 'cancelada'::text]))),
     CONSTRAINT notificaciones_intentos_check CHECK ((intentos >= 0)),
     CONSTRAINT notificaciones_tipo_check CHECK ((tipo = ANY (ARRAY['operativa'::text, 'comercial'::text, 'recordatorio'::text, 'novedad'::text, 'correccion'::text, 'sistema'::text])))
 );
+
+-- Name: COLUMN notificaciones.fallo_definitivo_at; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON COLUMN public.notificaciones.fallo_definitivo_at IS 'HU-33 CA3: el aviso falló en todos los canales disponibles; aparece como alerta en el dashboard.';
+
+-- Name: COLUMN notificaciones.alerta_atendida_at; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON COLUMN public.notificaciones.alerta_atendida_at IS 'HU-33 CA3: el administrador contactó al cliente (o el proveedor confirmó la entrega después).';
 
 -- Name: orden_servicios; Type: TABLE; Schema: public; Owner: -
 
@@ -1128,10 +1171,25 @@ ALTER TABLE ONLY public.eventos
 ALTER TABLE ONLY public.historial_estados
     ADD CONSTRAINT historial_estados_pkey PRIMARY KEY (id);
 
+-- Name: notificacion_intentos notificacion_intentos_notificacion_id_canal_intento_key; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificacion_intentos
+    ADD CONSTRAINT notificacion_intentos_notificacion_id_canal_intento_key UNIQUE (notificacion_id, canal, intento);
+
+-- Name: notificacion_intentos notificacion_intentos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificacion_intentos
+    ADD CONSTRAINT notificacion_intentos_pkey PRIMARY KEY (id);
+
 -- Name: notificaciones notificaciones_clave_dedupe_key; Type: CONSTRAINT; Schema: public; Owner: -
 
 ALTER TABLE ONLY public.notificaciones
     ADD CONSTRAINT notificaciones_clave_dedupe_key UNIQUE (clave_dedupe);
+
+-- Name: notificaciones notificaciones_id_establecimiento_key; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificaciones
+    ADD CONSTRAINT notificaciones_id_establecimiento_key UNIQUE (id, establecimiento_id);
 
 -- Name: notificaciones notificaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 
@@ -1264,6 +1322,22 @@ CREATE INDEX historial_estados_ultimo_idx ON public.historial_estados USING btre
 
 CREATE INDEX historial_estados_usuario_id_idx ON public.historial_estados USING btree (usuario_id);
 
+-- Name: notificacion_intentos_establecimiento_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX notificacion_intentos_establecimiento_idx ON public.notificacion_intentos USING btree (establecimiento_id, created_at DESC);
+
+-- Name: notificacion_intentos_notificacion_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX notificacion_intentos_notificacion_idx ON public.notificacion_intentos USING btree (notificacion_id, created_at);
+
+-- Name: notificaciones_alertas_abiertas_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX notificaciones_alertas_abiertas_idx ON public.notificaciones USING btree (establecimiento_id, fallo_definitivo_at DESC) WHERE ((fallo_definitivo_at IS NOT NULL) AND (alerta_atendida_at IS NULL));
+
+-- Name: notificaciones_bitacora_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX notificaciones_bitacora_idx ON public.notificaciones USING btree (establecimiento_id, estado, canal, created_at DESC);
+
 -- Name: notificaciones_cliente_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX notificaciones_cliente_idx ON public.notificaciones USING btree (cliente_id, establecimiento_id);
@@ -1291,6 +1365,10 @@ CREATE INDEX orden_servicios_servicio_id_idx ON public.orden_servicios USING btr
 -- Name: ordenes_activas_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX ordenes_activas_idx ON public.ordenes USING btree (establecimiento_id, estado, estado_desde) WHERE (estado <> 'entregado'::public.estado_orden);
+
+-- Name: ordenes_cliente_entrega_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX ordenes_cliente_entrega_idx ON public.ordenes USING btree (vehiculo_id, entregada_at DESC) WHERE (estado = 'entregado'::public.estado_orden);
 
 -- Name: ordenes_codigo_seguimiento_idx; Type: INDEX; Schema: public; Owner: -
 
@@ -1335,6 +1413,10 @@ CREATE INDEX servicios_establecimiento_id_idx ON public.servicios USING btree (e
 -- Name: vehiculos_cliente_id_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX vehiculos_cliente_id_idx ON public.vehiculos USING btree (cliente_id);
+
+-- Name: vehiculos_cliente_placa_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX vehiculos_cliente_placa_idx ON public.vehiculos USING btree (cliente_id, placa);
 
 -- Name: vehiculos_establecimiento_id_cliente_id_idx; Type: INDEX; Schema: public; Owner: -
 
@@ -1410,6 +1492,21 @@ ALTER TABLE ONLY public.historial_estados
 
 ALTER TABLE ONLY public.historial_estados
     ADD CONSTRAINT historial_estados_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.perfiles(id);
+
+-- Name: notificacion_intentos notificacion_intentos_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificacion_intentos
+    ADD CONSTRAINT notificacion_intentos_establecimiento_id_fkey FOREIGN KEY (establecimiento_id) REFERENCES public.establecimientos(id) ON DELETE CASCADE;
+
+-- Name: notificacion_intentos notificacion_intentos_notificacion_id_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificacion_intentos
+    ADD CONSTRAINT notificacion_intentos_notificacion_id_establecimiento_id_fkey FOREIGN KEY (notificacion_id, establecimiento_id) REFERENCES public.notificaciones(id, establecimiento_id) ON DELETE CASCADE;
+
+-- Name: notificaciones notificaciones_alerta_atendida_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificaciones
+    ADD CONSTRAINT notificaciones_alerta_atendida_por_fkey FOREIGN KEY (alerta_atendida_por) REFERENCES public.perfiles(id) ON DELETE SET NULL;
 
 -- Name: notificaciones notificaciones_cliente_id_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 
@@ -1534,6 +1631,10 @@ ALTER TABLE public.eventos ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.historial_estados ENABLE ROW LEVEL SECURITY;
 
+-- Name: notificacion_intentos; Type: ROW SECURITY; Schema: public; Owner: -
+
+ALTER TABLE public.notificacion_intentos ENABLE ROW LEVEL SECURITY;
+
 -- Name: notificaciones; Type: ROW SECURITY; Schema: public; Owner: -
 
 ALTER TABLE public.notificaciones ENABLE ROW LEVEL SECURITY;
@@ -1588,6 +1689,10 @@ CREATE POLICY "ver historial" ON public.historial_estados FOR SELECT USING ((EXI
    FROM public.ordenes o
   WHERE ((o.id = historial_estados.orden_id) AND (o.establecimiento_id = privado.mi_establecimiento())))));
 
+-- Name: notificacion_intentos ver intentos de notificacion; Type: POLICY; Schema: public; Owner: -
+
+CREATE POLICY "ver intentos de notificacion" ON public.notificacion_intentos FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
+
 -- Name: establecimientos ver mi establecimiento; Type: POLICY; Schema: public; Owner: -
 
 CREATE POLICY "ver mi establecimiento" ON public.establecimientos FOR SELECT USING ((id = privado.mi_establecimiento()));
@@ -1628,4 +1733,4 @@ CREATE POLICY "ver servicios" ON public.servicios FOR SELECT USING ((establecimi
 
 CREATE POLICY "ver vehiculos" ON public.vehiculos FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
 
-\unrestrict SGLsftCSCAsdyADqIb2TL1U8UVAcSJXMSsNpYYyGbvrfLi7b32M8gP5XBFq0smq
+\unrestrict NW43L4oxMQJ4yzY7lyuHZpJ3mx3deR1fJc9vs2wkAwhcE4VPj1hLSGKE04wuM1f

@@ -43,6 +43,8 @@ const PERMITIDOS = new Set([
   'shared/bajaPublica.js',
   'shared/paseCliente.js',
   'shared/workerNotificaciones.js',
+  // HU-33 CA4: el webhook no tiene sesión; el establecimiento sale de la notificación misma.
+  'controllers/webhooks.controller.js',
   'middlewares/auth.js',
   'controllers/superadmin.controller.js',
   'controllers/usuarios.controller.js',

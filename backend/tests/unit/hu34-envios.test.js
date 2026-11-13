@@ -177,11 +177,12 @@ describe('HU-34 RF-F6-17 · canal alterno al agotar el correo de "listo"', () =>
     expect(alterno.contenido.texto).toContain('XYZ987');
   });
 
-  it('no duplica el SMS si ya existe uno con la misma clave', async () => {
+  it('no duplica el SMS si ya existe uno en la cadena (y no lo cuenta como fallo definitivo)', async () => {
     const tenant = tenantCon({
       ordenes: [{ data: orden(), error: null }],
       establecimientos: [{ data: { nombre: 'Lavadero Norte' }, error: null }],
-      notificaciones: [{ data: { id: 'alt-existente' }, error: null }],
+      // HU-33: la cadena del aviso ya tiene un SMS alterno pendiente.
+      notificaciones: [{ data: [{ id: FILA_ID, canal: 'correo', estado: 'fallida' }, { id: 'alt-existente', canal: 'sms', estado: 'pendiente' }], error: null }],
     });
     const proveedor = { nombre: 'smtp', enviar: vi.fn().mockRejectedValue(new Error('503')) };
 
@@ -189,6 +190,7 @@ describe('HU-34 RF-F6-17 · canal alterno al agotar el correo de "listo"', () =>
 
     expect(resultado.estado).toBe('fallida');
     expect(tenant.crear.mock.calls.filter(([tabla]) => tabla === 'notificaciones')).toHaveLength(0);
+    expect(tenant.actualizar.mock.calls.some(([, , cambios]) => cambios.fallo_definitivo_at)).toBe(false);
   });
 
   it('no crea el SMS si el cliente revocó los avisos', async () => {
