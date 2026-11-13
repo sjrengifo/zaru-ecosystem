@@ -91,7 +91,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones (ley 1581 de 2012) | ZARU-19 | 5 | Must | Samuel | F2, F6, F7 | RF-F2-03 a 05, RF-F6-24, 25 | ESC-F2-03, ESC-F6-14 | `tests/unit/autorizaciones.test.js` · `tests/integration/autorizaciones.test.js` · `database/pruebas/05_consentimientos.sql` · `frontend/tests/autorizaciones.test.jsx` | Cubierta |
 | HU-31 Configuración de los estados que generan notificación | ZARU-20 | 3 | Should | — | F6 | RF-F6-12 a 14 | ESC-F6-07, 08 | — | Pendiente |
 | HU-32 Personalización de plantillas de mensajes con la marca de la sede | ZARU-21 | 5 | Could | — | F7 | RF-F7-01 a 05 | ESC-F7-01 a 03 | — | Pendiente |
-| HU-33 Reintento y canal alterno ante fallas de envío | ZARU-22 | 8 | Should | — | F6 | RF-F6-16 a 19 | ESC-F6-09 a 11 | — | Pendiente |
+| HU-33 Reintento y canal alterno ante fallas de envío | ZARU-22 | 8 | Should | Samuel | F6 | RF-F6-16 a 19 | ESC-F6-09 a 11 | `tests/unit/hu33-reintento-alterno.test.js` · `tests/integration/hu33-reintento-alterno.test.js` · `frontend/tests/avisos-fallidos.test.jsx` | Cubierta |
 | HU-34 Bitácora de notificaciones enviadas | ZARU-23 | 5 | Should | — | F6 | RF-F6-20, 21 | ESC-F6-12 | — | Pendiente |
 | HU-35 Envío de promociones a clientes del establecimiento | ZARU-24 | 8 | Could | — | F7 | RF-F7-06 a 10 | ESC-F7-04, 05 | — | Pendiente |
 | HU-36 Recordatorio de próximo lavado | ZARU-25 | 5 | Could | — | F7 | RF-F7-11 a 14 | ESC-F7-06, 07 | — | Pendiente |

@@ -1,4 +1,4 @@
-// HU-08, HU-09 y HU-10 · Dashboard operativo en tiempo real (ZARU-10).
+// HU-08, HU-09, HU-10 y HU-33 · Dashboard operativo en tiempo real (ZARU-10).
 // Reutiliza el alta de ingreso (HU-08) y el avance de estado (HU-10) que ya
 // existían; HU-09 añade el tablero de cuatro columnas, los indicadores del día
 // y la sincronización con Supabase Realtime.
@@ -22,6 +22,7 @@ import ColumnaKanban from '../components/ColumnaKanban.jsx';
 import IndicadoresDashboard from '../components/IndicadoresDashboard.jsx';
 import FormularioIngreso from '../components/FormularioIngreso.jsx';
 import AlertaDemora from '../components/AlertaDemora.jsx';
+import AvisosFallidos from '../components/AvisosFallidos.jsx';
 import Notificacion from '../components/Notificacion.jsx';
 import Cargando from '../components/Cargando.jsx';
 
@@ -195,6 +196,9 @@ export default function Dashboard() {
           <p>{errorAccion}</p>
         </div>
       )}
+
+      {/* HU-33 CA3: avisos de "listo" que no llegaron por ningún canal (solo administrador). */}
+      <AvisosFallidos senal={ultimaActualizacion} ahora={ahora} />
 
       <IndicadoresDashboard
         atendidos={atendidos}
