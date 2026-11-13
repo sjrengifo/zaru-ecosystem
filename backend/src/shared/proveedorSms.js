@@ -23,13 +23,16 @@ export function proveedorSms(env = process.env) {
     return {
       nombre: 'twilio',
       configurado: Boolean(sid && token && desde),
-      async enviar({ para, texto }) {
+      async enviar({ para, texto, referencia }) {
         if (!sid || !token || !desde) {
           const error = new Error('Twilio no está configurado (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM)');
           error.recuperable = false;
           throw error;
         }
         const cuerpo = new URLSearchParams({ To: `+57${para}`, From: desde, Body: texto });
+        // HU-33 CA4: Twilio avisa al webhook cuando el SMS se entrega (y así no se duplica el aviso).
+        const callback = urlConfirmacionTwilio(env, referencia);
+        if (callback) cuerpo.set('StatusCallback', callback);
         const respuesta = await conTiempoMaximo(
           fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`, {
             method: 'POST',
@@ -62,6 +65,16 @@ export function proveedorSms(env = process.env) {
       return { idProveedor: `consola-${Date.now()}` };
     },
   };
+}
+
+/**
+ * HU-33 CA4: dirección pública del webhook de Twilio para una notificación. Sin API_URL_PUBLICA
+ * (desarrollo) no se pide confirmación de entrega.
+ */
+export function urlConfirmacionTwilio(env, referencia) {
+  const base = String(env.API_URL_PUBLICA ?? '').replace(/\/+$/, '');
+  if (!base || !referencia) return null;
+  return `${base}/api/v1/webhooks/twilio?n=${encodeURIComponent(referencia)}`;
 }
 
 /** Texto corto para el aviso alterno de "listo". */

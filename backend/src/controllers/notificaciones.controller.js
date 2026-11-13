@@ -8,6 +8,7 @@
 //   - "aceptada": el proveedor recibió el mensaje (estado enviada).
 //   - "entregada": el proveedor confirmó la entrega (estado entregada o contenido.entregaConfirmada).
 import { enmascararDestino } from '../shared/mascaras.js';
+import { AppError } from '../shared/errores.js';
 import { finDiaBogotaExclusivo, inicioDiaBogota } from '../shared/reportes.js';
 
 const COLUMNAS = [
@@ -138,6 +139,90 @@ export async function obtener(req, res, next) {
     }
 
     res.json({ ...filaPublica(fila), intentos, detalleIntentos });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// HU-33 CA3 — Alertas de avisos que fallaron en todos los canales
+// ---------------------------------------------------------------------------
+// Aquí el celular se muestra completo a propósito: el administrador necesita llamar al cliente
+// para avisarle que su vehículo está listo. Solo lo ve el administrador de la misma sede (HU-41).
+
+const COLUMNAS_FALLIDA = [
+  'id, orden_id, canal, error, fallo_definitivo_at,',
+  'cliente:clientes(nombre, telefono),',
+  'orden:ordenes(id, codigo_seguimiento, total, vehiculo:vehiculos(placa))',
+].join(' ');
+
+const MAX_ALERTAS = 50;
+
+/** GET /notificaciones/fallidas — alertas abiertas, de la más reciente a la más antigua. */
+export async function fallidas(req, res, next) {
+  try {
+    const { data, error } = await req.tenant
+      .listar('notificaciones', COLUMNAS_FALLIDA)
+      .not('fallo_definitivo_at', 'is', null)
+      .is('alerta_atendida_at', null)
+      .order('fallo_definitivo_at', { ascending: false })
+      .limit(MAX_ALERTAS);
+    if (error) throw error;
+    const filas = data ?? [];
+
+    // Canales que se intentaron para cada orden (el original y sus alternos).
+    const canalesPorOrden = new Map();
+    const ordenIds = [...new Set(filas.map((f) => f.orden_id).filter(Boolean))];
+    if (ordenIds.length) {
+      const { data: intentadas, error: errorCanales } = await req.tenant
+        .listar('notificaciones', 'orden_id, canal, created_at')
+        .in('orden_id', ordenIds)
+        .eq('evento', 'orden.lista')
+        .order('created_at', { ascending: true });
+      if (errorCanales) throw errorCanales;
+      for (const f of intentadas ?? []) {
+        const lista = canalesPorOrden.get(f.orden_id) ?? [];
+        if (!lista.includes(f.canal)) lista.push(f.canal);
+        canalesPorOrden.set(f.orden_id, lista);
+      }
+    }
+
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      alertas: filas.map((f) => ({
+        id: f.id,
+        ordenId: f.orden_id,
+        codigoSeguimiento: f.orden?.codigo_seguimiento ?? null,
+        placa: f.orden?.vehiculo?.placa ?? null,
+        cliente: f.cliente?.nombre ?? null,
+        celular: f.cliente?.telefono ?? null,
+        total: f.orden?.total ?? null,
+        canales: canalesPorOrden.get(f.orden_id) ?? [f.canal],
+        motivo: f.error ?? null,
+        falloAt: f.fallo_definitivo_at,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** PATCH /notificaciones/fallidas/:id/atendida — el administrador ya contactó al cliente. */
+export async function atenderFallida(req, res, next) {
+  try {
+    const fila = await req.tenant.obtener('notificaciones', req.params.id, 'id, fallo_definitivo_at, alerta_atendida_at', 'Alerta');
+    if (!fila.fallo_definitivo_at) throw new AppError('NO_ENCONTRADO', 'Alerta no encontrada');
+    if (fila.alerta_atendida_at) return res.json({ id: fila.id, atendidaAt: fila.alerta_atendida_at });
+
+    const atendidaAt = new Date().toISOString();
+    await req.tenant.actualizar(
+      'notificaciones',
+      fila.id,
+      { alerta_atendida_at: atendidaAt, alerta_atendida_por: req.ctx?.usuarioId ?? null },
+      'id',
+      'Alerta',
+    );
+    res.json({ id: fila.id, atendidaAt });
   } catch (err) {
     next(err);
   }

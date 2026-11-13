@@ -68,6 +68,8 @@ tags:
     description: HU-17 (cliente final, sin sesión ni contraseña)
   - name: Notificaciones del cliente
     description: HU-38 (centro de notificaciones de la app, con el pase del historial)
+  - name: Webhooks
+    description: HU-33 CA4 (confirmación de entrega de los proveedores, protegida con su firma)
 security:
   - bearerPanel: []
 
@@ -1161,6 +1163,131 @@ paths:
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /notificaciones/fallidas:
+    get:
+      tags: [Notificaciones]
+      operationId: listarAvisosFallidos
+      summary: Avisos de "vehículo listo" que fallaron en todos los canales (solo administrador)
+      description: |
+        HU-33 CA3. Alertas abiertas del dashboard: avisos de "listo" que agotaron sus reintentos (1, 2 y 4
+        minutos) y todos los canales alternos del cliente. Incluye la placa y el **celular completo** para que
+        el administrador contacte directamente al cliente. Solo aparecen las alertas de la sede de la sesión
+        que nadie ha marcado como atendidas; se cierran solas si el proveedor confirma la entrega después.
+      responses:
+        '200':
+          description: Alertas abiertas, de la más reciente a la más antigua (máximo 50).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [alertas]
+                properties:
+                  alertas:
+                    type: array
+                    items: { $ref: '#/components/schemas/AlertaNotificacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /notificaciones/fallidas/{id}/atendida:
+    patch:
+      tags: [Notificaciones]
+      operationId: atenderAvisoFallido
+      summary: Marcar que ya se contactó al cliente de un aviso fallido (solo administrador)
+      description: HU-33 CA3. La alerta deja de aparecer en el dashboard. Repetirlo no cambia la fecha registrada.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Alerta atendida.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, atendidaAt]
+                properties:
+                  id: { type: string, format: uuid }
+                  atendidaAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /webhooks/resend:
+    post:
+      tags: [Webhooks]
+      operationId: confirmarEntregaResend
+      summary: Confirmación de entrega de un correo (Resend)
+      description: |
+        HU-33 CA4. Resend avisa con `email.delivered` que el correo llegó. La notificación (etiqueta
+        `notificacion` del correo) queda `entregada`, se cancelan los reintentos y alternos pendientes de la
+        misma cadena y, si había alerta en el dashboard, se cierra. Solo se acepta con la firma Svix válida
+        (encabezados `svix-id`, `svix-timestamp`, `svix-signature`) calculada con `RESEND_WEBHOOK_SECRET`.
+        Otros tipos de evento se reciben y se ignoran.
+      security: []
+      parameters:
+        - { name: svix-id, in: header, required: true, schema: { type: string } }
+        - { name: svix-timestamp, in: header, required: true, schema: { type: string } }
+        - { name: svix-signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type: { type: string, example: email.delivered }
+                data:
+                  type: object
+                  properties:
+                    email_id: { type: string }
+                    tags: { description: Etiquetas del correo; incluye notificacion. }
+      responses:
+        '200':
+          description: Evento recibido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfirmacionEntrega' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '503':
+          description: El secreto del webhook no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/twilio:
+    post:
+      tags: [Webhooks]
+      operationId: confirmarEntregaTwilio
+      summary: Confirmación de entrega de un SMS (Twilio StatusCallback)
+      description: |
+        HU-33 CA4. Twilio llama esta dirección (con `?n=` el id de la notificación) cuando cambia el estado del
+        SMS; con `MessageStatus=delivered` la notificación queda `entregada` y se cancela lo pendiente de la
+        misma cadena. Solo se acepta con la firma `X-Twilio-Signature` válida (Auth Token y `API_URL_PUBLICA`).
+      security: []
+      parameters:
+        - { name: n, in: query, required: false, description: Id de la notificación., schema: { type: string, format: uuid } }
+        - { name: X-Twilio-Signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                MessageSid: { type: string }
+                MessageStatus: { type: string, example: delivered }
+      responses:
+        '200':
+          description: Evento recibido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfirmacionEntrega' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '503':
+          description: El webhook no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /usuarios:
     get:
       tags: [Usuarios]
@@ -1635,11 +1762,11 @@ components:
           properties:
             codigo:
               type: string
-              enum: [VALIDACION, NO_AUTENTICADO, SIN_PERMISO, NO_ENCONTRADO, CONFLICTO, CARGA_DEMASIADO_GRANDE, HTTPS_REQUERIDO, IDEMPOTENCIA_CONFLICTO, LIMITE_EXCEDIDO, ERROR_INTERNO, NO_IMPLEMENTADO]
+              enum: [VALIDACION, NO_AUTENTICADO, SIN_PERMISO, NO_ENCONTRADO, CONFLICTO, CARGA_DEMASIADO_GRANDE, HTTPS_REQUERIDO, IDEMPOTENCIA_CONFLICTO, LIMITE_EXCEDIDO, ERROR_INTERNO, NO_IMPLEMENTADO, SERVICIO_NO_DISPONIBLE]
               description: |
                 Código estable para el frontend. Estado HTTP: VALIDACION 400, NO_AUTENTICADO 401, SIN_PERMISO 403,
                 NO_ENCONTRADO 404, CONFLICTO 409, CARGA_DEMASIADO_GRANDE 413, HTTPS_REQUERIDO 426, IDEMPOTENCIA_CONFLICTO 422,
-                LIMITE_EXCEDIDO 429, ERROR_INTERNO 500, NO_IMPLEMENTADO 501.
+                LIMITE_EXCEDIDO 429, ERROR_INTERNO 500, NO_IMPLEMENTADO 501, SERVICIO_NO_DISPONIBLE 503.
             mensaje: { type: string, description: Mensaje para el usuario. Nunca contiene detalles internos. }
             detalles:
               type: array
@@ -2413,6 +2540,32 @@ components:
         error: { type: [string, 'null'] }
         fecha: { type: string, format: date-time }
 
+    AlertaNotificacion:
+      type: object
+      description: HU-33 CA3. Aviso de "listo" que falló en todos los canales.
+      required: [id, ordenId, placa, cliente, celular, canales, falloAt]
+      properties:
+        id: { type: string, format: uuid }
+        ordenId: { type: string, format: uuid }
+        codigoSeguimiento: { type: [string, 'null'] }
+        placa: { type: [string, 'null'], example: ABC123 }
+        cliente: { type: [string, 'null'], example: Laura Gómez }
+        celular: { type: [string, 'null'], description: 'Completo, para llamar al cliente.', example: '3001234567' }
+        total: { type: [number, 'null'] }
+        canales:
+          type: array
+          description: Canales que se intentaron, en orden.
+          items: { type: string, enum: [push, sms, correo] }
+        motivo: { type: [string, 'null'], description: Último error del proveedor. }
+        falloAt: { type: string, format: date-time }
+    ConfirmacionEntrega:
+      type: object
+      required: [recibido]
+      properties:
+        recibido: { type: boolean }
+        resultado: { type: string, enum: [confirmada, ya_confirmada, desconocida] }
+        cancelados: { type: integer, description: Reintentos o alternos pendientes que se cancelaron. }
+        ignorado: { type: [string, 'null'], description: Tipo de evento que no confirma una entrega. }
     NotificacionDetalle:
       allOf:
         - $ref: '#/components/schemas/Notificacion'
