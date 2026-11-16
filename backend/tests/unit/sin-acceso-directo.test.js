@@ -31,6 +31,8 @@ function archivos(dir) {
 //   seguimiento (único en la plataforma) y el resto lo lee con el acceso del tenant de esa orden.
 // - paseCliente.js (HU-23/HU-24): el cliente final tampoco tiene sesión; recibe un pase firmado con
 //   la sede y el cliente, y desde ahí lee con el acceso del tenant de esa sede.
+// - promocionesPublicas.js (HU-26): sin sesión, como accesoCliente.js: resuelve la sede por su slug y
+//   lee las promociones vigentes con el acceso del tenant de esa sede.
 // - workerNotificaciones.js (HU-34): cola global de envíos en segundo plano, sin petición ni sesión;
 //   cada notificación se procesa con el acceso del tenant de su establecimiento.
 const PERMITIDOS = new Set([
@@ -42,6 +44,7 @@ const PERMITIDOS = new Set([
   'shared/accesoCliente.js',
   'shared/bajaPublica.js',
   'shared/paseCliente.js',
+  'shared/promocionesPublicas.js',
   'shared/workerNotificaciones.js',
   // HU-33 CA4: el webhook no tiene sesión; el establecimiento sale de la notificación misma.
   'controllers/webhooks.controller.js',
