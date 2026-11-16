@@ -20,8 +20,8 @@ Migración `<ts>_cliente_final.sql`:
 | POST | `/publico/{slug}/buscar` | — | `{ placa }` o `{ celular }` | `{ codigoSeguimiento }` · `404` | RF-F5-02, 03 |
 | GET | `/publico/seguimiento/{codigo}` | — | — | `Seguimiento` | RF-F5-04, 08 |
 | GET | `/publico/seguimiento/{codigo}/eventos` | — | `Last-Event-ID?` | `text/event-stream` (`event: estado`) | RF-F5-05 a 07 |
-| GET | `/publico/{slug}/promociones` | — | — | `PromocionPublica[]` | RF-F5-09 |
-| GET | `/publico/{slug}/promociones/{id}` | — | — | `PromocionPublica` | RF-F5-10 |
+| GET | `/publico/sedes/{slug}/promociones` | — | — | `{ sede: SedePublica, promociones: PromocionPublica[] }` | RF-F5-09 |
+| GET | `/publico/sedes/{slug}/promociones/{id}` | — | — | `PromocionPublica` | RF-F5-10 |
 | POST | `/publico/{slug}/otp` | — | `{ celular }` | `202` siempre | RF-F5-11 |
 | POST | `/publico/{slug}/otp/verificar` | — | `{ celular, codigo }` | `{ token, expiraEn }` · `401` | RF-F5-12 |
 | GET | `/cliente/vehiculos` | cliente | — | `Vehiculo[]` | RF-F5-13 |
