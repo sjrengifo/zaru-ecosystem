@@ -17,6 +17,7 @@ import * as me from '../controllers/me.controller.js';
 import * as politicas from '../controllers/politicas.controller.js';
 import * as seguimiento from '../controllers/seguimiento.controller.js';
 import * as publico from '../controllers/publico.controller.js';
+import * as promocionesPublicas from '../controllers/promocionesPublicas.controller.js';
 import * as baja from '../controllers/baja.controller.js';
 import * as webhooks from '../controllers/webhooks.controller.js';
 import * as cliente from '../controllers/cliente.controller.js';
@@ -68,6 +69,9 @@ router.get('/publico/seguimiento/:codigo/eventos', seguimiento.eventos);
 // HU-17: el cliente final entra desde el enlace o el QR de su sede con la placa o el celular.
 router.get('/publico/sedes/:slug', publico.sede);
 router.post('/publico/sedes/:slug/buscar', validar({ body: busquedaPublica }), publico.buscar);
+
+// HU-26: promociones vigentes de la sede, con su marca, sin sesión.
+router.get('/publico/sedes/:slug/promociones', promocionesPublicas.listar);
 
 // HU-33 CA4: los proveedores confirman la entrega. Públicas: las protege la firma del proveedor.
 router.post('/webhooks/resend', webhooks.resend);
