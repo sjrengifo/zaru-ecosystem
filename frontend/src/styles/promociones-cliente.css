@@ -1,0 +1,62 @@
+/* HU-26 — Explorador de promociones del cliente final (web móvil primero).
+   Se apoya en seguimiento.css y historial-cliente.css; los colores de la sede llegan como
+   --color-primario / --color-secundario (HU-22). */
+
+.promo-lista { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+.promo-item { margin: 0; }
+
+.promo-tarjeta {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-borde);
+  border-left: 4px solid var(--color-primario);
+  border-radius: 14px;
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  text-decoration: none;
+}
+.promo-tarjeta-enlace { transition: border-color var(--transicion), box-shadow var(--transicion); }
+.promo-tarjeta-enlace:hover { border-color: var(--color-primario); box-shadow: var(--sombra-2); }
+
+.promo-descuento {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 72px;
+  padding: 8px 6px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--color-primario), var(--color-secundario));
+  color: #fff;
+  text-align: center;
+}
+.promo-descuento-valor { font-family: var(--fuente-display); font-size: 22px; font-weight: 800; line-height: 1.1; white-space: nowrap; }
+.promo-descuento-texto { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.9; }
+
+.promo-cuerpo { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.promo-nombre { font-weight: 700; overflow-wrap: anywhere; }
+.promo-descripcion {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--color-texto-suave);
+}
+.promo-servicios { display: flex; flex-wrap: wrap; gap: 4px; }
+.promo-servicio {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primario) 10%, #fff);
+  color: var(--color-primario);
+  font-size: 12px;
+  font-weight: 600;
+}
+.promo-vigencia { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--color-texto-suave); }
+.promo-flecha { align-self: center; flex-shrink: 0; color: var(--color-texto-suave); }
+
+.promo-pie { display: flex; align-items: flex-start; gap: 6px; margin: 14px 0 0; font-size: 12px; color: var(--color-texto-suave); }
+.promo-pie svg { flex-shrink: 0; margin-top: 2px; }

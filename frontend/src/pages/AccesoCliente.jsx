@@ -217,6 +217,9 @@ function FormularioAcceso({ slug, sede }) {
         ¿Ya te entregaron tu vehículo?{' '}
         <Link to={`/s/${encodeURIComponent(slug)}/historial`}>Consulta tu historial de servicios</Link>
       </p>
+      <p className="acceso-codigo">
+        <Link to={`/s/${encodeURIComponent(slug)}/promociones`}>Ver promociones{sede?.nombre ? ` de ${sede.nombre}` : ''}</Link>
+      </p>
     </section>
   );
 }
