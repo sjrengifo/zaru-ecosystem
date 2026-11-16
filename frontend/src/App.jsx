@@ -24,6 +24,7 @@ import BajaNotificaciones from './pages/BajaNotificaciones.jsx';
 import PoliticaDatos from './pages/PoliticaDatos.jsx';
 import HistorialCliente from './pages/HistorialCliente.jsx';
 import NotificacionesCliente from './pages/NotificacionesCliente.jsx';
+import PromocionesCliente from './pages/PromocionesCliente.jsx';
 
 const protegida = (ruta, elemento) => <RutaProtegida roles={rolesDeRuta(ruta)}>{elemento}</RutaProtegida>;
 const conModulo = (modulo, pagina) => <RequiereModulo modulo={modulo}>{pagina}</RequiereModulo>;
@@ -46,6 +47,8 @@ export default function App() {
       <Route path="/s/:slug/historial" element={<HistorialCliente />} />
       {/* HU-38: centro de notificaciones del cliente final, con el mismo pase del historial. */}
       <Route path="/s/:slug/notificaciones" element={<NotificacionesCliente />} />
+      {/* HU-26: promociones vigentes de la sede, públicas (sin pase). */}
+      <Route path="/s/:slug/promociones" element={<PromocionesCliente />} />
       <Route path="/superadmin" element={protegida('/superadmin', <Superadmin />)} />
 
       <Route element={<RutaProtegida><Layout /></RutaProtegida>}>
