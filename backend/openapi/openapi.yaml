@@ -68,6 +68,8 @@ tags:
     description: HU-17 (cliente final, sin sesión ni contraseña)
   - name: Notificaciones del cliente
     description: HU-38 (centro de notificaciones de la app, con el pase del historial)
+  - name: Plantillas de notificación
+    description: HU-32 (texto, variables y vista previa de push, SMS y correo con la marca de la sede; solo administrador)
   - name: Webhooks
     description: HU-33 CA4 (confirmación de entrega de los proveedores, protegida con su firma)
 security:
@@ -1264,6 +1266,115 @@ paths:
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /plantillas:
+    get:
+      tags: [Plantillas de notificación]
+      operationId: listarPlantillas
+      summary: Plantillas de notificación de la sede (solo administrador)
+      description: |
+        HU-32 (RF-F7-01, RF-F7-05). Las 15 plantillas (5 estados de la orden × push, SMS y correo). Donde la sede no
+        personalizó, se entrega la de la plataforma (`personalizada: false`). Cada plantilla trae también el texto de la
+        plataforma para restaurarlo. Incluye la lista de variables permitidas, los estados y los límites por canal.
+        Las de SMS traen su conteo de caracteres y partes (`sms`).
+      responses:
+        '200':
+          description: Plantillas de la sede.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlantillasSede' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /plantillas/{estado}/{canal}:
+    parameters:
+      - $ref: '#/components/parameters/EstadoPlantilla'
+      - $ref: '#/components/parameters/CanalPlantilla'
+    put:
+      tags: [Plantillas de notificación]
+      operationId: guardarPlantilla
+      summary: Guardar la plantilla de un estado y canal (solo administrador)
+      description: |
+        HU-32 CA1, CA2 y CA4 (RF-F7-01, 02, 04). Crea o reemplaza la plantilla de la sede.
+        Variables permitidas: `{nombre_cliente}`, `{placa}`, `{estado}`, `{sede}`, `{hora}`. Una variable inexistente o
+        mal escrita (o una llave sin cerrar) responde `400` y no guarda nada; cada detalle indica la variable, su posición
+        (desde 0), línea, columna y una sugerencia (ESC-F7-01). En SMS se ignora el asunto y la respuesta incluye
+        `caracteres`, `segmentos`, `codificacion` y `advertencias`: con más de una parte se advierte el mayor costo, y con
+        caracteres fuera de GSM-7 (como á, í, ó, ú) se explica que el límite por parte baja de 160 a 70 (ESC-F7-02).
+        Límites del texto: push 240, SMS 640, correo 2 000 caracteres; asunto 120.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TextoPlantilla' }
+            examples:
+              sms: { value: { cuerpo: '{sede}: tu carro {placa} ya puede ser recogido.' } }
+              correo: { value: { asunto: 'Tu vehículo {placa} está listo', cuerpo: "Hola {nombre_cliente},\n\ntu vehículo está listo." } }
+      responses:
+        '200':
+          description: Plantilla guardada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlantillaGuardada' }
+        '400':
+          description: Variable inválida, texto vacío o demasiado largo. No se guardó nada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  codigo: VALIDACION
+                  mensaje: La plantilla tiene variables que no existen o están mal escritas
+                  detalles:
+                    - { campo: cuerpo, variable: '{nombre_clente}', posicion: 5, longitud: 15, linea: 1, columna: 6, sugerencia: '{nombre_cliente}', mensaje: 'La variable {nombre_clente} no existe. ¿Quisiste decir {nombre_cliente}?' }
+                  requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+    delete:
+      tags: [Plantillas de notificación]
+      operationId: restaurarPlantilla
+      summary: Volver al texto de la plataforma (solo administrador)
+      description: HU-32 (RF-F7-05). Borra la plantilla personalizada de la sede; desde ahí se usa la de la plataforma. Repetirlo no falla.
+      responses:
+        '200':
+          description: Plantilla vigente (la de la plataforma).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Plantilla' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /plantillas/vista-previa:
+    post:
+      tags: [Plantillas de notificación]
+      operationId: vistaPreviaPlantilla
+      summary: Vista previa en push, SMS y correo con la marca de la sede (solo administrador)
+      description: |
+        HU-32 CA3 (RF-F7-03 · ESC-F7-03). Arma el mensaje con datos de ejemplo (Laura, placa ABC123, 3:45 p. m.) y el logo
+        y los colores de la sede. El canal que se está editando usa el texto recibido, aún sin guardar; los otros dos usan
+        la plantilla guardada del mismo estado (o la de la plataforma). No guarda nada. Variables inválidas → `400` como
+        en el guardado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/TextoPlantilla'
+                - type: object
+                  required: [estado, canal]
+                  properties:
+                    estado: { $ref: '#/components/schemas/EstadoPlantilla' }
+                    canal: { $ref: '#/components/schemas/CanalPlantilla' }
+      responses:
+        '200':
+          description: Mensaje renderizado por canal.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VistaPreviaPlantilla' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
   /webhooks/resend:
     post:
       tags: [Webhooks]
@@ -1634,6 +1745,17 @@ components:
       schema: { type: string }
 
   parameters:
+    EstadoPlantilla:
+      name: estado
+      in: path
+      required: true
+      description: Estado de la orden al que corresponde la plantilla (HU-32).
+      schema: { $ref: '#/components/schemas/EstadoPlantilla' }
+    CanalPlantilla:
+      name: canal
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/CanalPlantilla' }
     SlugSede:
       name: slug
       in: path
@@ -1842,6 +1964,118 @@ components:
             colorSecundario: { type: string }
         version: { type: integer, description: Aumenta con cada cambio de estado. }
 
+    EstadoPlantilla:
+      type: string
+      enum: [recibido, en_lavado, secado, listo, entregado]
+    CanalPlantilla:
+      type: string
+      enum: [push, sms, correo]
+    TextoPlantilla:
+      type: object
+      required: [cuerpo]
+      properties:
+        asunto: { type: [string, 'null'], maxLength: 120, description: Asunto del correo o título del push. Se ignora en SMS. }
+        cuerpo: { type: string, description: 'Texto con variables: {nombre_cliente}, {placa}, {estado}, {sede}, {hora}.' }
+    ConteoSms:
+      type: object
+      description: HU-32 CA2. Caracteres y partes del SMS como los cobra el operador.
+      required: [caracteres, segmentos, codificacion, limitePorParte, advertencias]
+      properties:
+        caracteres: { type: integer, example: 200 }
+        segmentos: { type: integer, description: 'Partes en que se envía. GSM-7: 160 en una parte, 153 por parte. UCS-2 (con tildes u otros caracteres especiales): 70 y 67.', example: 2 }
+        codificacion: { type: string, enum: [GSM-7, UCS-2] }
+        limitePorParte: { type: integer, example: 153 }
+        caracteresEspeciales: { type: array, items: { type: string }, description: Caracteres que obligan a usar UCS-2. }
+        advertencias:
+          type: array
+          items: { type: string }
+          example: ['El mensaje se enviará en 2 partes y tendrá mayor costo: cada parte se cobra como un SMS.']
+    Plantilla:
+      type: object
+      required: [estado, canal, cuerpo, personalizada, plataforma]
+      properties:
+        estado: { $ref: '#/components/schemas/EstadoPlantilla' }
+        canal: { $ref: '#/components/schemas/CanalPlantilla' }
+        asunto: { type: [string, 'null'] }
+        cuerpo: { type: string }
+        personalizada: { type: boolean, description: false = se usa el texto de la plataforma (RF-F7-05). }
+        actualizadaEn: { type: [string, 'null'], format: date-time }
+        plataforma:
+          type: object
+          properties:
+            asunto: { type: [string, 'null'] }
+            cuerpo: { type: string }
+        sms: { $ref: '#/components/schemas/ConteoSms' }
+    PlantillaGuardada:
+      allOf:
+        - $ref: '#/components/schemas/Plantilla'
+        - type: object
+          required: [advertencias]
+          properties:
+            caracteres: { type: integer }
+            segmentos: { type: integer }
+            codificacion: { type: string, enum: [GSM-7, UCS-2] }
+            advertencias: { type: array, items: { type: string } }
+    PlantillasSede:
+      type: object
+      required: [variables, estados, canales, limites, plantillas]
+      properties:
+        variables:
+          type: array
+          items:
+            type: object
+            properties:
+              nombre: { type: string, example: placa }
+              descripcion: { type: string }
+        estados:
+          type: array
+          items:
+            type: object
+            properties:
+              valor: { $ref: '#/components/schemas/EstadoPlantilla' }
+              etiqueta: { type: string, example: En lavado }
+        canales: { type: array, items: { $ref: '#/components/schemas/CanalPlantilla' } }
+        limites:
+          type: object
+          properties:
+            push: { type: integer, example: 240 }
+            sms: { type: integer, example: 640 }
+            correo: { type: integer, example: 2000 }
+            asunto: { type: integer, example: 120 }
+        plantillas: { type: array, items: { $ref: '#/components/schemas/Plantilla' } }
+    VistaPreviaPlantilla:
+      type: object
+      required: [estado, canalEditado, sede, datosEjemplo, push, sms, correo]
+      properties:
+        estado: { $ref: '#/components/schemas/EstadoPlantilla' }
+        canalEditado: { $ref: '#/components/schemas/CanalPlantilla' }
+        sede:
+          type: object
+          properties:
+            nombre: { type: string }
+            logoUrl: { type: [string, 'null'] }
+            colorPrimario: { type: [string, 'null'], example: '#B91C1C' }
+            colorSecundario: { type: [string, 'null'] }
+        datosEjemplo:
+          type: object
+          example: { nombre_cliente: Laura, placa: ABC123, estado: listo para recoger, sede: Lavadero Norte, hora: '3:45 p. m.' }
+        push:
+          type: object
+          properties:
+            titulo: { type: string }
+            texto: { type: string }
+        sms:
+          allOf:
+            - $ref: '#/components/schemas/ConteoSms'
+            - type: object
+              properties:
+                texto: { type: string }
+        correo:
+          type: object
+          properties:
+            asunto: { type: string }
+            html: { type: string, description: Correo completo con el logo y el color primario de la sede. Los datos van escapados. }
+            texto: { type: string }
     Error:
       type: object
       required: [error]
