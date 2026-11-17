@@ -5,42 +5,19 @@
 //   CA1: muestra solo las promociones vigentes hoy de la sede (las decide la API con la vista de HU-12).
 //   CA2: pide únicamente las del slug del enlace; la API nunca devuelve las de otra sede.
 //   CA3: se presenta con el logo y los colores de la sede, igual que el resto de la app (HU-22).
-// El detalle de cada promoción es HU-27: la tarjeta ya acepta un `enlace` para abrirlo.
+// HU-27: cada tarjeta abre el detalle de la promoción en /s/:slug/promociones/:id.
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Info, Tag } from 'lucide-react';
 import Cargando from '../components/Cargando.jsx';
 import MarcaZaru from '../components/MarcaZaru.jsx';
 import TarjetaPromocion from '../components/TarjetaPromocion.jsx';
+import { EncabezadoSede, estiloMarca } from '../components/MarcaSedeCliente.jsx';
 import { listarPromociones } from '../services/promocionesCliente.js';
 import '../styles/seguimiento.css';
 import '../styles/acceso-cliente.css';
 import '../styles/historial-cliente.css';
 import '../styles/promociones-cliente.css';
-
-const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
-
-/** Colores de la sede como variables CSS, igual que en las demás páginas del cliente (HU-22). */
-function estiloMarca(sede) {
-  const estilo = {};
-  if (COLOR_HEX.test(sede?.colorPrimario ?? '')) estilo['--color-primario'] = sede.colorPrimario;
-  if (COLOR_HEX.test(sede?.colorSecundario ?? '')) estilo['--color-secundario'] = sede.colorSecundario;
-  return estilo;
-}
-
-function Encabezado({ sede }) {
-  return (
-    <header className="seg-encabezado">
-      {sede?.logoUrl ? (
-        <img className="seg-logo" src={sede.logoUrl} alt={sede.nombre} />
-      ) : sede?.nombre ? (
-        <span className="seg-sede">{sede.nombre}</span>
-      ) : (
-        <MarcaZaru tamano={28} gota={false} />
-      )}
-    </header>
-  );
-}
 
 export default function PromocionesCliente() {
   const { slug } = useParams();
@@ -68,7 +45,7 @@ export default function PromocionesCliente() {
   return (
     <main className="seguimiento historial-cliente promociones-cliente" style={estiloMarca(sede)}>
       <div className="seg-contenido">
-        <Encabezado sede={sede} />
+        <EncabezadoSede sede={sede} />
 
         {cargando && !sede ? (
           <Cargando texto="Cargando promociones…" className="seg-cargando" />
@@ -110,7 +87,11 @@ export default function PromocionesCliente() {
             ) : (
               <ul className="promo-lista" aria-label={`Promociones de ${sede.nombre}`}>
                 {promociones.map((promocion) => (
-                  <TarjetaPromocion key={promocion.id} promocion={promocion} />
+                  <TarjetaPromocion
+                    key={promocion.id}
+                    promocion={promocion}
+                    enlace={`${inicio}/promociones/${encodeURIComponent(promocion.id)}`}
+                  />
                 ))}
               </ul>
             )}
