@@ -65,7 +65,7 @@ function CampoConResaltado({ id, valor, errores, onChange, campoRef, filas = 6, 
   };
   const Campo = multilinea ? 'textarea' : 'input';
   return (
-    <div className={`plantilla-editor${multilinea ? '' : ' plantilla-editor-linea'}`}>
+    <div className={`campo-control plantilla-editor${multilinea ? '' : ' plantilla-editor-linea'}`}>
       <div ref={espejo} className="plantilla-resaltado" aria-hidden="true" data-testid={`resaltado-${id}`}>
         {partes.map((p, i) => (p.invalida ? <mark key={i}>{p.texto}</mark> : <span key={i}>{p.texto}</span>))}
         {'\n'}
@@ -279,11 +279,13 @@ export default function PlantillasNotificacion() {
         <div className="plantillas-selectores">
           <div className="campo">
             <label htmlFor="plantilla-estado">Estado del vehículo</label>
-            <select id="plantilla-estado" value={estado} onChange={(e) => setEstado(e.target.value)}>
-              {datos.estados.map((e) => (
-                <option key={e.valor} value={e.valor}>{e.etiqueta}</option>
-              ))}
-            </select>
+            <div className="campo-control">
+              <select id="plantilla-estado" value={estado} onChange={(e) => setEstado(e.target.value)}>
+                {datos.estados.map((e) => (
+                  <option key={e.valor} value={e.valor}>{e.etiqueta}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <fieldset className="grupo-opciones">
             <legend>Canal</legend>
@@ -303,7 +305,7 @@ export default function PlantillasNotificacion() {
           {actual?.personalizada ? (
             <span className="insignia insignia-ok">Personalizada por tu sede</span>
           ) : (
-            <span className="insignia insignia-pendiente">Texto de la plataforma</span>
+            <span className="insignia insignia-retirada">Texto de la plataforma</span>
           )}
           {hayCambios && <span className="etiqueta-sin-guardar">Cambios sin guardar</span>}
         </p>
@@ -389,7 +391,9 @@ export default function PlantillasNotificacion() {
           </button>
         </div>
         {hayErrores && (erroresCuerpo.length > 0 || erroresAsunto.length > 0) && (
-          <p className="campo-ayuda plantillas-bloqueo">Corrige las variables resaltadas para poder guardar.</p>
+          <div className="plantillas-bloqueo">
+            <MensajeError>Corrige las variables resaltadas para poder guardar.</MensajeError>
+          </div>
         )}
       </form>
 
