@@ -31,7 +31,7 @@ Exponer al cliente final, sin registro ni contraseña, el seguimiento en tiempo 
 | ID | Requisito | Origen |
 |---|---|---|
 | RF-F5-09 | `GET /publico/{slug}/promociones` lista solo las promociones vigentes de esa sede, con branding. | HU-26 CA1, CA2, CA3 |
-| RF-F5-10 | `GET /publico/{slug}/promociones/{id}` devuelve descripción completa, condiciones, servicios aplicables y vigencia. | HU-27 CA1 |
+| RF-F5-10 | `GET /publico/sedes/{slug}/promociones/{id}` devuelve descripción completa, condiciones, servicios aplicables y vigencia, con la marca de la sede. Solo si está vigente y es de esa sede; si no, `404` sin revelar el motivo. | HU-27 CA1 |
 
 ### Sesión del cliente (nivel verificado)
 

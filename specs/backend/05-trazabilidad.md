@@ -78,7 +78,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-24 Consultar el detalle de un servicio del historial | ZARU-43 | 3 | Could | — | F5 | RF-F5-15 | ESC-F5-10 | — | Pendiente |
 | HU-25 Identificación de garantías adicionales (Rain Insure) | ZARU-37 | 2 | Could | — | F2, F5 | RF-F2-16, RF-F5-15 | ESC-F5-10 | — | Pendiente |
 | HU-26 Explorador de promociones activas de la sede | ZARU-45 | 3 | Could | María José | F5 | RF-F5-09 | ESC-F5-07 | `tests/unit/promociones-publicas.test.js` · `tests/integration/promociones-cliente.test.js` · `frontend/tests/promociones-cliente.test.jsx` | En desarrollo |
-| HU-27 Ver el detalle y condiciones de una promoción | ZARU-46 | 2 | Could | — | F5 | RF-F5-10 | — | — | Pendiente |
+| HU-27 Ver el detalle y condiciones de una promoción | ZARU-46 | 2 | Could | María José | F5 | RF-F5-10 | — | `tests/unit/promocion-detalle-publica.test.js` · `tests/integration/promocion-detalle.test.js` · `frontend/tests/promocion-detalle-cliente.test.jsx` | En desarrollo |
 
 **Total de la épica: 42 puntos.**
 
