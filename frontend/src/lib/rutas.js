@@ -10,6 +10,7 @@ export const RUTAS = {
   '/usuarios': ['admin'],
   '/reportes': ['admin'],
   '/notificaciones': ['admin'],
+  '/plantillas': ['admin'],
   '/branding': ['admin'],
   '/aceptar-invitacion': ['admin', 'operario'],
   '/superadmin': ['superadmin'],

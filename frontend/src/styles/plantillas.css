@@ -1,0 +1,114 @@
+/* HU-32 — Plantillas de notificación (panel del administrador). */
+
+.plantillas-formulario { display: flex; flex-direction: column; gap: 4px; }
+.plantillas-selectores { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 16px; align-items: start; }
+.plantillas-selectores .opcion { flex-wrap: wrap; }
+.plantilla-origen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+
+.plantilla-variables { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 8px; }
+.plantilla-variable { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+
+/* El campo va encima de una copia del texto donde se resaltan las variables inválidas (CA4). */
+.plantilla-editor { position: relative; }
+.plantilla-editor textarea,
+.plantilla-editor input,
+.plantilla-resaltado {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.plantilla-editor textarea,
+.plantilla-editor input {
+  position: relative;
+  z-index: 1;
+  border-color: var(--color-borde);
+  border-radius: var(--radio);
+  background: transparent;
+  color: var(--color-texto);
+  resize: vertical;
+}
+.plantilla-editor textarea[aria-invalid='true'],
+.plantilla-editor input[aria-invalid='true'] { border-color: var(--color-error); }
+.plantilla-resaltado {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: transparent;
+  pointer-events: none;
+}
+.plantilla-editor-linea .plantilla-resaltado { white-space: pre; }
+.plantilla-resaltado mark {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-error) 22%, transparent);
+  box-shadow: 0 2px 0 var(--color-error);
+  color: transparent;
+}
+
+.plantilla-errores { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.plantilla-errores li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.plantilla-errores .mensaje-error { margin: 0; }
+
+.plantilla-contador { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.plantilla-contador p { margin: 0; }
+.plantilla-contador-numeros { font-size: 14px; }
+.plantilla-contador-exceso strong { color: var(--color-advertencia); }
+
+.plantillas-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.plantillas-acciones .boton { display: inline-flex; align-items: center; gap: 6px; }
+.plantillas-bloqueo { margin: 6px 0 0; text-align: right; color: var(--color-error); }
+
+/* CA3 · Vista previa */
+.plantillas-previa { margin-top: var(--espacio); }
+.plantillas-previa h3 { margin-top: 0; }
+.previa { --previa-color: var(--color-primario); }
+.previa-datos { margin: 0 0 12px; }
+.previa-canales { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; align-items: start; }
+.previa-canal { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.previa-canal-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 14px; }
+
+.previa-push {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f1f3f6;
+  box-shadow: var(--sombra-1);
+}
+.previa-push p { margin: 0; }
+.previa-push-logo { flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px; object-fit: contain; background: #fff; }
+.previa-push-inicial { display: grid; place-items: center; background: var(--previa-color); color: #fff; font-weight: 700; }
+.previa-push-app { font-size: 12px; color: var(--color-texto-suave); }
+.previa-push-titulo { font-weight: 700; }
+.previa-push-texto { font-size: 14px; overflow-wrap: anywhere; }
+
+.previa-sms {
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 16px 16px 16px 4px;
+  background: #e9ecef;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.previa-sms-conteo { margin: 0; font-size: 13px; color: var(--color-texto-suave); }
+.previa-aviso { margin: 0; font-size: 13px; }
+
+.previa-correo-asunto { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.previa-correo { width: 100%; height: 420px; border: 1px solid var(--color-borde); border-radius: var(--radio); background: #f5f7fb; }
+
+@media (max-width: 720px) {
+  .plantillas-selectores { grid-template-columns: 1fr; }
+  .plantillas-acciones { justify-content: stretch; }
+  .plantillas-acciones .boton { flex: 1 1 auto; justify-content: center; }
+}
