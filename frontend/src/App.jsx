@@ -17,6 +17,7 @@ import Branding from './pages/Branding.jsx';
 import Reportes from './pages/Reportes.jsx';
 import HistorialNotificaciones from './pages/HistorialNotificaciones.jsx';
 import PlantillasNotificacion from './pages/PlantillasNotificacion.jsx';
+import Notificaciones from './pages/Notificaciones.jsx';
 import Superadmin from './pages/Superadmin.jsx';
 import AceptarInvitacion from './pages/AceptarInvitacion.jsx';
 import Seguimiento from './pages/Seguimiento.jsx';
@@ -65,6 +66,8 @@ export default function App() {
         <Route path="/branding" element={protegida('/branding', conModulo('branding', <Branding />))} />
         <Route path="/reportes" element={protegida('/reportes', conModulo('reportes', <Reportes />))} />
         <Route path="/notificaciones" element={protegida('/notificaciones', conModulo('notificaciones', <HistorialNotificaciones />))} />
+        {/* HU-31: configuración de los estados que generan aviso (solo administrador). */}
+        <Route path="/configuracion-notificaciones" element={protegida('/configuracion-notificaciones', conModulo('notificaciones', <Notificaciones />))} />
         {/* HU-32: plantillas de notificación con la marca de la sede (solo administrador). */}
         <Route path="/plantillas" element={protegida('/plantillas', conModulo('notificaciones', <PlantillasNotificacion />))} />
         <Route path="/aceptar-invitacion" element={<AceptarInvitacion />} />

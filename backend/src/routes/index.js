@@ -14,6 +14,7 @@ import superadminRoutes from './superadmin.routes.js';
 import reportesRoutes from './reportes.routes.js';
 import notificacionesRoutes from './notificaciones.routes.js';
 import plantillasRoutes from './plantillas.routes.js';
+import configuracionRoutes from './configuracion.routes.js';
 import * as me from '../controllers/me.controller.js';
 import * as politicas from '../controllers/politicas.controller.js';
 import * as seguimiento from '../controllers/seguimiento.controller.js';
@@ -42,6 +43,8 @@ export const MODULOS = [
   ['/notificaciones', notificacionesRoutes],
   // HU-32: plantillas de notificación de la sede.
   ['/plantillas', plantillasRoutes],
+  // HU-31: configuración de los estados que generan notificación.
+  ['/configuracion', configuracionRoutes],
 ];
 
 export const MODULO_DE_PREFIJO = {
@@ -55,6 +58,8 @@ export const MODULO_DE_PREFIJO = {
   '/notificaciones': 'notificaciones',
   // HU-32: las plantillas son parte de las notificaciones; solo el administrador.
   '/plantillas': 'notificaciones',
+  // HU-31: la configuración de avisos también vive en el módulo de notificaciones.
+  '/configuracion': 'notificaciones',
 };
 
 const router = Router();

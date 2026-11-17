@@ -62,6 +62,8 @@ tags:
     description: HU-57
   - name: Reportes
     description: HU-16
+  - name: Notificaciones
+    description: HU-31 (estados que generan aviso al cliente)
   - name: Seguimiento
     description: HU-18 (cliente final, sin sesión)
   - name: Acceso del cliente
@@ -1375,6 +1377,64 @@ paths:
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
 
+  /configuracion/notificaciones:
+    get:
+      tags: [Notificaciones]
+      operationId: obtenerConfiguracionNotificaciones
+      summary: Estados del flujo que generan notificación en la sede (solo administrador)
+      description: >-
+        HU-31 CA1. Devuelve siempre los cinco estados del flujo, en el orden en que los vive el cliente,
+        con su interruptor. Un estado sin fila guardada se considera activo. `obligatorio` marca el
+        aviso de "listo para entrega", que no se puede apagar (CA2). La configuración es de la sede de
+        la sesión (CA3).
+      responses:
+        '200':
+          description: Configuración de la sede, con los cinco estados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EstadoNotificacion' }
+              example:
+                - { estado: recibido, titulo: En cola, activo: true, obligatorio: false }
+                - { estado: en_lavado, titulo: Lavado iniciado, activo: true, obligatorio: false }
+                - { estado: secado, titulo: Secado, activo: true, obligatorio: false }
+                - { estado: listo, titulo: Listo para recoger, activo: true, obligatorio: true }
+                - { estado: entregado, titulo: Entregado, activo: true, obligatorio: false }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+    put:
+      tags: [Notificaciones]
+      operationId: actualizarConfiguracionNotificaciones
+      summary: Guardar los estados que generan notificación (solo administrador)
+      description: >-
+        HU-31 CA2 y CA3. Guarda los interruptores de la sede de la sesión en una sola operación; los
+        estados omitidos conservan su valor. Apagar "listo" responde 400 porque ese aviso es
+        obligatorio. El cambio aplica al siguiente cambio de estado de una orden, sin reiniciar el
+        servicio, y nunca afecta a otra sede.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfiguracionNotificacionesEntrada' }
+            example:
+              - { estado: recibido, activo: true }
+              - { estado: en_lavado, activo: true }
+              - { estado: secado, activo: false }
+              - { estado: listo, activo: true }
+              - { estado: entregado, activo: true }
+      responses:
+        '200':
+          description: Configuración guardada, con los cinco estados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EstadoNotificacion' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
   /webhooks/resend:
     post:
       tags: [Webhooks]
@@ -2542,6 +2602,33 @@ components:
               type: string
               format: uri
               description: Enlace seguro de respaldo; solo aparece cuando `enviada` es false.
+
+    EstadoNotificacion:
+      type: object
+      description: >-
+        Un estado del flujo con su interruptor de avisos (HU-31 CA1). `obligatorio` es true solo para
+        "listo para entrega", que siempre permanece activo (CA2).
+      required: [estado, titulo, activo, obligatorio]
+      properties:
+        estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
+        titulo: { type: string, example: Lavado iniciado }
+        activo: { type: boolean, description: Si el estado genera un correo al cliente. }
+        obligatorio: { type: boolean, description: Indica que no se puede desactivar (solo "listo"). }
+
+    ConfiguracionNotificacionesEntrada:
+      type: array
+      minItems: 1
+      maxItems: 5
+      description: >-
+        Interruptores a guardar (HU-31). Los estados omitidos conservan su valor. "listo" debe venir
+        activo; enviarlo en false responde 400.
+      items:
+        type: object
+        required: [estado, activo]
+        additionalProperties: false
+        properties:
+          estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
+          activo: { type: boolean }
 
     Establecimiento:
       type: object

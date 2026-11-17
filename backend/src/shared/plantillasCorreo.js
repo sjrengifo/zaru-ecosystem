@@ -135,7 +135,76 @@ export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enla
   };
 }
 
+/**
+ * HU-31: avisos de los estados intermedios y de la entrega. Comparten el mismo marco que los
+ * correos de ingreso y listo, e incluyen el enlace de seguimiento mientras la orden siga vigente.
+ */
+function plantillaCambioEstado(
+  { establecimiento, cliente, orden, vehiculo, enlaceBaja = null },
+  { titulo, asunto, fraseHtml, fraseTexto, cierreHtml, cierreTexto, conSeguimiento = true },
+) {
+  const enlace = conSeguimiento ? enlaceSeguimiento(orden?.codigo_seguimiento) : null;
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, ${fraseHtml}</p>
+<p style="margin:0 0 16px">${cierreHtml}</p>
+${botonSeguimiento(enlace, colorSeguro(establecimiento?.color_primario))}`;
+
+  return {
+    asunto: `${asunto} ${vehiculo?.placa ?? ''}`.replace(/\s+/g, ' ').trim(),
+    html: marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja }),
+    texto: [
+      `Hola ${primerNombre(cliente?.nombre)}, ${fraseTexto}`,
+      cierreTexto,
+      ...(enlace ? ['', `Sigue el estado de tu lavado en tiempo real: ${enlace}`] : []),
+      ...pieTexto(enlaceBaja),
+    ].join('\n'),
+  };
+}
+
+/** HU-31: el vehículo empezó el lavado. */
+export function plantillaEnLavado(datos) {
+  const sede = datos.establecimiento?.nombre ?? 'el car wash';
+  return plantillaCambioEstado(datos, {
+    titulo: 'Tu vehículo ya está en lavado',
+    asunto: 'Tu vehículo ya inició el lavado:',
+    fraseHtml: `tu vehículo ${placaHtml(datos.vehiculo?.placa)} ya inició el lavado en ${escaparHtml(sede)}.`,
+    fraseTexto: `tu vehículo ${datos.vehiculo?.placa} ya inició el lavado en ${sede}.`,
+    cierreHtml: 'Te avisaremos cuando pase a secado.',
+    cierreTexto: 'Te avisaremos cuando pase a secado.',
+  });
+}
+
+/** HU-31: el vehículo está en secado. */
+export function plantillaSecado(datos) {
+  const sede = datos.establecimiento?.nombre ?? 'el car wash';
+  return plantillaCambioEstado(datos, {
+    titulo: 'Estamos secando tu vehículo',
+    asunto: 'Tu vehículo está en secado:',
+    fraseHtml: `estamos secando y dando los últimos detalles a tu vehículo ${placaHtml(datos.vehiculo?.placa)} en ${escaparHtml(sede)}.`,
+    fraseTexto: `estamos secando y dando los últimos detalles a tu vehículo ${datos.vehiculo?.placa} en ${sede}.`,
+    cierreHtml: 'Muy pronto estará listo para recoger.',
+    cierreTexto: 'Muy pronto estará listo para recoger.',
+  });
+}
+
+/** HU-31: el vehículo se entregó al cliente. */
+export function plantillaEntregada(datos) {
+  const sede = datos.establecimiento?.nombre ?? 'el car wash';
+  return plantillaCambioEstado(datos, {
+    titulo: 'Entregamos tu vehículo',
+    asunto: 'Entregamos tu vehículo:',
+    fraseHtml: `entregamos tu vehículo ${placaHtml(datos.vehiculo?.placa)} en ${escaparHtml(sede)}.`,
+    fraseTexto: `entregamos tu vehículo ${datos.vehiculo?.placa} en ${sede}.`,
+    cierreHtml: '¡Gracias por confiar en nosotros!',
+    cierreTexto: '¡Gracias por confiar en nosotros!',
+    conSeguimiento: false,
+  });
+}
+
 export const PLANTILLAS = {
   'orden.recibida': plantillaIngreso,
+  'orden.en_lavado': plantillaEnLavado,
+  'orden.secado': plantillaSecado,
   'orden.lista': plantillaListo,
+  'orden.entregada': plantillaEntregada,
 };

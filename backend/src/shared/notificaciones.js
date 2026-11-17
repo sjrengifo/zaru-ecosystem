@@ -34,7 +34,30 @@ import { PLANTILLAS } from './plantillasCorreo.js';
 import { enlaceBaja, puedeRecibir, TIPOS } from './autorizaciones.js';
 import { crearAccesoTenant } from './tenant.js';
 
-export const EVENTOS = { RECIBIDA: 'orden.recibida', LISTA: 'orden.lista' };
+export const EVENTOS = {
+  RECIBIDA: 'orden.recibida',
+  EN_LAVADO: 'orden.en_lavado',
+  SECADO: 'orden.secado',
+  LISTA: 'orden.lista',
+  ENTREGADA: 'orden.entregada',
+};
+
+/** HU-31: cada evento corresponde a un estado del flujo y a su interruptor en la sede. */
+export const ESTADO_DE_EVENTO = {
+  [EVENTOS.RECIBIDA]: 'recibido',
+  [EVENTOS.EN_LAVADO]: 'en_lavado',
+  [EVENTOS.SECADO]: 'secado',
+  [EVENTOS.LISTA]: 'listo',
+  [EVENTOS.ENTREGADA]: 'entregado',
+};
+
+const EVENTO_POR_ESTADO = Object.fromEntries(
+  Object.entries(ESTADO_DE_EVENTO).map(([evento, estado]) => [estado, evento]),
+);
+
+/** Traduce el estado de la orden al evento que se guarda en `notificaciones`. */
+export const eventoDeEstado = (estado) => EVENTO_POR_ESTADO[estado] ?? null;
+
 /** HU-33 CA1: el intento inicial más 3 reintentos (1, 2 y 4 minutos). */
 export const MAX_REINTENTOS = 3;
 export const MAX_INTENTOS = MAX_REINTENTOS + 1;
@@ -75,6 +98,18 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
   try {
     const plantilla = PLANTILLAS[evento];
     if (!plantilla) throw new Error(`Evento de correo desconocido: ${evento}`);
+
+    // HU-31 CA3: la configuración se consulta en cada envío y por el tenant de la sesión.
+    // Así un interruptor apagado aplica de inmediato y nunca alcanza a otra sede.
+    const estado = ESTADO_DE_EVENTO[evento];
+    const { data: config, error: errorConfig } = await tenant
+      .listar('config_notificaciones', 'activo')
+      .eq('estado', estado)
+      .maybeSingle();
+    if (errorConfig) throw errorConfig;
+    if (config && config.activo === false) {
+      return { resumen: resumen('omitida', { motivo: 'desactivado' }), enviar: sinEnvio };
+    }
 
     const { data: orden, error } = await tenant.listar('ordenes', COLUMNAS_ORDEN).eq('id', ordenId).maybeSingle();
     if (error) throw error;
@@ -608,7 +643,8 @@ export async function procesarCola(db, { limite = 20, ahora = new Date(), provee
  * envíos del mismo mensaje. En pruebas o con NOTIFICACIONES_WORKER=off se envía en segundo plano.
  */
 export async function programarNotificacion(tenant, ordenId, tipo) {
-  const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : EVENTOS.LISTA;
+  // `ingreso` se conserva por compatibilidad; el resto son estados del flujo (HU-31).
+  const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : eventoDeEstado(tipo) ?? EVENTOS.LISTA;
   const preparado = await prepararCorreo(tenant, { evento, ordenId });
   const workerActivo = process.env.NODE_ENV !== 'test' && String(process.env.NOTIFICACIONES_WORKER ?? 'on') !== 'off';
   if (preparado.resumen.estado === 'pendiente' && !workerActivo) enSegundoPlano(preparado.enviar);
@@ -617,7 +653,7 @@ export async function programarNotificacion(tenant, ordenId, tipo) {
 
 /** Adaptador para pruebas/integraciones antiguas que ejecutan el envío de forma síncrona. */
 export async function notificarOrden(tenant, ordenId, tipo, { enviar } = {}) {
-  const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : EVENTOS.LISTA;
+  const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : eventoDeEstado(tipo) ?? EVENTOS.LISTA;
   const proveedor = enviar ? {
     nombre: 'prueba',
     async enviar({ para, ...mensaje }) {

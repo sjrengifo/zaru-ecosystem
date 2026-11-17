@@ -98,6 +98,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `orden_servicios` | Servicios de cada orden con el precio y la duración vigentes al momento de crearla | HU-07, HU-08 |
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
 | `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
+| `config_notificaciones` | Interruptores por sede de los estados del flujo que generan aviso automático al cliente | HU-31 |
 | `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
 | `politicas_datos` | Versiones de la política de tratamiento de datos; una versión publicada no se modifica ([texto v1.0](docs/legal/politica-tratamiento-datos-v1.0.md), [texto v1.1](docs/legal/politica-tratamiento-datos-v1.1.md)) | HU-51 |
 | `consentimientos` | Evidencia inmutable de cada autorización o revocación: fecha, hora, versión de la política, canal, IP y usuario | HU-51, HU-30 |
@@ -219,13 +220,15 @@ cp .env.example .env
 
 Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. La clave `service_role` se distribuye por un canal privado.
 
-Para HU-46, el proveedor `consola` permite probar el flujo sin enviar correos reales. En producción configura `CORREO_PROVEEDOR` como `smtp` o `resend` y agrega sus credenciales al entorno del backend. El correo se registra primero en la cola `notificaciones`; el envío ocurre en segundo plano y se reintenta hasta tres veces. No copies archivos `.env` entre carpetas ni los incluyas en commits.
+Para HU-46, el proveedor `consola` permite probar el flujo sin enviar correos reales. En producción configura `CORREO_PROVEEDOR` como `smtp` o `resend` y agrega sus credenciales al entorno del backend. El correo se registra primero en la cola `notificaciones`; el envío ocurre en segundo plano y se reintenta hasta tres veces. Cada cambio de estado hacia adelante genera su aviso con plantilla propia (recibido, lavado iniciado, secado, listo para entrega y entregado), sujeto a los interruptores de HU-31. No copies archivos `.env` entre carpetas ni los incluyas en commits.
 
 HU-18 publica la pantalla del cliente final en `/seguimiento/:codigo` (sin sesión). El correo de ingreso incluye el enlace, armado con `FRONTEND_URL`, y cada tarjeta del tablero permite copiarlo para compartirlo. No requiere migraciones ni variables nuevas.
 
 HU-17 da a cada sede un enlace público, `/s/{slug}` (el slug se genera solo con el nombre del establecimiento), que el administrador comparte o imprime como código QR desde **Branding**. El cliente escribe su placa o su celular, sin contraseña, y entra directo al seguimiento de su vehículo. Si no tiene un servicio activo ve el mensaje "El vehículo no se encuentra en servicio actualmente", el mismo esté o no registrado, y tras 5 búsquedas sin resultado en 10 minutos la API responde `429`. Requiere las migraciones `20261110124608_hu17_enlace_publico_sede.sql` y `20261110124759_hu17_slug_security_definer.sql`.
 
 HU-30 separa dos autorizaciones del cliente, además del tratamiento de datos: los **avisos del servicio** (correos de ingreso y de vehículo listo) y las **promociones**. Ambas se marcan en casillas separadas y desmarcadas al registrar el cliente o el ingreso, y se cambian luego desde su perfil. Cada cambio queda en `consentimientos` con fecha, hora, canal y versión de la política, y el administrador ve ese historial en el perfil. Los correos incluyen un enlace "Dejar de recibir estos avisos" (`/baja/{token}`, firmado con una clave derivada de `ZARU_CLAVE_CIFRADO`) que retira la autorización en el momento, sin iniciar sesión. Las campañas de promociones (HU-35) deben filtrar a los destinatarios con `destinatariosComerciales()` de `backend/src/shared/autorizaciones.js`. La política vigente queda pública en `/politica-datos`. Requiere la migración `hu30_autorizacion_notificaciones`; a los clientes que ya existían se les registra la autorización de avisos (finalidad de la política que aceptaron) y no la de promociones.
+
+HU-31 agrega en **Config. notificaciones** un interruptor por cada estado del flujo (`recibido`, `en_lavado`, `secado`, `listo`, `entregado`). El cambio se guarda al instante y aplica desde el siguiente cambio de estado de esa sede: si el interruptor está apagado no se crea el correo y la orden avanza igual. El aviso de **listo para entrega** es obligatorio y la API rechaza `400` cualquier intento de apagarlo. La configuración se guarda por establecimiento en `config_notificaciones` y la migración `20261110231500_hu31_configuracion_notificaciones` siembra los cinco estados activos para las sedes existentes y las nuevas.
 
 HU-19 agrega a esa pantalla la línea de tiempo del lavado: todas las etapas en orden, las completadas con check y la hora en que terminaron (`terminadaAt`), la actual resaltada y las pendientes en gris. Al entregar el vehículo todas quedan completadas. Tampoco requiere migraciones.
 
@@ -249,7 +252,7 @@ HU-57 incorpora el panel de superadministración para registrar establecimientos
 | `npm run cifrar:correos` | `backend/` | Cifra los correos de clientes que aún estén en texto plano (HU-50) |
 | `npm test` | `backend/` | Pruebas unitarias y de integración (Vitest). Las de integración requieren `.env` y `.env.spike.local`; sin ellos se omiten |
 | `npm run dev` | `frontend/` | Servidor de desarrollo de Vite — `http://localhost:5173` |
-| `npm test` | `frontend/` | Pruebas existentes con Node y pruebas HU-46/HU-57/HU-59 con Vitest |
+| `npm test` | `frontend/` | Pruebas existentes con Node y pruebas HU-31/HU-46/HU-57/HU-59 con Vitest |
 | `npm run build` | `frontend/` | Build de producción en `frontend/dist/` |
 
 Verificación de la API: `GET http://localhost:4000/api/v1/health`. Documentación: `http://localhost:4000/api/docs`.
@@ -301,6 +304,8 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, `/politicas-datos/vigente
 | GET / POST / PUT | `/usuarios`, `/usuarios/:id` | Admin | Gestión de operarios | Pendiente |
 | GET | `/establecimiento` | Admin, Operario | Datos y branding del establecimiento | Implementado |
 | PUT | `/establecimiento/branding` | Admin | Actualizar logo y colores | Pendiente |
+| GET | `/configuracion/notificaciones` | Admin | Estados del flujo que generan aviso y su interruptor en la sede (HU-31) | Implementado |
+| PUT | `/configuracion/notificaciones` | Admin | Guardar los estados activos; `listo` es obligatorio y no se puede apagar (HU-31) | Implementado |
 
 Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle la historia correspondiente.
 
@@ -342,6 +347,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 |---|---|---|---|---|---|
 | ZARU-22 | HU-33 Reintento y canal alterno ante fallas de envío | 8 | Should | `AvisosFallidos.jsx` (dashboard) · `lib/avisosFallidos.js` | `shared/notificaciones.js` · `shared/confirmacionEntrega.js` · `webhooks.controller.js` · migración `hu33_reintento_canal_alterno` |
 | ZARU-19 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones | 5 | Must | `CasillasNotificaciones.jsx` · `AutorizacionesCliente.jsx` · `BajaNotificaciones.jsx` · `PoliticaDatos.jsx` | `shared/autorizaciones.js` · `shared/bajaPublica.js` · `baja.controller.js` · migración `hu30_autorizacion_notificaciones` |
+| ZARU-20 | HU-31 Configuración de los estados que generan notificación | 3 | Should | `Notificaciones.jsx` | `configuracion.routes.js` · `shared/configNotificaciones.js` · migración `hu31_configuracion_notificaciones` |
 
 Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
 
