@@ -72,6 +72,8 @@ router.post('/publico/sedes/:slug/buscar', validar({ body: busquedaPublica }), p
 
 // HU-26: promociones vigentes de la sede, con su marca, sin sesión.
 router.get('/publico/sedes/:slug/promociones', promocionesPublicas.listar);
+// HU-27: detalle y condiciones de una promoción vigente de la sede, sin sesión.
+router.get('/publico/sedes/:slug/promociones/:id', promocionesPublicas.obtener);
 
 // HU-33 CA4: los proveedores confirman la entrega. Públicas: las protege la firma del proveedor.
 router.post('/webhooks/resend', webhooks.resend);

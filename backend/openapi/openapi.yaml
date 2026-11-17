@@ -217,6 +217,36 @@ paths:
               schema: { $ref: '#/components/schemas/PromocionesSede' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /publico/sedes/{slug}/promociones/{id}:
+    get:
+      tags: [Acceso del cliente]
+      operationId: obtenerPromocionPublica
+      summary: Detalle y condiciones de una promoción vigente de la sede
+      description: |
+        Vista ampliada de una promoción para el cliente final (HU-27, RF-F5-10). Sin sesión.
+        Devuelve la marca de la sede (HU-22) y la promoción con su descripción completa, sus condiciones de uso,
+        el descuento, los servicios incluidos y la vigencia. `descripcion` y `condiciones` son `null` si el
+        establecimiento no las configuró.
+        Solo responde si la promoción está vigente hoy (vista `promociones_vigentes`) y es de la sede del slug.
+        Una promoción vencida, programada, desactivada, de otra sede, inexistente o con un `id` que no es UUID
+        responde el mismo `404` "Promoción no encontrada", sin revelar el motivo. Una sede inexistente o
+        suspendida responde `404`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugSede'
+        - name: id
+          in: path
+          required: true
+          description: Identificador de la promoción.
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sede y detalle de la promoción.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromocionDetalleSede' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
   /publico/sedes/{slug}/buscar:
     post:
       tags: [Acceso del cliente]
@@ -1716,6 +1746,21 @@ components:
         promociones:
           type: array
           items: { $ref: '#/components/schemas/PromocionPublica' }
+    PromocionDetallePublica:
+      description: Promoción vigente con sus condiciones, tal como la ve el cliente final en el detalle (HU-27).
+      allOf:
+        - $ref: '#/components/schemas/PromocionPublica'
+        - type: object
+          required: [condiciones, fechaInicio]
+          properties:
+            condiciones: { type: [string, 'null'], description: Condiciones de uso configuradas por el establecimiento., example: Válida solo los martes. No acumulable con otras promociones. }
+            fechaInicio: { type: string, format: date, description: Primer día en que la promoción es válida., example: '2026-11-01' }
+    PromocionDetalleSede:
+      type: object
+      required: [sede, promocion]
+      properties:
+        sede: { $ref: '#/components/schemas/SedePublica' }
+        promocion: { $ref: '#/components/schemas/PromocionDetallePublica' }
     BusquedaPublica:
       type: object
       description: Placa O celular (exactamente uno). Se ignoran espacios, guiones y el prefijo +57.
