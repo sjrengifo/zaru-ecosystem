@@ -13,6 +13,7 @@ import establecimientoRoutes from './establecimiento.routes.js';
 import superadminRoutes from './superadmin.routes.js';
 import reportesRoutes from './reportes.routes.js';
 import notificacionesRoutes from './notificaciones.routes.js';
+import plantillasRoutes from './plantillas.routes.js';
 import * as me from '../controllers/me.controller.js';
 import * as politicas from '../controllers/politicas.controller.js';
 import * as seguimiento from '../controllers/seguimiento.controller.js';
@@ -39,6 +40,8 @@ export const MODULOS = [
   ['/superadmin', superadminRoutes],
   ['/reportes', reportesRoutes],
   ['/notificaciones', notificacionesRoutes],
+  // HU-32: plantillas de notificación de la sede.
+  ['/plantillas', plantillasRoutes],
 ];
 
 export const MODULO_DE_PREFIJO = {
@@ -50,6 +53,8 @@ export const MODULO_DE_PREFIJO = {
   '/usuarios': 'usuarios',
   '/reportes': 'reportes',
   '/notificaciones': 'notificaciones',
+  // HU-32: las plantillas son parte de las notificaciones; solo el administrador.
+  '/plantillas': 'notificaciones',
 };
 
 const router = Router();

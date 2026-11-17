@@ -772,6 +772,69 @@ CREATE FUNCTION public.mejor_promocion(p_establecimiento_id uuid, p_servicio_id 
   limit 1
 $$;
 
+-- Name: plantillas_notificacion; Type: TABLE; Schema: public; Owner: -
+
+CREATE TABLE public.plantillas_notificacion (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    establecimiento_id uuid,
+    estado public.estado_orden NOT NULL,
+    canal text NOT NULL,
+    asunto text,
+    cuerpo text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by uuid,
+    CONSTRAINT plantillas_notificacion_asunto_check CHECK ((((canal = 'sms'::text) AND (asunto IS NULL)) OR ((canal <> 'sms'::text) AND ((asunto IS NULL) OR (length(asunto) <= 120))))),
+    CONSTRAINT plantillas_notificacion_canal_check CHECK ((canal = ANY (ARRAY['push'::text, 'sms'::text, 'correo'::text]))),
+    CONSTRAINT plantillas_notificacion_cuerpo_check CHECK (((length(btrim(cuerpo)) > 0) AND (length(cuerpo) <= CASE canal WHEN 'push'::text THEN 240 WHEN 'sms'::text THEN 640 ELSE 2000 END)))
+);
+
+-- Name: TABLE plantillas_notificacion; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON TABLE public.plantillas_notificacion IS 'HU-32: texto de cada estado y canal. establecimiento_id null = plantilla de la plataforma (RF-F7-05).';
+
+-- Name: guardar_plantilla_notificacion(uuid, public.estado_orden, text, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+
+CREATE FUNCTION public.guardar_plantilla_notificacion(p_establecimiento_id uuid, p_estado public.estado_orden, p_canal text, p_asunto text, p_cuerpo text, p_usuario_id uuid) RETURNS public.plantillas_notificacion
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_fila plantillas_notificacion;
+begin
+  if p_establecimiento_id is null then
+    raise exception 'La plantilla debe pertenecer a un establecimiento' using errcode = '23514';
+  end if;
+  insert into plantillas_notificacion (establecimiento_id, estado, canal, asunto, cuerpo, updated_by)
+  values (p_establecimiento_id, p_estado, p_canal, case when p_canal = 'sms' then null else p_asunto end, p_cuerpo, p_usuario_id)
+  on conflict on constraint plantillas_notificacion_unica do update
+    set asunto = excluded.asunto, cuerpo = excluded.cuerpo, updated_at = now(), updated_by = excluded.updated_by
+  returning * into v_fila;
+  return v_fila;
+end $$;
+
+-- Name: plantillas_notificacion_de(uuid); Type: FUNCTION; Schema: public; Owner: -
+
+CREATE FUNCTION public.plantillas_notificacion_de(p_establecimiento_id uuid) RETURNS TABLE(estado public.estado_orden, canal text, asunto text, cuerpo text, personalizada boolean, updated_at timestamp with time zone, asunto_plataforma text, cuerpo_plataforma text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select pl.estado,
+         pl.canal,
+         coalesce(se.asunto, case when se.id is null then pl.asunto end),
+         coalesce(se.cuerpo, pl.cuerpo),
+         se.id is not null,
+         coalesce(se.updated_at, pl.updated_at),
+         pl.asunto,
+         pl.cuerpo
+  from plantillas_notificacion pl
+  left join plantillas_notificacion se
+    on se.establecimiento_id = p_establecimiento_id
+   and se.estado = pl.estado
+   and se.canal = pl.canal
+  where pl.establecimiento_id is null
+  order by pl.estado, array_position(array['push', 'sms', 'correo'], pl.canal)
+$$;
+
 -- Name: auditoria; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.auditoria (
@@ -1221,6 +1284,16 @@ ALTER TABLE ONLY public.perfiles
 ALTER TABLE ONLY public.perfiles
     ADD CONSTRAINT perfiles_pkey PRIMARY KEY (id);
 
+-- Name: plantillas_notificacion plantillas_notificacion_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.plantillas_notificacion
+    ADD CONSTRAINT plantillas_notificacion_pkey PRIMARY KEY (id);
+
+-- Name: plantillas_notificacion plantillas_notificacion_unica; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.plantillas_notificacion
+    ADD CONSTRAINT plantillas_notificacion_unica UNIQUE NULLS NOT DISTINCT (establecimiento_id, estado, canal);
+
 -- Name: politicas_datos politicas_datos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 
 ALTER TABLE ONLY public.politicas_datos
@@ -1398,6 +1471,10 @@ CREATE INDEX ordenes_vehiculo_fecha_idx ON public.ordenes USING btree (vehiculo_
 
 CREATE INDEX perfiles_establecimiento_id_idx ON public.perfiles USING btree (establecimiento_id);
 
+-- Name: plantillas_notificacion_establecimiento_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX plantillas_notificacion_establecimiento_idx ON public.plantillas_notificacion USING btree (establecimiento_id) WHERE (establecimiento_id IS NOT NULL);
+
 -- Name: promocion_servicios_servicio_id_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX promocion_servicios_servicio_id_idx ON public.promocion_servicios USING btree (servicio_id);
@@ -1573,6 +1650,16 @@ ALTER TABLE ONLY public.perfiles
 ALTER TABLE ONLY public.perfiles
     ADD CONSTRAINT perfiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
+-- Name: plantillas_notificacion plantillas_notificacion_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.plantillas_notificacion
+    ADD CONSTRAINT plantillas_notificacion_establecimiento_id_fkey FOREIGN KEY (establecimiento_id) REFERENCES public.establecimientos(id) ON DELETE CASCADE;
+
+-- Name: plantillas_notificacion plantillas_notificacion_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.plantillas_notificacion
+    ADD CONSTRAINT plantillas_notificacion_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.perfiles(id) ON DELETE SET NULL;
+
 -- Name: promocion_servicios promocion_servicios_promocion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 
 ALTER TABLE ONLY public.promocion_servicios
@@ -1655,6 +1742,10 @@ ALTER TABLE public.perfiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "politicas visibles para todos" ON public.politicas_datos FOR SELECT USING (true);
 
+-- Name: plantillas_notificacion; Type: ROW SECURITY; Schema: public; Owner: -
+
+ALTER TABLE public.plantillas_notificacion ENABLE ROW LEVEL SECURITY;
+
 -- Name: politicas_datos; Type: ROW SECURITY; Schema: public; Owner: -
 
 ALTER TABLE public.politicas_datos ENABLE ROW LEVEL SECURITY;
@@ -1720,6 +1811,10 @@ CREATE POLICY "ver perfiles" ON public.perfiles FOR SELECT USING ((establecimien
 CREATE POLICY "ver promo-servicios" ON public.promocion_servicios FOR SELECT USING ((EXISTS ( SELECT 1
    FROM public.promociones p
   WHERE ((p.id = promocion_servicios.promocion_id) AND (p.establecimiento_id = privado.mi_establecimiento())))));
+
+-- Name: plantillas_notificacion ver plantillas de notificacion; Type: POLICY; Schema: public; Owner: -
+
+CREATE POLICY "ver plantillas de notificacion" ON public.plantillas_notificacion FOR SELECT USING (((establecimiento_id IS NULL) OR (establecimiento_id = privado.mi_establecimiento())));
 
 -- Name: promociones ver promociones; Type: POLICY; Schema: public; Owner: -
 

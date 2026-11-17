@@ -12,6 +12,8 @@ export const MENU = [
   { modulo: 'branding', ruta: '/branding', texto: 'Branding' },
   { modulo: 'reportes', ruta: '/reportes', texto: 'Reportes' },
   { modulo: 'notificaciones', ruta: '/notificaciones', texto: 'Notificaciones' },
+  // HU-32: plantillas de los mensajes, dentro del módulo de notificaciones.
+  { modulo: 'notificaciones', ruta: '/plantillas', texto: 'Plantillas' },
 ];
 
 export const MODULOS_POR_ROL = {

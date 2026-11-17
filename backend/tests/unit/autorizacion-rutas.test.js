@@ -87,6 +87,11 @@ const RUTAS_ADMIN = [
   ['GET', '/api/v1/reportes/afluencia'],
   ['GET', '/api/v1/notificaciones'],
   ['GET', `/api/v1/notificaciones/${ID}`],
+  // HU-32: plantillas de notificación, solo administrador.
+  ['GET', '/api/v1/plantillas'],
+  ['PUT', '/api/v1/plantillas/listo/sms'],
+  ['DELETE', '/api/v1/plantillas/listo/sms'],
+  ['POST', '/api/v1/plantillas/vista-previa'],
 ];
 
 function pedir(metodo, ruta, token, cuerpo = {}) {
@@ -137,6 +142,9 @@ describe('CA2: rutas administrativas protegidas en el backend', () => {
       ['POST', '/api/v1/establecimiento/logo'],
       ['GET', '/api/v1/reportes/servicios'],
       ['GET', '/api/v1/reportes/afluencia'],
+      ['PUT', '/api/v1/plantillas/listo/sms'],
+      ['POST', '/api/v1/plantillas/vista-previa'],
+      ['DELETE', '/api/v1/plantillas/no-existe/sms'],
     ];
 
     for (const [metodo, ruta] of escrituras) {

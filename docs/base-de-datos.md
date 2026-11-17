@@ -65,6 +65,7 @@ La tabla `notificaciones` sigue el patrón *outbox* (ADR-03). La lógica de env�
 | `20261030230000` | `hu52_eliminar_cliente` | Permite órdenes sin vehículo y agrega `eliminar_cliente`: borra al titular y sus vehículos, y conserva las órdenes entregadas sin datos personales |
 | `20261101190000` | `hu13_branding_logos` | Colores de la sede en formato `#RRGGBB` y bucket público `logos` (PNG/JPG, 2 MB) con escritura limitada a la carpeta de cada sede |
 | `20261101220000` | `hu12_promociones` | Descripción, condiciones y `activa` en promociones; estado por fecha de Bogotá, vistas `promociones_con_estado` y `promociones_vigentes`, y funciones `guardar_promocion` y `mejor_promocion` |
+| `20261117120000` | `hu32_plantillas_notificacion` | Tabla `plantillas_notificacion` por sede, estado de la orden y canal (push, SMS, correo) con RLS de lectura por sede; 15 plantillas de la plataforma (`establecimiento_id` nulo) y funciones `plantillas_notificacion_de` y `guardar_plantilla_notificacion` |
 
 **Reglas:**
 
