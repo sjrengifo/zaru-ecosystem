@@ -60,3 +60,28 @@
 
 .promo-pie { display: flex; align-items: flex-start; gap: 6px; margin: 14px 0 0; font-size: 12px; color: var(--color-texto-suave); }
 .promo-pie svg { flex-shrink: 0; margin-top: 2px; }
+
+/* HU-27 — Detalle y condiciones de una promoción. */
+.promo-detalle { display: flex; flex-direction: column; gap: 16px; }
+.promo-detalle-volver { align-self: flex-start; }
+.promo-detalle-cabecera { display: flex; align-items: center; gap: 14px; }
+.promo-detalle-descuento { min-width: 92px; padding: 12px 8px; border-radius: 14px; }
+.promo-detalle-descuento .promo-descuento-valor { font-size: 28px; }
+.promo-detalle-titulos { min-width: 0; }
+.promo-detalle-titulos .historial-titulo { margin: 0 0 4px; overflow-wrap: anywhere; }
+.promo-detalle-vigencia { margin: 0; font-size: 14px; }
+.promo-detalle-descripcion { margin: 0; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.promo-detalle-seccion { display: flex; flex-direction: column; gap: 8px; }
+.promo-detalle-subtitulo { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 15px; font-weight: 700; }
+.promo-detalle-servicios { margin: 0; padding: 0; list-style: none; }
+.promo-detalle-condiciones {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border-left: 4px solid var(--color-primario);
+  background: color-mix(in srgb, var(--color-primario) 6%, #fff);
+}
+.promo-detalle-condiciones h2 { color: var(--color-primario); }
+.promo-detalle-condiciones p { margin: 0; font-size: 14px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.promo-detalle .promo-pie { margin: 0; }
+.promo-detalle-no-disponible { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.promo-detalle-no-disponible > svg { color: var(--color-primario); }
