@@ -16,6 +16,7 @@ import Usuarios from './pages/Usuarios.jsx';
 import Branding from './pages/Branding.jsx';
 import Reportes from './pages/Reportes.jsx';
 import HistorialNotificaciones from './pages/HistorialNotificaciones.jsx';
+import PlantillasNotificacion from './pages/PlantillasNotificacion.jsx';
 import Superadmin from './pages/Superadmin.jsx';
 import AceptarInvitacion from './pages/AceptarInvitacion.jsx';
 import Seguimiento from './pages/Seguimiento.jsx';
@@ -64,6 +65,8 @@ export default function App() {
         <Route path="/branding" element={protegida('/branding', conModulo('branding', <Branding />))} />
         <Route path="/reportes" element={protegida('/reportes', conModulo('reportes', <Reportes />))} />
         <Route path="/notificaciones" element={protegida('/notificaciones', conModulo('notificaciones', <HistorialNotificaciones />))} />
+        {/* HU-32: plantillas de notificación con la marca de la sede (solo administrador). */}
+        <Route path="/plantillas" element={protegida('/plantillas', conModulo('notificaciones', <PlantillasNotificacion />))} />
         <Route path="/aceptar-invitacion" element={<AceptarInvitacion />} />
       </Route>
 

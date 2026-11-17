@@ -8,7 +8,7 @@ Migración `<ts>_comunicacion_avanzada.sql`:
 
 | Objeto | Cambio | RF |
 |---|---|---|
-| `plantillas_notificacion` | Nueva; filas con `establecimiento_id null` = plantillas de la plataforma | RF-F7-01 a 05 |
+| `plantillas_notificacion` | Nueva (HU-32, migración `20261117120000_hu32_plantillas_notificacion.sql`): una fila por `(establecimiento_id, estado, canal)`; `establecimiento_id null` = plantillas de la plataforma (15 sembradas). RLS de lectura: la sede ve las suyas y las de la plataforma; solo el backend escribe. Funciones `plantillas_notificacion_de` y `guardar_plantilla_notificacion` | RF-F7-01 a 05 |
 | `campanas` | Nueva | RF-F7-06 a 10 |
 | `recordatorios` | Nueva; índice único parcial `(vehiculo_id) where estado = 'programado'` | RF-F7-11 a 14 |
 | `novedades` | Nueva | RF-F7-15 a 18 |
@@ -22,9 +22,10 @@ Migración `<ts>_comunicacion_avanzada.sql`:
 
 | Método | Ruta | Rol | Petición | Respuesta | RF |
 |---|---|---|---|---|---|
-| GET | `/plantillas` | admin | — | `Plantilla[]` (propias y por defecto) | RF-F7-05 |
-| PUT | `/plantillas/{evento}/{canal}` | admin | `{ asunto?, cuerpo }` | `Plantilla` + `{ caracteres, segmentos, advertencias[] }` · `400` | RF-F7-01, 02, 04 |
-| POST | `/plantillas/vista-previa` | admin | `{ evento, cuerpo, asunto? }` | `{ push, sms, correo: { html } }` | RF-F7-03 |
+| GET | `/plantillas` | admin | — | `{ variables, estados, canales, limites, plantillas: Plantilla[] }` (propias y de la plataforma) | RF-F7-05 |
+| PUT | `/plantillas/{estado}/{canal}` | admin | `{ asunto?, cuerpo }` | `Plantilla` + `{ caracteres, segmentos, codificacion, advertencias[] }` · `400` con `{ variable, posicion, linea, columna, sugerencia }` | RF-F7-01, 02, 04 |
+| DELETE | `/plantillas/{estado}/{canal}` | admin | — | `Plantilla` (vuelve a la de la plataforma) | RF-F7-05 |
+| POST | `/plantillas/vista-previa` | admin | `{ estado, canal, cuerpo, asunto? }` | `{ sede, datosEjemplo, push: { titulo, texto }, sms: { texto, caracteres, segmentos, … }, correo: { asunto, html, texto } }` | RF-F7-03 |
 | POST | `/campanas/estimar` | admin | `{ promocionId, segmento }` | `{ total, exclusiones }` | RF-F7-06 a 08 |
 | POST | `/campanas` | admin | `Idempotency-Key` · `{ promocionId, segmento, programadaPara? }` | `201 Campana` (con hora ajustada) | RF-F7-09, 10 |
 | GET | `/campanas` | admin | paginación | `Campana[]` | RF-F7-06 |
@@ -41,11 +42,43 @@ Migración `<ts>_comunicacion_avanzada.sql`:
 
 | Componente | Responsabilidad |
 |---|---|
-| `notificaciones/plantillas.js` | Parser de `{variable}` con lista blanca, conteo de caracteres y segmentos GSM-7/UCS-2, render por canal con branding |
+| `shared/plantillasNotificacion.js` (HU-32) | Parser de `{variable}` con lista blanca, conteo de caracteres y segmentos GSM-7/UCS-2, render por canal con branding y `armarMensaje` para el envío (ver §4.1) |
 | `modules/campanas` | Estimar, crear (ajuste nocturno con `America/Bogota`), y un paso del worker que materializa las campañas vencidas en notificaciones `comercial` |
 | `modules/recordatorios` | El despachador, al procesar `orden.entregada`, cancela el recordatorio vigente del vehículo y, si hay ≥ 3 servicios, calcula el promedio de días entre visitas y programa uno nuevo. El worker convierte los vencidos en notificaciones `recordatorio`. |
 | `modules/novedades` | Crea la novedad, actualiza `entrega_estimada_at` si es demora, genera notificación `novedad` con prioridad 0 y `programada_para = now()` |
 | `notificaciones/consumo.js` | Antes de enviar SMS o correo: verifica cupo; si está agotado aplica RF-F7-21; tras enviar, registra consumo y dispara la alerta del 80 % una vez por mes |
+
+### 4.1 Uso de `armarMensaje` en el envío (HU-46 / HU-28)
+
+HU-32 deja el texto de cada estado y canal en `plantillas_notificacion`, pero **no** cambia el envío: `notificaciones.js`, `plantillasCorreo.js` y `proveedorSms.js` siguen con sus textos fijos. HU-46 y HU-28 conectan el envío con esta función:
+
+```js
+import { armarMensaje } from './plantillasNotificacion.js';
+
+// tenant: acceso del tenant de la orden (crearAccesoTenant / el que ya usa el enviador).
+const mensaje = await armarMensaje(tenant, {
+  estado: 'orden.lista',            // estado de la orden ('recibido' … 'entregado') o evento de la cola
+  canal: 'correo',                  // 'push' | 'sms' | 'correo'
+  datos: {
+    cliente: { nombre },            // {nombre_cliente} = primer nombre
+    vehiculo: { placa },            // {placa}
+    establecimiento,                // opcional; si falta se lee con el tenant ({sede} y la marca)
+    momento: cambioEstadoAt,        // {hora}, en hora de Bogotá
+  },
+  extra: { html, texto },           // opcional, solo correo: tabla de servicios, total, enlaces de seguimiento y de baja
+});
+// → { origen: 'sede' | 'plataforma', canal, asunto, html, texto }          (correo)
+// → { origen, canal, titulo, texto }                                       (push)
+// → { origen, canal, texto, caracteres, segmentos, codificacion, … }       (sms)
+```
+
+| Hoy (HU-46 / HU-33) | Con plantillas |
+|---|---|
+| `prepararCorreo` y la reconstrucción del correo usan `PLANTILLAS[evento]` de `plantillasCorreo.js` | Llamar `armarMensaje(tenant, { estado: evento, canal: 'correo', datos, extra })`; `extra.html` lleva la tabla de servicios, el total y los enlaces (ya escapados), que no son variables de la plantilla. Guardar en `contenido` solo el asunto, como hoy |
+| `reconstruirTextoCorto` usa `textoAvisoListo` de `proveedorSms.js` | `armarMensaje(tenant, { estado: fila.evento, canal: fila.canal, datos })` y enviar `texto` (y `titulo` en push) |
+| HU-28: avisos de `en_lavado`, `secado`, `entregado` | Mismo llamado con el estado nuevo; ya hay plantilla de la plataforma para los cinco estados |
+
+Eventos de la cola: `orden.recibida` → `recibido`, `orden.lista` → `listo` (`ESTADO_DE_EVENTO`). Un estado o canal desconocido lanza un error de programación. El mensaje se arma al enviar, no al encolar, para usar siempre la plantilla vigente.
 
 ## 5. Reglas de negocio
 
