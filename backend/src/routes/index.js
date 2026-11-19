@@ -8,6 +8,7 @@ import vehiculosRoutes from './vehiculos.routes.js';
 import serviciosRoutes from './servicios.routes.js';
 import ordenesRoutes from './ordenes.routes.js';
 import promocionesRoutes from './promociones.routes.js';
+import campanasRoutes from './campanas.routes.js';
 import usuariosRoutes from './usuarios.routes.js';
 import establecimientoRoutes from './establecimiento.routes.js';
 import superadminRoutes from './superadmin.routes.js';
@@ -36,6 +37,8 @@ export const MODULOS = [
   ['/servicios', serviciosRoutes],
   ['/ordenes', ordenesRoutes],
   ['/promociones', promocionesRoutes],
+  // HU-35: campañas de promociones segmentadas.
+  ['/campanas', campanasRoutes],
   ['/usuarios', usuariosRoutes],
   ['/establecimiento', establecimientoRoutes],
   ['/superadmin', superadminRoutes],
@@ -53,6 +56,8 @@ export const MODULO_DE_PREFIJO = {
   '/ordenes': 'dashboard',
   // '/promociones' NO va aquí: GET es de solo lectura para el operario (FormularioIngreso pide las vigentes
   // al registrar un ingreso). POST/PATCH ya exigen requiereRol('admin') en promociones.routes.js.
+  // HU-35: las campañas sí son exclusivas del administrador y viven en el módulo de promociones.
+  '/campanas': 'promociones',
   '/usuarios': 'usuarios',
   '/reportes': 'reportes',
   '/notificaciones': 'notificaciones',

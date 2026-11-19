@@ -21,7 +21,8 @@ establecimientos ◀── perfiles (auth.users)
    │      ├── orden_servicios ── servicios
    │      └── historial_estados ── perfiles
    │
-   ├── notificaciones ── clientes, ordenes
+   ├── notificaciones ── clientes, ordenes, campanas
+   ├── campanas ── promociones (segmento de clientes)
    └── config_notificaciones (un interruptor por estado del flujo)
 ```
 
@@ -35,6 +36,7 @@ establecimientos ◀── perfiles (auth.users)
 | Promociones | `promociones`, `promocion_servicios` | `establecimiento_id`; servicios del mismo establecimiento |
 | Órdenes de servicio | `ordenes`, `orden_servicios`, `historial_estados` | `establecimiento_id`; vehículo, servicios y usuarios del mismo establecimiento |
 | Notificaciones | `notificaciones` | `establecimiento_id`; cliente y orden del mismo establecimiento |
+| Campañas de promociones | `campanas` | `establecimiento_id`; promoción del mismo establecimiento; cada campaña se materializa como notificaciones comerciales (`notificaciones.campana_id`) |
 | Configuración de notificaciones | `config_notificaciones` | `establecimiento_id`; una fila por estado del flujo, con `listo` siempre activo |
 | Política de datos y autorizaciones | `politicas_datos` (versiones inmutables), `consentimientos` (solo inserción) | `consentimientos.establecimiento_id` + cliente del mismo establecimiento; la política es global |
 | Auditoría | `auditoria` (solo inserción) | `establecimiento_id` sin llave foránea, para conservar el registro aunque se elimine el establecimiento |
@@ -51,6 +53,8 @@ Además de las llaves foráneas simples, la base impide relacionar datos de esta
 La tabla `notificaciones` sigue el patrón *outbox* (ADR-03). La lógica de envío, reintentos y canal alterno se implementa en HU-46.
 
 La tabla `config_notificaciones` guarda un interruptor por cada estado del flujo (`recibido`, `en_lavado`, `secado`, `listo`, `entregado`) y por establecimiento (HU-31). Un trigger siembra los cinco estados activos al crear una sede y una restricción `check` impide desactivar `listo`. La función `guardar_config_notificaciones` guarda varios interruptores en una sola transacción y vuelve a validar el estado obligatorio.
+
+La tabla `campanas` (HU-35) guarda la promoción elegida (con una copia `promocion_snapshot` para que el mensaje no cambie si la promoción se edita), el `segmento` (días sin visita, servicios usados y tipos de vehículo), la hora pedida (`programada_solicitada`) y la ya ajustada al horario de Bogotá (`programada_para`), además de los conteos de destinatarios y exclusiones. La función `segmento_campana` calcula el segmento y devuelve un `motivo` por cliente (`sin_autorizacion`, `limite_semanal`, `sin_correo` o nulo); el backend solo envía a los de motivo nulo. Al materializar, cada destinatario entra en `notificaciones` con `tipo = 'comercial'`, `prioridad = 2` y `campana_id`, y la función `reclamar_comercial` vuelve a validar autorización y límite semanal antes de cada envío.
 
 ## 2. Migraciones versionadas (CA2)
 
@@ -80,6 +84,7 @@ La tabla `config_notificaciones` guarda un interruptor por cada estado del flujo
 | `20261110230550` | `hu30_autorizacion_notificaciones` | Autorizaciones de avisos y promociones, revocación y enlaces de baja |
 | `20261110231500` | `hu31_configuracion_notificaciones` | Tabla `config_notificaciones`, valores por defecto, RLS y función `guardar_config_notificaciones` |
 | `20261117120000` | `hu32_plantillas_notificacion` | Tabla `plantillas_notificacion` por sede, estado de la orden y canal (push, SMS, correo) con RLS de lectura por sede; 15 plantillas de la plataforma (`establecimiento_id` nulo) y funciones `plantillas_notificacion_de` y `guardar_plantilla_notificacion` |
+| `20261118090000` | `hu35_campanas` | Tabla `campanas` con RLS; `notificaciones.prioridad` y `campana_id`; segmentador `segmento_campana` (privado y público) y revalidación atómica `reclamar_comercial` |
 
 **Reglas:**
 

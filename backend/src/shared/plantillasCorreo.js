@@ -20,11 +20,29 @@ export const formatoPesos = (valor) =>
 export const formatoFechaHora = (valor) =>
   new Intl.DateTimeFormat('es-CO', { timeZone: ZONA, dateStyle: 'long', timeStyle: 'short' }).format(new Date(valor ?? Date.now()));
 
+/**
+ * Fecha sin hora (AAAA-MM-DD) en hora de Colombia. Se arma en UTC para que el día no se corra:
+ * las fechas de vigencia de una promoción son días completos, no instantes.
+ */
+export const formatoFecha = (valor) => {
+  const [anio, mes, dia] = String(valor ?? '').slice(0, 10).split('-').map(Number);
+  if (!anio || !mes || !dia) return '';
+  return new Intl.DateTimeFormat('es-CO', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })
+    .format(new Date(Date.UTC(anio, mes - 1, dia)));
+};
+
 const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
 const colorSeguro = (color) => (COLOR_HEX.test(color ?? '') ? color : '#2563EB');
 const primerNombre = (nombre) => String(nombre ?? '').trim().split(/\s+/)[0] || 'cliente';
 
-function marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja = null }) {
+function marco({
+  establecimiento,
+  titulo,
+  cuerpoHtml,
+  enlaceBaja = null,
+  textoBaja = 'Dejar de recibir estos avisos',
+  motivo = null,
+}) {
   const color = colorSeguro(establecimiento?.color_primario);
   const nombreSede = escaparHtml(establecimiento?.nombre ?? 'Zaru');
   const encabezado = establecimiento?.logo_url
@@ -41,7 +59,7 @@ function marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja = null }) {
 ${cuerpoHtml}
 </td></tr>
 <tr><td style="padding:16px 24px;background:#f9fafb;color:#6b7280;font-size:12px">
-Recibes este correo porque dejaste tu vehículo en ${nombreSede}. Es un mensaje automático: por favor no respondas.${enlaceBaja ? `<br><a href="${escaparHtml(enlaceBaja)}" style="color:#6b7280">Dejar de recibir estos avisos</a>` : ''}
+Recibes este correo porque ${motivo ?? `dejaste tu vehículo en ${nombreSede}`}. Es un mensaje automático: por favor no respondas.${enlaceBaja ? `<br><a href="${escaparHtml(enlaceBaja)}" style="color:#6b7280">${escaparHtml(textoBaja)}</a>` : ''}
 </td></tr>
 </table>
 </td></tr></table>
@@ -199,6 +217,70 @@ export function plantillaEntregada(datos) {
     cierreTexto: '¡Gracias por confiar en nosotros!',
     conSeguimiento: false,
   });
+}
+
+/**
+ * HU-35 (RF-F7-10) — correo de una promoción segmentada.
+ * La promoción llega como foto guardada al confirmar la campaña (`promocion_snapshot`), no se
+ * consulta de nuevo al enviar: así el mensaje dice lo mismo que vio el administrador.
+ * @param {{ establecimiento, cliente, promocion: object, enlaceBaja?: string }} datos
+ */
+export function plantillaPromocion({ establecimiento, cliente, promocion = {}, enlaceBaja = null }) {
+  const sede = establecimiento?.nombre ?? 'tu car wash';
+  const titulo = promocion.nombre ?? 'Una promoción para ti';
+  const descuento = Number(promocion.descuentoPct ?? 0);
+  const servicios = (Array.isArray(promocion.servicios) ? promocion.servicios : []).filter(Boolean);
+  const descripcion = promocion.descripcion ? String(promocion.descripcion) : '';
+  const condiciones = promocion.condiciones ? String(promocion.condiciones) : '';
+  const vigencia = promocion.fechaFin
+    ? `Válida hasta el ${formatoFecha(promocion.fechaFin)}`
+    : '';
+
+  const descuentoHtml = descuento > 0
+    ? `<p style="margin:0 0 16px;font-size:28px;font-weight:700;color:${colorSeguro(establecimiento?.color_primario)}">${descuento}% de descuento</p>`
+    : '';
+  const serviciosHtml = servicios.length
+    ? `<p style="margin:16px 0 4px;font-weight:600">Aplica en</p>
+<ul style="margin:0 0 16px;padding-left:20px">${servicios.map((s) => `<li>${escaparHtml(s)}</li>`).join('')}</ul>`
+    : '';
+  const condicionesHtml = condiciones
+    ? `<p style="margin:0 0 16px;color:#4b5563;font-size:14px"><strong>Condiciones:</strong> ${escaparHtml(condiciones)}</p>`
+    : '';
+
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, en ${escaparHtml(sede)} preparamos algo para tu vehículo.</p>
+<h2 style="margin:0 0 8px;font-size:22px">${escaparHtml(titulo)}</h2>
+${descuentoHtml}
+${descripcion ? `<p style="margin:0 0 16px">${escaparHtml(descripcion)}</p>` : ''}
+${serviciosHtml}
+${condicionesHtml}
+${vigencia ? `<p style="margin:0;font-weight:600">${escaparHtml(vigencia)}</p>` : ''}`;
+
+  const lineas = [
+    `Hola ${primerNombre(cliente?.nombre)}, en ${sede} preparamos algo para tu vehículo.`,
+    '',
+    titulo,
+    ...(descuento > 0 ? [`${descuento}% de descuento`] : []),
+    ...(descripcion ? ['', descripcion] : []),
+    ...(servicios.length ? ['', 'Aplica en:', ...servicios.map((s) => `- ${s}`)] : []),
+    ...(condiciones ? ['', `Condiciones: ${condiciones}`] : []),
+    ...(vigencia ? ['', vigencia] : []),
+    '',
+    ...pieTexto(enlaceBaja),
+  ];
+
+  return {
+    asunto: `${titulo} · ${sede}`.replace(/\s+/g, ' ').trim(),
+    html: marco({
+      establecimiento,
+      titulo,
+      cuerpoHtml,
+      enlaceBaja,
+      textoBaja: 'Dejar de recibir promociones',
+      motivo: `autorizaste recibir promociones y ofertas de ${escaparHtml(sede)}`,
+    }),
+    texto: lineas.join('\n'),
+  };
 }
 
 export const PLANTILLAS = {
