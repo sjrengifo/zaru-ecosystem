@@ -99,6 +99,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
 | `novedades` | Novedades del vehículo; una demora actualiza la entrega estimada | HU-20, HU-37 |
 | `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
+| `recordatorios` | Próximo lavado estimado por vehículo; uno programado a la vez y su baja por enlace | HU-36 |
 | `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
 | `politicas_datos` | Versiones de la política de tratamiento de datos; una versión publicada no se modifica ([texto v1.0](docs/legal/politica-tratamiento-datos-v1.0.md), [texto v1.1](docs/legal/politica-tratamiento-datos-v1.1.md)) | HU-51 |
 | `consentimientos` | Evidencia inmutable de cada autorización o revocación: fecha, hora, versión de la política, canal, IP y usuario | HU-51, HU-30 |
@@ -234,6 +235,8 @@ HU-20 expone el registro de novedades de una orden para el operario. Una novedad
 
 HU-21 agrega al seguimiento la sección desplegable **Detalle del servicio**: muestra la placa, los servicios contratados con su duración y precio, el descuento y el total. El resumen aclara que el pago se realiza directamente en el establecimiento físico y que la plataforma no procesa pagos en línea. No requiere migraciones.
 
+HU-36 programa el **recordatorio de próximo lavado** cuando una orden pasa a entregado: con al menos tres servicios entregados calcula el promedio de días entre visitas consecutivas, estima la próxima fecha y deja un correo en la cola para las 09:00 de Bogotá del día anterior. Si el cliente registra un servicio nuevo, el recordatorio vigente se cancela y se recalcula al entregar; revertir una entrega también lo cancela. Cada correo lleva un enlace propio (`/recordatorios/{token}/desactivar`) que solo desactiva los recordatorios de ese vehículo, sin tocar los avisos del servicio ni las promociones de HU-30. Requiere la migración `20261111120000_hu36_recordatorios.sql` (columna `vehiculos.recordatorios_activos` y tabla `recordatorios`).
+
 HU-34 incorpora **Notificaciones** en el menú del administrador: bitácora por sede con fecha, hora, cliente, placa, canal, tipo y estado, filtros combinables (placa, rango de fechas, canal, estado, tipo), paginación y detalle de cada intento con el error real del proveedor. Los destinos se muestran enmascarados (`300****567`, `yel****@gmail.com`) porque el backend los descifra solo para enmascararlos. Los envíos se procesan en un worker del servidor con reintentos exponenciales acotados (solo errores recuperables) y, si el correo de "listo" agota sus intentos, un SMS alterno cuando `SMS_PROVEEDOR` está configurado y el cliente autorizó avisos. "Enviada" significa aceptada por el proveedor; "Entregada" requiere el acuse de entrega del proveedor. Requiere la migración `20261110150000_hu34_hu23_hu24_historiales.sql`.
 
 HU-23/HU-24 publican el **historial de servicios del cliente final** en `/s/{slug}/historial`. El cliente confirma su identidad con placa + celular registrados y recibe un pase firmado de 30 minutos (HMAC, sin sesión de panel); con él ve solo sus órdenes entregadas, de la más reciente a la más antigua, filtra por placa y abre el detalle de una única orden. El establecimiento y el cliente salen del pase firmado, nunca de un id de la URL. Comparte la migración de HU-34 (índices de historial).
@@ -344,6 +347,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 | Jira | Historia | Puntos | MoSCoW | Frontend | Backend |
 |---|---|---|---|---|---|
 | ZARU-19 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones | 5 | Must | `CasillasNotificaciones.jsx` · `AutorizacionesCliente.jsx` · `BajaNotificaciones.jsx` · `PoliticaDatos.jsx` | `shared/autorizaciones.js` · `shared/bajaPublica.js` · `baja.controller.js` · migración `hu30_autorizacion_notificaciones` |
+| ZARU-25 | HU-36 Recordatorio de próximo lavado | 5 | Could | `BajaRecordatorios.jsx` | `shared/recordatorios.js` · `shared/recordatorioPublico.js` · `recordatorios.controller.js` · migración `20261111120000_hu36_recordatorios.sql` |
 
 Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
 

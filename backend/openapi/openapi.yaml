@@ -277,6 +277,52 @@ paths:
                       revocadaAt: { type: [string, 'null'], format: date-time }
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
+  /publico/recordatorios/{token}/desactivar:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Token firmado del enlace "no volver a recordarme" de un correo (HU-36 CA3). Solo sirve para los recordatorios de ese vehículo.
+        schema: { type: string, maxLength: 500 }
+    get:
+      tags: [Acceso del cliente]
+      operationId: consultarRecordatorioPublico
+      summary: Estado de los recordatorios de próximo lavado del vehículo
+      description: |
+        Devuelve la placa, si los recordatorios siguen activos y la fecha estimada del próximo lavado.
+        No incluye datos personales. Un token alterado, o de un vehículo que ya no existe, responde `404`.
+      security: []
+      responses:
+        '200':
+          description: Recordatorios del vehículo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordatorioPublico' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+    post:
+      tags: [Acceso del cliente]
+      operationId: desactivarRecordatorioPublico
+      summary: No volver a recibir recordatorios de este vehículo (sin iniciar sesión)
+      description: |
+        Desactiva solo los recordatorios de próximo lavado del vehículo del enlace y cancela el correo
+        que estuviera programado (HU-36 CA3). No modifica los avisos del servicio ni las promociones de
+        HU-30. Es `POST` para que las vistas previas de los correos no desactiven nada al abrirlos.
+        Repetirlo no agrega cambios.
+      security: []
+      responses:
+        '200':
+          description: Recordatorios desactivados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/RecordatorioPublico' }
+                  - type: object
+                    properties:
+                      desactivadoAt: { type: [string, 'null'], format: date-time }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
   /publico/sedes/{slug}/historial/acceso:
     post:
       tags: [Historial del cliente]
@@ -1780,6 +1826,24 @@ components:
         tipo: { type: string, enum: [notificaciones_servicio, comerciales] }
         nombreTipo: { type: string, example: Promociones y ofertas }
         autorizado: { type: boolean }
+        sede:
+          type: object
+          properties:
+            nombre: { type: string }
+            logoUrl: { type: [string, 'null'] }
+            colorPrimario: { type: [string, 'null'] }
+            colorSecundario: { type: [string, 'null'] }
+
+    RecordatorioPublico:
+      type: object
+      properties:
+        vehiculo:
+          type: object
+          properties:
+            placa: { type: string, example: XYZ987 }
+        activos: { type: boolean, description: false cuando el cliente desactivó los recordatorios de este vehículo. }
+        proximaFecha: { type: [string, 'null'], format: date, description: Fecha estimada del próximo lavado; null si no hay ninguno programado. }
+        desactivadoAt: { type: [string, 'null'], format: date-time }
         sede:
           type: object
           properties:

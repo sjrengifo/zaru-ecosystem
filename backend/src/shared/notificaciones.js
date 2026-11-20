@@ -24,8 +24,9 @@ import { clasificarError, esperaExponencial, esperasConfiguradas } from './reint
 import { PLANTILLAS } from './plantillasCorreo.js';
 import { enlaceBaja, puedeRecibir, TIPOS } from './autorizaciones.js';
 import { crearAccesoTenant } from './tenant.js';
+import { enlaceRecordatorio } from './tokenRecordatorio.js';
 
-export const EVENTOS = { RECIBIDA: 'orden.recibida', LISTA: 'orden.lista' };
+export const EVENTOS = { RECIBIDA: 'orden.recibida', LISTA: 'orden.lista', RECORDATORIO: 'recordatorio.proximo_lavado' };
 export const MAX_INTENTOS = 3;
 const ESPERAS_MS = [2_000, 4_000]; // compatibilidad del envío inmediato (HU-46)
 
@@ -137,6 +138,19 @@ async function marcar(tenant, id, cambios) {
   }
 }
 
+/** HU-36: cancela un correo programado que todavía no salió. */
+export async function cancelarAvisoProgramado(tenant, id, motivo) {
+  const { data: fila, error } = await tenant.listar('notificaciones', 'id, estado').eq('id', id).maybeSingle();
+  if (error) throw error;
+  if (!fila || ['enviada', 'entregada', 'cancelada'].includes(fila.estado)) return null;
+  await tenant.actualizar('notificaciones', id, {
+    estado: 'cancelada',
+    error: `Cancelada: ${String(motivo ?? 'solicitud del cliente').slice(0, 200)}`,
+    proximo_intento_at: null,
+  });
+  return fila;
+}
+
 /**
  * HU-34: guarda la auditoría de un intento. Es best-effort: si la migración todavía no está
  * aplicada, el envío sigue funcionando y la bitácora simplemente no muestra el detalle.
@@ -243,11 +257,59 @@ export function enSegundoPlano(tarea) {
   });
 }
 
+/** HU-36: el estado del recordatorio sigue al del correo que lo representa. */
+async function marcarRecordatorio(tenant, fila, cambios) {
+  if (fila.evento !== EVENTOS.RECORDATORIO || !fila.contenido?.recordatorioId) return;
+  try {
+    await tenant.actualizar('recordatorios', fila.contenido.recordatorioId, cambios);
+  } catch (err) {
+    console.error(`[HU-36] No se pudo actualizar el recordatorio ${fila.contenido.recordatorioId}:`, err.message);
+  }
+}
+
+async function reconstruirRecordatorio(tenant, fila) {
+  const recordatorioId = fila.contenido?.recordatorioId;
+  if (!recordatorioId) return null;
+  const { data: recordatorio, error } = await tenant
+    .listar('recordatorios', 'id, cliente_id, vehiculo_id, fecha_estimada, estado')
+    .eq('id', recordatorioId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!recordatorio || recordatorio.estado !== 'programado') return null;
+
+  const [{ data: vehiculo, error: errorVehiculo }, { data: cliente, error: errorCliente }, { data: establecimiento, error: errorSede }] =
+    await Promise.all([
+      tenant.listar('vehiculos', 'id, placa, recordatorios_activos').eq('id', recordatorio.vehiculo_id).maybeSingle(),
+      tenant.listar('clientes', 'id, nombre').eq('id', recordatorio.cliente_id).maybeSingle(),
+      tenant.listar('establecimientos', 'nombre, logo_url, color_primario, telefono').maybeSingle(),
+    ]);
+  if (errorVehiculo) throw errorVehiculo;
+  if (errorCliente) throw errorCliente;
+  if (errorSede) throw errorSede;
+  if (!vehiculo?.recordatorios_activos || !cliente) return null;
+  if (!(await puedeRecibir(tenant, recordatorio.cliente_id, TIPOS.comerciales))) return null;
+
+  let enlace = null;
+  try {
+    enlace = enlaceRecordatorio({
+      establecimientoId: tenant.establecimientoId,
+      clienteId: recordatorio.cliente_id,
+      vehiculoId: recordatorio.vehiculo_id,
+    });
+  } catch {
+    // Sin clave configurada el recordatorio sale sin enlace, igual que los avisos de HU-30.
+  }
+
+  const mensaje = PLANTILLAS[EVENTOS.RECORDATORIO]({ establecimiento, cliente, vehiculo, recordatorio, enlaceRecordatorio: enlace });
+  return { mensaje, recordatorio, cliente, vehiculo, establecimiento };
+}
+
 /**
  * Reconstruye el mensaje de correo desde la orden y la plantilla. No se guarda el cuerpo en la cola.
  * @returns {Promise<{ mensaje: object, orden: object, cliente: object, establecimiento: object } | null>}
  */
 async function reconstruirMensaje(tenant, fila) {
+  if (fila.evento === EVENTOS.RECORDATORIO) return reconstruirRecordatorio(tenant, fila);
   const plantilla = PLANTILLAS[fila.evento];
   if (!plantilla || !fila.orden_id) return null;
 
@@ -372,6 +434,11 @@ export async function enviarUnIntento(tenant, fila, { proveedor, proveedorSms: s
       error: motivo,
     });
     if (!puedeReintentar) {
+      await marcarRecordatorio(tenant, fila, {
+        estado: 'cancelado',
+        motivo_cancelacion: 'fallo_envio',
+        updated_at: ahora.toISOString(),
+      });
       try {
         await crearAlternoSms(tenant, { ...fila, intentos: intento }, { ahora });
       } catch (err) {
@@ -433,6 +500,11 @@ export async function enviarUnIntento(tenant, fila, { proveedor, proveedorSms: s
         proveedor: proveedorCorreoElegido.nombre,
         idProveedor,
         entregado: false,
+      });
+      await marcarRecordatorio(tenant, fila, {
+        estado: 'enviado',
+        enviado_at: ahora.toISOString(),
+        updated_at: ahora.toISOString(),
       });
       return { estado: 'enviada', intentos: intento };
     } catch (err) {

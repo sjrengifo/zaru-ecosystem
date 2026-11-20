@@ -7,6 +7,7 @@
 import { AppError, noEncontrado } from '../shared/errores.js';
 import { cifrar } from '../shared/cifrado.js';
 import { programarNotificacion } from '../shared/notificaciones.js';
+import { cancelarPorNuevoServicio, cancelarRecordatorio, programarRecordatorio } from '../shared/recordatorios.js';
 
 /** HU-46: el aviso al cliente corre después de responder; un fallo nunca afecta la operación. */
 async function avisarCliente(tenant, ordenId, tipo) {
@@ -16,6 +17,21 @@ async function avisarCliente(tenant, ordenId, tipo) {
     // CA3: un problema al preparar el aviso nunca revierte la orden.
     console.error('[HU-46] No se pudo preparar el aviso:', err?.message ?? err);
     return { estado: 'error', motivo: 'preparacion' };
+  }
+}
+
+/** HU-36: programa o cancela el recordatorio sin bloquear ni revertir la operación de la orden. */
+async function sincronizarRecordatorio(tenant, orden, { nuevoServicio = false, revertir = false } = {}) {
+  const vehiculoId = orden?.vehiculo?.id;
+  if (!vehiculoId) return null;
+  try {
+    if (nuevoServicio) return await cancelarPorNuevoServicio(tenant, vehiculoId);
+    if (orden.estado === 'entregado') return await programarRecordatorio(tenant, vehiculoId);
+    if (revertir) return await cancelarRecordatorio(tenant, vehiculoId, 'orden_revertida');
+    return null;
+  } catch (err) {
+    console.error('[HU-36] No se pudo sincronizar el recordatorio:', err?.message ?? err);
+    return { estado: 'error', motivo: 'recordatorio' };
   }
 }
 
@@ -117,6 +133,7 @@ export async function crear(req, res, next) {
     }
 
     const orden = detalle(await req.tenant.obtener('ordenes', ordenId, COLUMNAS_DETALLE, 'Orden'));
+    await sincronizarRecordatorio(req.tenant, orden, { nuevoServicio: true }); // HU-36 CA2
     const notificacion = await avisarCliente(req.tenant, ordenId, 'ingreso'); // HU-46 CA1
     res.status(201).json({ ...orden, notificacion });
   } catch (err) {
@@ -159,6 +176,7 @@ export async function cambiarEstado(req, res, next) {
     }
 
     const orden = detalle(await req.tenant.obtener('ordenes', id, COLUMNAS_DETALLE, 'Orden'));
+    await sincronizarRecordatorio(req.tenant, orden, { revertir: revertir === true }); // HU-36
     const notificacion = orden.estado === 'listo' && revertir !== true
       ? await avisarCliente(req.tenant, id, 'listo')
       : null;

@@ -24,7 +24,7 @@ const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
 const colorSeguro = (color) => (COLOR_HEX.test(color ?? '') ? color : '#2563EB');
 const primerNombre = (nombre) => String(nombre ?? '').trim().split(/\s+/)[0] || 'cliente';
 
-function marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja = null }) {
+function marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja = null, textoEnlaceBaja = 'Dejar de recibir estos avisos', notaPie = null }) {
   const color = colorSeguro(establecimiento?.color_primario);
   const nombreSede = escaparHtml(establecimiento?.nombre ?? 'Zaru');
   const encabezado = establecimiento?.logo_url
@@ -41,7 +41,7 @@ function marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja = null }) {
 ${cuerpoHtml}
 </td></tr>
 <tr><td style="padding:16px 24px;background:#f9fafb;color:#6b7280;font-size:12px">
-Recibes este correo porque dejaste tu vehículo en ${nombreSede}. Es un mensaje automático: por favor no respondas.${enlaceBaja ? `<br><a href="${escaparHtml(enlaceBaja)}" style="color:#6b7280">Dejar de recibir estos avisos</a>` : ''}
+${notaPie ?? `Recibes este correo porque dejaste tu vehículo en ${nombreSede}.`} Es un mensaje automático: por favor no respondas.${enlaceBaja ? `<br><a href="${escaparHtml(enlaceBaja)}" style="color:#6b7280">${escaparHtml(textoEnlaceBaja)}</a>` : ''}
 </td></tr>
 </table>
 </td></tr></table>
@@ -135,7 +135,39 @@ export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enla
   };
 }
 
+export const formatoDia = (valor) =>
+  new Intl.DateTimeFormat('es-CO', { timeZone: ZONA, dateStyle: 'long' }).format(new Date(`${valor}T12:00:00-05:00`));
+
+/** HU-36: recordatorio del próximo lavado calculado con la frecuencia del vehículo. */
+export function plantillaRecordatorio({ establecimiento, cliente, vehiculo, recordatorio, enlaceRecordatorio = null }) {
+  const sede = establecimiento?.nombre ?? 'el car wash';
+  const dia = formatoDia(recordatorio?.fecha_estimada);
+  const telefono = String(establecimiento?.telefono ?? '').trim();
+  const contacto = telefono ? ` Puedes agendar llamando al ${telefono}.` : ' Puedes agendar en el establecimiento.';
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, por el ritmo de tus lavados estimamos que tu vehículo ${placaHtml(vehiculo?.placa)} estará listo para un nuevo lavado el <strong>${escaparHtml(dia)}</strong>.</p>
+<p style="margin:0">${escaparHtml(contacto.trim())}</p>`;
+
+  return {
+    asunto: `¿Cuándo lavamos tu ${vehiculo?.placa ?? 'vehículo'}?`.replace(/\s+/g, ' ').trim(),
+    html: marco({
+      establecimiento,
+      titulo: 'Tu próximo lavado se acerca',
+      cuerpoHtml,
+      enlaceBaja: enlaceRecordatorio,
+      textoEnlaceBaja: 'No volver a recordarme',
+      notaPie: `Recibes este recordatorio porque lavaste tu vehículo en ${sede}.`,
+    }),
+    texto: [
+      `Hola ${primerNombre(cliente?.nombre)}, por el ritmo de tus lavados estimamos que tu vehículo ${vehiculo?.placa} estará listo para un nuevo lavado el ${dia}.`,
+      contacto.trim(),
+      ...(enlaceRecordatorio ? ['', `No quiero recibir más recordatorios de este vehículo: ${enlaceRecordatorio}`] : []),
+    ].join('\n'),
+  };
+}
+
 export const PLANTILLAS = {
   'orden.recibida': plantillaIngreso,
   'orden.lista': plantillaListo,
+  'recordatorio.proximo_lavado': plantillaRecordatorio,
 };
