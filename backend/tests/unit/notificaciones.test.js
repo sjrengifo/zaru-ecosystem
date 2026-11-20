@@ -32,6 +32,7 @@ function tenantCon({ correo = cifrar('luis@correo.com'), revocado = false } = {}
     // HU-30: autorización vigente de los avisos del servicio (vista autorizaciones_vigentes).
     autorizaciones_vigentes: [{ data: [{ tipo: 'notificaciones_servicio', otorgado: !revocado, canal: 'panel', created_at: '2026-11-01T10:00:00Z' }], error: null }],
     establecimientos: [{ data: { nombre: 'Lavadero Norte', color_primario: '#2563EB' }, error: null }],
+    novedades: [{ data: { id: 'nov-1', tipo: 'demora', mensaje: 'Llegará 20 minutos después', minutos_extra: 20 }, error: null }],
   });
   tenant.crear.mockResolvedValue({ id: 'nnnnnnnn-0000-4000-8000-000000000003' });
   return tenant;
@@ -62,6 +63,19 @@ describe('HU-46 · preparar el correo', () => {
     expect(descifrar(fila.destino)).toBe('luis@correo.com');
     expect(fila.contenido.asunto).toContain('XYZ987');
     expect(typeof enviar).toBe('function');
+  });
+
+  it('HU-37: pone la novedad en la cola como aviso operativo individual', async () => {
+    const tenant = tenantCon();
+    const { resumen } = await prepararCorreo(tenant, { evento: EVENTOS.NOVEDAD, ordenId: ORDEN_ID, novedadId: 'nov-1' });
+    expect(resumen.estado).toBe('pendiente');
+    expect(tenant.crear).toHaveBeenCalledWith('notificaciones', expect.objectContaining({
+      tipo: 'novedad',
+      evento: 'orden.novedad',
+      orden_id: ORDEN_ID,
+      contenido: expect.objectContaining({ novedadId: 'nov-1' }),
+      clave_dedupe: `${ORDEN_ID}:orden.novedad:nov-1`,
+    }), 'id');
   });
 
   it('un correo antiguo sin cifrar se cifra antes de guardarlo como destino', async () => {

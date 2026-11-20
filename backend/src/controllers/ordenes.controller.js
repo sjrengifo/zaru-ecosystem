@@ -6,7 +6,7 @@
 //   el evento de dominio para que HU-46 notifique al cliente.
 import { AppError, noEncontrado } from '../shared/errores.js';
 import { cifrar } from '../shared/cifrado.js';
-import { programarNotificacion } from '../shared/notificaciones.js';
+import { programarNotificacion, programarNotificacionNovedad } from '../shared/notificaciones.js';
 import { cancelarPorNuevoServicio, cancelarRecordatorio, programarRecordatorio } from '../shared/recordatorios.js';
 
 /** HU-46: el aviso al cliente corre después de responder; un fallo nunca afecta la operación. */
@@ -206,7 +206,14 @@ export async function registrarNovedad(req, res, next) {
       throw traducirErrorEstado(err);
     }
 
-    res.status(201).json(novedad);
+    let notificacion;
+    try {
+      notificacion = await programarNotificacionNovedad(req.tenant, id, novedad.id);
+    } catch (err) {
+      console.error('[HU-37] No se pudo encolar la notificación de novedad:', err?.message ?? err);
+      notificacion = { estado: 'error', motivo: 'preparacion' };
+    }
+    res.status(201).json({ ...novedad, notificacion });
   } catch (err) {
     next(err);
   }

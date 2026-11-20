@@ -178,6 +178,34 @@ export function crearAccesoTenant(db, ctx) {
           if (error) throw error;
           return { ruta, url: almacen.getPublicUrl(ruta).data.publicUrl };
         },
+        /** Sube a una ruta anidada dentro de la carpeta de la sede, para buckets privados. */
+        async subirEn(ruta, contenido, opciones) {
+          if (!esPropia(ruta) || String(ruta).split('/').some((parte) => !parte || parte === '.' || parte === '..')) {
+            throw noEncontrado('Archivo');
+          }
+          const { error } = await almacen.upload(ruta, contenido, { ...opciones, upsert: false });
+          if (error) throw error;
+          return { ruta };
+        },
+        /** Crea un enlace temporal solo para una ruta que pertenezca a esta sede. */
+        async urlFirmada(ruta, segundos = 3600) {
+          if (!esPropia(ruta)) throw noEncontrado('Archivo');
+          const { data, error } = await almacen.createSignedUrl(ruta, segundos);
+          if (error) throw error;
+          return data.signedUrl;
+        },
+        async urlsFirmadas(rutas, segundos = 3600) {
+          if (!rutas.length) return [];
+          if (!rutas.every(esPropia)) throw noEncontrado('Archivo');
+          const { data, error } = await almacen.createSignedUrls(rutas, segundos);
+          if (error) throw error;
+          return (data ?? []).map((fila, indice) => ({ ruta: rutas[indice], url: fila.signedUrl }));
+        },
+        async borrarVarias(rutas) {
+          if (!rutas.every(esPropia)) throw noEncontrado('Archivo');
+          const { error } = await almacen.remove(rutas);
+          return error;
+        },
         /** Ruta dentro del bucket de una URL pública, o null si no es un archivo de este establecimiento. */
         rutaDeUrl(url) {
           const ruta = typeof url === 'string' ? url.split(marcaUrl)[1]?.split('?')[0] : null;

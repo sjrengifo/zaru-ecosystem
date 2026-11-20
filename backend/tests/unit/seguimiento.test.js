@@ -142,6 +142,14 @@ describe('HU-18 CA1 · indicador de la etapa actual', () => {
     expect(s.entregaEstimadaAt).toBe('2026-11-08T14:40:00Z');
   });
 
+  it('HU-37 CA3: entrega al cliente la nueva hora de seguimiento y versión de la orden', () => {
+    const s = armarSeguimiento(ordenBase({
+      entrega_estimada_at: '2026-11-08T15:05:00Z',
+      version: 2,
+    }), sede);
+    expect(s).toMatchObject({ entregaEstimadaAt: '2026-11-08T15:05:00Z', version: 2 });
+  });
+
   it('no expone datos personales del cliente ni identificadores internos (RNF-F5-04)', () => {
     const orden = ordenBase({
       vehiculo: { placa: 'ABC123', cliente: { nombre: 'Ana Pérez', telefono: '3001234567', correo: 'ana@correo.com' } },

@@ -4,7 +4,10 @@ import { describe, it, expect, vi } from 'vitest';
 process.env.ZARU_CLAVE_CIFRADO ||= Buffer.alloc(32).toString('base64');
 
 // HU-46: el aviso al cliente se prueba en notificaciones.test.js; aquí se aísla para no tocar el tenant falso.
-vi.mock('../../src/shared/notificaciones.js', () => ({ programarNotificacion: vi.fn(async () => ({ estado: 'omitida' })) }));
+vi.mock('../../src/shared/notificaciones.js', () => ({
+  programarNotificacion: vi.fn(async () => ({ estado: 'omitida' })),
+  programarNotificacionNovedad: vi.fn(async () => ({ estado: 'pendiente', canal: 'correo' })),
+}));
 
 import { cambioEstadoOrden, novedadNueva, ordenNueva } from '../../src/schemas/ordenes.schemas.js';
 import { cambiarEstado, crear, registrarNovedad } from '../../src/controllers/ordenes.controller.js';
@@ -344,7 +347,7 @@ describe('POST /ordenes/:id/novedades', () => {
 
     expect(error).toBeUndefined();
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(datos).toEqual(NOVEDAD);
+    expect(datos).toMatchObject({ ...NOVEDAD, notificacion: { estado: 'pendiente', canal: 'correo' } });
     expect(tenant.obtener).toHaveBeenCalledWith('ordenes', ORDEN.id, 'id', 'Orden');
     expect(tenant.rpc).toHaveBeenCalledWith('registrar_novedad', {
       p_orden_id: ORDEN.id,

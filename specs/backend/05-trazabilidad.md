@@ -95,7 +95,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-34 Bitácora de notificaciones enviadas | ZARU-23 | 5 | Should | — | F6 | RF-F6-20, 21 | ESC-F6-12 | — | Pendiente |
 | HU-35 Envío de promociones a clientes del establecimiento | ZARU-24 | 8 | Could | — | F7 | RF-F7-06 a 10 | ESC-F7-04, 05 | — | Pendiente |
 | HU-36 Recordatorio de próximo lavado | ZARU-25 | 5 | Could | - | F7 | RF-F7-11 a 14 | ESC-F7-06, 07 | `tests/unit/hu36-recordatorios.test.js` · `frontend/tests/recordatorios.test.jsx` | Cubierta |
-| HU-37 Mensaje manual del operario durante el lavado | ZARU-26 | 5 | Should | — | F7 | RF-F7-15 a 18 | ESC-F7-08, 09 | — | Pendiente |
+| HU-37 Mensaje manual del operario durante el lavado | ZARU-26 | 5 | Should | — | F7 | RF-F7-15 a 17 | ESC-F7-08 | `tests/unit/ordenes.test.js` · `tests/unit/novedades.controller.test.js` · `frontend/tests/novedades.test.jsx` | Cubierta |
 | HU-38 Centro de notificaciones en la app | ZARU-27 | 3 | Should | Nikol | F6 | RF-F6-22, 23 | ESC-F6-13 | `tests/unit/hu38-centro-notificaciones.test.js` · `tests/integration/centro-notificaciones.test.js` · `frontend/tests/notificaciones-cliente.test.jsx` | Cubierta |
 | HU-39 Control de consumo de notificaciones por plan | ZARU-28 | 5 | Could | — | F7 | RF-F7-19 a 23 | ESC-F7-10, 11 | — | Pendiente |
 | HU-40 Registrar el dispositivo para recibir notificaciones push | ZARU-70 | 5 | Should | — | F6 | RF-F6-11 | — | — | Pendiente |

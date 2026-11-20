@@ -24,6 +24,7 @@ import FormularioIngreso from '../components/FormularioIngreso.jsx';
 import AlertaDemora from '../components/AlertaDemora.jsx';
 import Notificacion from '../components/Notificacion.jsx';
 import Cargando from '../components/Cargando.jsx';
+import FormularioNovedad from '../components/FormularioNovedad.jsx';
 
 export default function Dashboard() {
   const {
@@ -45,10 +46,21 @@ export default function Dashboard() {
   const [confirmacion, setConfirmacion] = useState(null);
   const [errorAccion, setErrorAccion] = useState('');
   const [alertaDemoraVisible, setAlertaDemoraVisible] = useState(false);
+  const [novedadOrden, setNovedadOrden] = useState(null);
   const ultimaAlertaRef = useRef(0);
   const ultimaFirmaRef = useRef('');
   const cerrarConfirmacion = useCallback(() => setConfirmacion(null), []);
   const cerrarAlertaDemora = useCallback(() => setAlertaDemoraVisible(false), []);
+  const guardarNovedad = useCallback((novedad) => {
+    setNovedadOrden(null);
+    setConfirmacion({
+      id: Date.now(),
+      titulo: 'Novedad enviada',
+      detalle: novedad.tipo === 'demora' ? 'La entrega estimada se actualizó.' : 'El mensaje quedó guardado en el historial del servicio.',
+      tipo: 'exito',
+    });
+    refrescar();
+  }, [refrescar]);
 
   const grupos = agruparPorColumna(ordenes);
   const atendidos = vehiculosAtendidosHoy(ordenes);
@@ -214,6 +226,7 @@ export default function Dashboard() {
                 columna={columna}
                 ordenes={grupos[columna.id]}
                 onAvanzar={avanzarEstado}
+                onNotificarNovedad={setNovedadOrden}
                 avanzando={avanzando}
                 ahora={ahora}
               />
@@ -240,6 +253,13 @@ export default function Dashboard() {
           ordenes={demoradas}
           ahora={ahora}
           onCerrar={cerrarAlertaDemora}
+        />
+      )}
+      {novedadOrden && (
+        <FormularioNovedad
+          orden={novedadOrden}
+          onCerrar={() => setNovedadOrden(null)}
+          onGuardado={guardarNovedad}
         />
       )}
     </section>

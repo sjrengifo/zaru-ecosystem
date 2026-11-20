@@ -981,7 +981,7 @@ paths:
       operationId: registrarNovedadOrden
       summary: Registrar una novedad del vehículo
       description: >-
-        HU-20 y RF-F7-17. El operario registra una novedad sobre una orden en curso. Si el tipo
+        HU-20 y HU-37. El operario registra una novedad sobre una orden en curso; el aviso se encola para el cliente si autorizó notificaciones del servicio. Si el tipo
         es `demora`, `minutosExtra` es obligatorio y la entrega estimada suma esos minutos; el
         seguimiento público recibe la nueva hora sin recargar. Los demás tipos no cambian la
         entrega estimada y no admiten `minutosExtra`. Una orden entregada responde `409`.
@@ -1012,6 +1012,81 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+    get:
+      tags: [Órdenes]
+      operationId: listarNovedadesOrden
+      summary: Consultar el historial de novedades de una orden
+      description: HU-37. Las fotos de evidencia se devuelven como enlaces firmados de una hora y solo se muestran al personal de la sede.
+      responses:
+        '200':
+          description: Novedades más recientes primero.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    tipo: { type: string, enum: [demora, dano_preexistente, objeto_encontrado, otro] }
+                    mensaje: { type: [string, 'null'], maxLength: 300 }
+                    minutosExtra: { type: [integer, 'null'] }
+                    createdAt: { type: string, format: date-time }
+                    fotos:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          ruta: { type: string }
+                          url: { type: string, format: uri }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /ordenes/{id}/novedades/{novedadId}/fotos:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: novedadId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Órdenes]
+      operationId: adjuntarFotosNovedad
+      summary: Guardar fotos de evidencia para un daño preexistente
+      description: HU-37 CA2. Acepta hasta tres imágenes JPG o PNG, de máximo 5 MB cada una; las almacena en un bucket privado y las vincula al historial de la orden.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [fotos]
+              properties:
+                fotos:
+                  type: array
+                  minItems: 1
+                  maxItems: 3
+                  items: { type: string, format: binary }
+      responses:
+        '201':
+          description: Evidencias guardadas; enlaces firmados válidos por una hora.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fotos:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ruta: { type: string }
+                        url: { type: string, format: uri }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /promociones:
     get:
@@ -2036,6 +2111,14 @@ components:
         createdAt: { type: string, format: date-time }
         entregaEstimadaAt: { type: [string, 'null'], format: date-time }
         version: { type: integer }
+        notificacion:
+          type: object
+          description: Estado de la notificación por correo que se encoló para el cliente.
+          properties:
+            canal: { type: string, enum: [correo] }
+            estado: { type: string, enum: [pendiente, omitida, duplicada, error] }
+            id: { type: string, format: uuid }
+            destino: { type: string, description: Correo enmascarado. }
 
     OrdenCambioEstado:
       description: Indica un estado nuevo o la reversión del último cambio, pero no ambos.

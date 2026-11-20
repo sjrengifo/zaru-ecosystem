@@ -233,6 +233,8 @@ HU-19 agrega a esa pantalla la línea de tiempo del lavado: todas las etapas en 
 
 HU-20 expone el registro de novedades de una orden para el operario. Una novedad `demora` exige `minutosExtra`, suma esos minutos a la entrega estimada y sube la versión de la orden para que el seguimiento del cliente reciba la nueva hora por SSE. La entrega estimada deja de mostrarse cuando el vehículo está listo o entregado. Requiere aplicar la migración `20261109120000_hu20_novedades_demora.sql`.
 
+HU-37 agrega **Notificar novedad** a las tarjetas que están en lavado: ofrece demora, daño preexistente y objeto encontrado, permite editar un texto de hasta 300 caracteres y, para daños, adjuntar hasta 3 fotos JPG/PNG de máximo 5 MB. Las fotos se guardan como evidencia en el historial del servicio, en un bucket privado con enlaces firmados. En las demoras, los minutos adicionales actualizan la hora del seguimiento en tiempo real. La novedad se encola para notificar al cliente por correo si tiene autorizados los avisos del servicio. Requiere la migración `20261119120000_hu37_evidencias_novedades.sql`.
+
 HU-21 agrega al seguimiento la sección desplegable **Detalle del servicio**: muestra la placa, los servicios contratados con su duración y precio, el descuento y el total. El resumen aclara que el pago se realiza directamente en el establecimiento físico y que la plataforma no procesa pagos en línea. No requiere migraciones.
 
 HU-36 programa el **recordatorio de próximo lavado** cuando una orden pasa a entregado: con al menos tres servicios entregados calcula el promedio de días entre visitas consecutivas, estima la próxima fecha y deja un correo en la cola para las 09:00 de Bogotá del día anterior. Si el cliente registra un servicio nuevo, el recordatorio vigente se cancela y se recalcula al entregar; revertir una entrega también lo cancela. Cada correo lleva un enlace propio (`/recordatorios/{token}/desactivar`) que solo desactiva los recordatorios de ese vehículo, sin tocar los avisos del servicio ni las promociones de HU-30. Requiere la migración `20261111120000_hu36_recordatorios.sql` (columna `vehiculos.recordatorios_activos` y tabla `recordatorios`).
@@ -348,6 +350,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 |---|---|---|---|---|---|
 | ZARU-19 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones | 5 | Must | `CasillasNotificaciones.jsx` · `AutorizacionesCliente.jsx` · `BajaNotificaciones.jsx` · `PoliticaDatos.jsx` | `shared/autorizaciones.js` · `shared/bajaPublica.js` · `baja.controller.js` · migración `hu30_autorizacion_notificaciones` |
 | ZARU-25 | HU-36 Recordatorio de próximo lavado | 5 | Could | `BajaRecordatorios.jsx` | `shared/recordatorios.js` · `shared/recordatorioPublico.js` · `recordatorios.controller.js` · migración `20261111120000_hu36_recordatorios.sql` |
+| ZARU-26 | HU-37 Mensaje manual del operario durante el lavado | 5 | Should | `FormularioNovedad.jsx` · `TarjetaOrden.jsx` | `novedades.controller.js` · `shared/evidencias.js` · `shared/notificaciones.js` · migración `20261119120000_hu37_evidencias_novedades.sql` |
 
 Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
 

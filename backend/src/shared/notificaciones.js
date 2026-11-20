@@ -26,7 +26,7 @@ import { enlaceBaja, puedeRecibir, TIPOS } from './autorizaciones.js';
 import { crearAccesoTenant } from './tenant.js';
 import { enlaceRecordatorio } from './tokenRecordatorio.js';
 
-export const EVENTOS = { RECIBIDA: 'orden.recibida', LISTA: 'orden.lista', RECORDATORIO: 'recordatorio.proximo_lavado' };
+export const EVENTOS = { RECIBIDA: 'orden.recibida', LISTA: 'orden.lista', NOVEDAD: 'orden.novedad', RECORDATORIO: 'recordatorio.proximo_lavado' };
 export const MAX_INTENTOS = 3;
 const ESPERAS_MS = [2_000, 4_000]; // compatibilidad del envío inmediato (HU-46)
 
@@ -60,7 +60,7 @@ function destinoPlano(destino) {
  * @returns {Promise<{ resumen: object, enviar: () => Promise<object> }>}
  *   `resumen` se devuelve al panel; `enviar` se ejecuta en segundo plano después de responder.
  */
-export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {}) {
+export async function prepararCorreo(tenant, { evento, ordenId, novedadId = null }, opciones = {}) {
   const sinEnvio = async () => null;
   try {
     const plantilla = PLANTILLAS[evento];
@@ -73,6 +73,18 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
     const vehiculo = orden.vehiculos ?? {};
     const cliente = vehiculo.clientes ?? null;
     if (!cliente) return { resumen: resumen('omitida', { motivo: 'sin_cliente' }), enviar: sinEnvio };
+
+    let novedad = null;
+    if (evento === EVENTOS.NOVEDAD) {
+      const { data, error: errorNovedad } = await tenant
+        .listar('novedades', 'id, tipo, mensaje, minutos_extra')
+        .eq('id', novedadId)
+        .eq('orden_id', ordenId)
+        .maybeSingle();
+      if (errorNovedad) throw errorNovedad;
+      if (!data) return { resumen: resumen('omitida', { motivo: 'sin_novedad' }), enviar: sinEnvio };
+      novedad = data;
+    }
 
     // CA3: sin correo registrado no se envía nada y la operación sigue normal.
     const correoGuardado = cliente.correo;
@@ -93,6 +105,7 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
       cliente,
       orden,
       vehiculo,
+      novedad,
       servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
       enlaceBaja: enlaceDeBaja(tenant, cliente.id),
     });
@@ -102,15 +115,15 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
       fila = await tenant.crear('notificaciones', {
         cliente_id: cliente.id,
         orden_id: orden.id,
-        tipo: 'operativa',
+        tipo: evento === EVENTOS.NOVEDAD ? 'novedad' : 'operativa',
         evento,
         canal: 'correo',
         destino: estaCifrado(correoGuardado) ? correoGuardado : cifrar(correo),
         // Solo se guarda el asunto y metadatos: el cuerpo se reconstruye con la plantilla al enviar,
         // así no se duplican datos personales en la cola.
-        contenido: { asunto: mensaje.asunto },
+        contenido: { asunto: mensaje.asunto, ...(novedadId ? { novedadId } : {}) },
         estado: 'pendiente',
-        clave_dedupe: `${orden.id}:${evento}:correo`,
+        clave_dedupe: `${orden.id}:${evento}:${novedadId ?? 'correo'}`,
       }, 'id');
     } catch (err) {
       // RNF-F6-04: el mismo evento de la misma orden nunca genera un segundo correo.
@@ -325,11 +338,25 @@ async function reconstruirMensaje(tenant, fila) {
     .listar('establecimientos', 'nombre, logo_url, color_primario')
     .maybeSingle();
 
+  let novedad = null;
+  if (fila.evento === EVENTOS.NOVEDAD) {
+    const { data, error: errorNovedad } = await tenant
+      .listar('novedades', 'id, tipo, mensaje, minutos_extra')
+      .eq('id', fila.contenido?.novedadId)
+      .eq('orden_id', fila.orden_id)
+      .maybeSingle();
+    if (errorNovedad) throw errorNovedad;
+    if (!data) return null;
+    novedad = data;
+    if (!(await puedeRecibir(tenant, cliente.id, TIPOS.servicio))) return null;
+  }
+
   const mensaje = plantilla({
     establecimiento,
     cliente,
     orden,
     vehiculo,
+    novedad,
     servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
   });
   return { mensaje, orden, cliente, vehiculo, establecimiento };
@@ -633,6 +660,14 @@ export async function procesarCola(db, { limite = 20, ahora = new Date(), provee
 export async function programarNotificacion(tenant, ordenId, tipo) {
   const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : EVENTOS.LISTA;
   const preparado = await prepararCorreo(tenant, { evento, ordenId });
+  const workerActivo = process.env.NODE_ENV !== 'test' && String(process.env.NOTIFICACIONES_WORKER ?? 'on') !== 'off';
+  if (preparado.resumen.estado === 'pendiente' && !workerActivo) enSegundoPlano(preparado.enviar);
+  return preparado.resumen;
+}
+
+/** HU-37 RF-F7-18: encola un correo al cliente con la novedad que registró el operario. */
+export async function programarNotificacionNovedad(tenant, ordenId, novedadId) {
+  const preparado = await prepararCorreo(tenant, { evento: EVENTOS.NOVEDAD, ordenId, novedadId });
   const workerActivo = process.env.NODE_ENV !== 'test' && String(process.env.NOTIFICACIONES_WORKER ?? 'on') !== 'off';
   if (preparado.resumen.estado === 'pendiente' && !workerActivo) enSegundoPlano(preparado.enviar);
   return preparado.resumen;

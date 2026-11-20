@@ -2,6 +2,8 @@
 // Muestra los datos obligatorios (placa, servicio, hora de ingreso y estado) y
 // conserva la acción de HU-10 para avanzar la orden al siguiente estado.
 import { formatoMoneda } from '../lib/formato.js';
+import { useState } from 'react';
+import { api } from '../services/api.js';
 import EnlaceSeguimiento from './EnlaceSeguimiento.jsx';
 import { correosPorEvento, etiquetaCorreo } from '../lib/avisoCorreo.js';
 import {
@@ -13,7 +15,63 @@ import {
   tiempoEnEstadoLegible,
 } from '../lib/dashboard.js';
 
-export default function TarjetaOrden({ orden, onAvanzar, avanzando, ahora }) {
+const ETIQUETAS_NOVEDAD = {
+  demora: 'Demora estimada',
+  dano_preexistente: 'Daño preexistente',
+  objeto_encontrado: 'Objeto encontrado',
+  otro: 'Otro mensaje',
+};
+
+function HistorialNovedades({ ordenId }) {
+  const [abierto, setAbierto] = useState(false);
+  const [cargando, setCargando] = useState(false);
+  const [novedades, setNovedades] = useState(null);
+  const [error, setError] = useState('');
+
+  async function alternar() {
+    const mostrar = !abierto;
+    setAbierto(mostrar);
+    if (mostrar && novedades === null) {
+      setCargando(true);
+      try {
+        setNovedades(await api.get(`/ordenes/${ordenId}/novedades`));
+      } catch (fallo) {
+        setError(fallo.message || 'No se pudo cargar el historial.');
+      } finally {
+        setCargando(false);
+      }
+    }
+  }
+
+  return (
+    <div className="tarjeta-novedades">
+      <button type="button" className="boton-enlace" aria-expanded={abierto} onClick={alternar}>
+        {abierto ? 'Ocultar novedades' : 'Ver novedades'}
+      </button>
+      {abierto && (
+        <div className="tarjeta-novedades-lista" aria-live="polite">
+          {cargando && <p>Cargando novedades…</p>}
+          {error && <p role="alert">{error}</p>}
+          {novedades?.length === 0 && <p>Este servicio aún no tiene novedades.</p>}
+          {novedades?.map((novedad) => (
+            <article key={novedad.id} className="tarjeta-novedad">
+              <strong>{ETIQUETAS_NOVEDAD[novedad.tipo] ?? 'Novedad'}</strong>
+              {novedad.mensaje && <p>{novedad.mensaje}</p>}
+              {novedad.minutosExtra && <p>Minutos adicionales: {novedad.minutosExtra}</p>}
+              {novedad.fotos?.length > 0 && (
+                <div className="tarjeta-novedad-fotos">
+                  {novedad.fotos.map((foto) => <a key={foto.ruta} href={foto.url} target="_blank" rel="noreferrer">Ver evidencia</a>)}
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function TarjetaOrden({ orden, onAvanzar, onNotificarNovedad, avanzando, ahora }) {
   const placa = orden.vehiculos?.placa ?? 'Sin placa';
   const estado = ESTADOS_ORDEN[orden.estado] ?? orden.estado;
   const siguiente = SIGUIENTE_ESTADO[orden.estado];
@@ -99,6 +157,16 @@ export default function TarjetaOrden({ orden, onAvanzar, avanzando, ahora }) {
           {avanzando === orden.id ? 'Guardando…' : `Avanzar a ${ESTADOS_ORDEN[siguiente]}`}
         </button>
       )}
+      {orden.estado === 'en_lavado' && (
+        <button
+          type="button"
+          className="boton secundario tarjeta-vehiculo-novedad"
+          onClick={() => onNotificarNovedad(orden)}
+        >
+          Notificar novedad
+        </button>
+      )}
+      <HistorialNovedades ordenId={orden.id} />
     </article>
   );
 }

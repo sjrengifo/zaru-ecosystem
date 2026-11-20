@@ -112,4 +112,22 @@ describe('crearAccesoTenant', () => {
       expect(error).toMatchObject({ codigo: 'CONFLICTO', status: 409 });
     });
   });
+
+  describe('bucket privado de la sede', () => {
+    it('subirEn y urlsFirmadas conservan las rutas dentro del establecimiento', async () => {
+      const llamadas = [];
+      const almacen = {
+        upload: async (...args) => { llamadas.push(['upload', ...args]); return { error: null }; },
+        createSignedUrls: async (...args) => ({ data: args[0].map((ruta) => ({ signedUrl: `signed:${ruta}` })), error: null }),
+        remove: async (...args) => { llamadas.push(['remove', ...args]); return { error: null }; },
+      };
+      const db = { ...crearSupabaseFalso(), storage: { from: (bucket) => { llamadas.push(['bucket', bucket]); return almacen; } } };
+      const fotos = crearAccesoTenant(db, { establecimientoId: A }).archivos('evidencias');
+      await fotos.subirEn(`${A}/orden/novedad/foto.jpg`, Buffer.from('foto'), { contentType: 'image/jpeg' });
+      await expect(fotos.subirEn('otra-sede/orden/foto.jpg', Buffer.from('foto'), {})).rejects.toMatchObject({ codigo: 'NO_ENCONTRADO' });
+      await expect(fotos.urlsFirmadas([`${A}/orden/novedad/foto.jpg`, `${B}/foto.jpg`])).rejects.toMatchObject({ codigo: 'NO_ENCONTRADO' });
+      expect(llamadas).toContainEqual(['bucket', 'evidencias']);
+      expect(llamadas.some(([metodo]) => metodo === 'upload')).toBe(true);
+    });
+  });
 });

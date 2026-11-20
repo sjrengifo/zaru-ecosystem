@@ -135,6 +135,37 @@ export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enla
   };
 }
 
+/** RF-F7-18: aviso inmediato al cliente con el mensaje que escribió el operario. */
+export function plantillaNovedad({ establecimiento, cliente, orden, vehiculo, novedad }) {
+  const sede = establecimiento?.nombre ?? 'el car wash';
+  const tipo = {
+    demora: 'Actualización de la entrega estimada',
+    dano_preexistente: 'Reporte de daño preexistente',
+    objeto_encontrado: 'Objeto encontrado en tu vehículo',
+    otro: 'Actualización sobre tu vehículo',
+  }[novedad?.tipo] ?? 'Actualización sobre tu vehículo';
+  const texto = novedad?.mensaje || tipo;
+  const minutos = Number(novedad?.minutos_extra ?? novedad?.minutosExtra ?? 0);
+  const fechaEstimada = orden?.entrega_estimada_at
+    ? formatoFechaHora(orden.entrega_estimada_at)
+    : null;
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, tenemos una novedad sobre tu vehículo ${placaHtml(vehiculo?.placa)} en ${escaparHtml(sede)}.</p>
+<p style="margin:0 0 16px;white-space:pre-wrap">${escaparHtml(texto)}</p>
+${minutos ? `<p style="margin:0 0 16px">Tiempo adicional estimado: <strong>${minutos} minutos</strong>${fechaEstimada ? ` · nueva hora estimada: <strong>${escaparHtml(fechaEstimada)}</strong>` : ''}</p>` : ''}
+<p style="margin:0">Puedes consultar el estado de tu vehículo en el enlace de seguimiento que recibiste al ingresar.</p>`;
+  return {
+    asunto: `${tipo} · ${vehiculo?.placa ?? ''}`.trim(),
+    html: marco({ establecimiento, titulo: tipo, cuerpoHtml }),
+    texto: [
+      `Hola ${primerNombre(cliente?.nombre)}, tenemos una novedad sobre tu vehículo ${vehiculo?.placa} en ${sede}.`,
+      '',
+      texto,
+      ...(minutos ? [`Tiempo adicional estimado: ${minutos} minutos${fechaEstimada ? `; nueva hora estimada: ${fechaEstimada}` : ''}.`] : []),
+    ].join('\n'),
+  };
+}
+
 export const formatoDia = (valor) =>
   new Intl.DateTimeFormat('es-CO', { timeZone: ZONA, dateStyle: 'long' }).format(new Date(`${valor}T12:00:00-05:00`));
 
@@ -169,5 +200,6 @@ export function plantillaRecordatorio({ establecimiento, cliente, vehiculo, reco
 export const PLANTILLAS = {
   'orden.recibida': plantillaIngreso,
   'orden.lista': plantillaListo,
+  'orden.novedad': plantillaNovedad,
   'recordatorio.proximo_lavado': plantillaRecordatorio,
 };
