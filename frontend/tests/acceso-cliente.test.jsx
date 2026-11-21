@@ -82,6 +82,14 @@ describe('acceso con la placa o el celular', () => {
     expect(document.title).toBe('Lavadero Norte · Sigue tu vehículo');
   });
 
+  it('HU-29: desde el inicio de la sede se llega a las preferencias de notificación', async () => {
+    simularApi();
+    abrir();
+    await screen.findByText('Lavadero Norte');
+    expect(screen.getByRole('link', { name: 'Elige tus canales de notificación' }))
+      .toHaveAttribute('href', expect.stringMatching(/\/s\/[^/]+\/preferencias$/));
+  });
+
   it('CA1: con la placa entra directo al seguimiento de su vehículo', async () => {
     const api = simularApi();
     abrir();
