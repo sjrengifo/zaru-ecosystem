@@ -98,6 +98,7 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `orden_servicios` | Servicios de cada orden con el precio y la duración vigentes al momento de crearla | HU-07, HU-08 |
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
 | `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
+| `campanas` | Campañas de promociones segmentadas; cada una se materializa en notificaciones comerciales | HU-35 |
 | `config_notificaciones` | Interruptores por sede de los estados del flujo que generan aviso automático al cliente | HU-31 |
 | `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
 | `politicas_datos` | Versiones de la política de tratamiento de datos; una versión publicada no se modifica ([texto v1.0](docs/legal/politica-tratamiento-datos-v1.0.md), [texto v1.1](docs/legal/politica-tratamiento-datos-v1.1.md)) | HU-51 |
@@ -230,6 +231,8 @@ HU-30 separa dos autorizaciones del cliente, además del tratamiento de datos: l
 
 HU-31 agrega en **Config. notificaciones** un interruptor por cada estado del flujo (`recibido`, `en_lavado`, `secado`, `listo`, `entregado`). El cambio se guarda al instante y aplica desde el siguiente cambio de estado de esa sede: si el interruptor está apagado no se crea el correo y la orden avanza igual. El aviso de **listo para entrega** es obligatorio y la API rechaza `400` cualquier intento de apagarlo. La configuración se guarda por establecimiento en `config_notificaciones` y la migración `20261110231500_hu31_configuracion_notificaciones` siembra los cinco estados activos para las sedes existentes y las nuevas.
 
+HU-35 agrega **Enviar promoción a tus clientes** dentro de **Promociones** (solo administrador): se elige una promoción vigente y un segmento por días sin visita (30, 60 o 90), servicios usados y tipo de vehículo, se previsualiza el total con las exclusiones (sin autorización comercial, límite semanal o sin correo) y se programa el envío. Solo salen mensajes entre las 7:00 a. m. y las 8:00 p. m. de Bogotá: una hora fuera de esa franja se mueve a las 7:00 a. m. del día siguiente y la pantalla lo avisa antes de confirmar. Cada cliente recibe como máximo 2 promociones de la sede en 7 días; el límite y la autorización se revalidan al confirmar y otra vez antes de cada envío. La campaña se guarda en `campanas`, se materializa en la cola `notificaciones` con prioridad comercial y se envía por correo con el enlace de baja de HU-30. `POST /campanas` exige el encabezado `Idempotency-Key` para que un reintento no duplique la campaña. Requiere la migración `20261118090000_hu35_campanas`. Para validar el segmento sin esperar 30, 60 o 90 días reales, el backend acepta la variable **solo de desarrollo** `HU35_ESCALA_MINUTOS=1,5,10`: los minutos que representan 30, 60 y 90 días respectivamente, mientras el panel sigue mostrando días. En producción debe quedar vacía o ausente (con `NODE_ENV=production` se ignora siempre).
+
 HU-19 agrega a esa pantalla la línea de tiempo del lavado: todas las etapas en orden, las completadas con check y la hora en que terminaron (`terminadaAt`), la actual resaltada y las pendientes en gris. Al entregar el vehículo todas quedan completadas. Tampoco requiere migraciones.
 
 HU-34 incorpora **Notificaciones** en el menú del administrador: bitácora por sede con fecha, hora, cliente, placa, canal, tipo y estado, filtros combinables (placa, rango de fechas, canal, estado, tipo), paginación y detalle de cada intento con el error real del proveedor. Los destinos se muestran enmascarados (`300****567`, `yel****@gmail.com`) porque el backend los descifra solo para enmascararlos. Los envíos se procesan en un worker del servidor con reintentos exponenciales acotados (solo errores recuperables) y, si el correo de "listo" agota sus intentos, un SMS alterno cuando `SMS_PROVEEDOR` está configurado y el cliente autorizó avisos. "Enviada" significa aceptada por el proveedor; "Entregada" requiere el acuse de entrega del proveedor. Requiere la migración `20261113032127_hu34_hu23_hu24_historiales.sql` (aplicada en Supabase el 12 de noviembre de 2026).
@@ -312,6 +315,9 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, `/politicas-datos/vigente
 | PUT | `/establecimiento/branding` | Admin | Actualizar logo y colores | Pendiente |
 | GET | `/configuracion/notificaciones` | Admin | Estados del flujo que generan aviso y su interruptor en la sede (HU-31) | Implementado |
 | PUT | `/configuracion/notificaciones` | Admin | Guardar los estados activos; `listo` es obligatorio y no se puede apagar (HU-31) | Implementado |
+| POST | `/campanas/estimar` | Admin | Previsualizar destinatarios y exclusiones de una campaña sin crearla (HU-35) | Implementado |
+| POST | `/campanas` | Admin | Crear una campaña de promoción segmentada; exige `Idempotency-Key` (HU-35) | Implementado |
+| GET | `/campanas` | Admin | Historial paginado de campañas de la sede (HU-35) | Implementado |
 
 Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle la historia correspondiente.
 
@@ -354,6 +360,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 | ZARU-22 | HU-33 Reintento y canal alterno ante fallas de envío | 8 | Should | `AvisosFallidos.jsx` (dashboard) · `lib/avisosFallidos.js` | `shared/notificaciones.js` · `shared/confirmacionEntrega.js` · `webhooks.controller.js` · migración `hu33_reintento_canal_alterno` |
 | ZARU-19 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones | 5 | Must | `CasillasNotificaciones.jsx` · `AutorizacionesCliente.jsx` · `BajaNotificaciones.jsx` · `PoliticaDatos.jsx` | `shared/autorizaciones.js` · `shared/bajaPublica.js` · `baja.controller.js` · migración `hu30_autorizacion_notificaciones` |
 | ZARU-20 | HU-31 Configuración de los estados que generan notificación | 3 | Should | `Notificaciones.jsx` | `configuracion.routes.js` · `shared/configNotificaciones.js` · migración `hu31_configuracion_notificaciones` |
+| ZARU-24 | HU-35 Envío de promociones a clientes del establecimiento | 8 | Could | `CampanaPromociones.jsx` (dentro de Promociones) · `lib/campanas.js` | `campanas.routes.js` · `shared/campanas.js` · `shared/notificaciones.js` · migración `hu35_campanas` |
 
 Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
 

@@ -93,7 +93,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-32 Personalización de plantillas de mensajes con la marca de la sede | ZARU-21 | 5 | Could | María José | F7 | RF-F7-01 a 05 | ESC-F7-01 a 03 | `tests/unit/hu32-plantillas.test.js` · `tests/integration/hu32-plantillas.test.js` · `frontend/tests/plantillas-notificacion.test.jsx` | En desarrollo |
 | HU-33 Reintento y canal alterno ante fallas de envío | ZARU-22 | 8 | Should | Samuel | F6 | RF-F6-16 a 19 | ESC-F6-09 a 11 | `tests/unit/hu33-reintento-alterno.test.js` · `tests/integration/hu33-reintento-alterno.test.js` · `frontend/tests/avisos-fallidos.test.jsx` | Cubierta |
 | HU-34 Bitácora de notificaciones enviadas | ZARU-23 | 5 | Should | — | F6 | RF-F6-20, 21 | ESC-F6-12 | — | Pendiente |
-| HU-35 Envío de promociones a clientes del establecimiento | ZARU-24 | 8 | Could | — | F7 | RF-F7-06 a 10 | ESC-F7-04, 05 | — | Pendiente |
+| HU-35 Envío de promociones a clientes del establecimiento | ZARU-24 | 8 | Could | — | F7 | RF-F7-06 a 10 | ESC-F7-04, 05 | `tests/unit/campanas.test.js` · `tests/integration/campanas.test.js` · `frontend/tests/campanas.test.jsx` · `frontend/tests/api-idempotencia.test.js` | En desarrollo |
 | HU-36 Recordatorio de próximo lavado | ZARU-25 | 5 | Could | — | F7 | RF-F7-11 a 14 | ESC-F7-06, 07 | — | Pendiente |
 | HU-37 Mensaje manual del operario durante el lavado | ZARU-26 | 5 | Should | — | F7 | RF-F7-15 a 18 | ESC-F7-08, 09 | — | Pendiente |
 | HU-38 Centro de notificaciones en la app | ZARU-27 | 3 | Should | Nikol | F6 | RF-F6-22, 23 | ESC-F6-13 | `tests/unit/hu38-centro-notificaciones.test.js` · `tests/integration/centro-notificaciones.test.js` · `frontend/tests/notificaciones-cliente.test.jsx` | Cubierta |
