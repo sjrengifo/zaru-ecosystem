@@ -31,7 +31,11 @@ async function cerrarSesionLocal(motivo) {
   await supabase.auth.signOut({ scope: 'local' });
 }
 
-async function peticion(metodo, ruta, cuerpo) {
+/**
+ * `opciones.headers` agrega encabezados propios (por ejemplo `Idempotency-Key` en las campañas,
+ * HU-35). No reemplaza el token ni el Content-Type.
+ */
+async function peticion(metodo, ruta, cuerpo, opciones = {}) {
   // Adjunta el token de la sesión para que el backend sepa quién eres.
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -43,6 +47,7 @@ async function peticion(metodo, ruta, cuerpo) {
     headers: {
       ...(!esArchivo && { 'Content-Type': 'application/json' }),
       ...(token && { Authorization: `Bearer ${token}` }),
+      ...(opciones.headers ?? {}),
     },
     body: esArchivo ? cuerpo : cuerpo ? JSON.stringify(cuerpo) : undefined,
   });
@@ -73,11 +78,11 @@ async function peticion(metodo, ruta, cuerpo) {
 }
 
 export const api = {
-  get: (ruta) => peticion('GET', ruta),
-  post: (ruta, cuerpo) => peticion('POST', ruta, cuerpo),
-  put: (ruta, cuerpo) => peticion('PUT', ruta, cuerpo),
-  patch: (ruta, cuerpo) => peticion('PATCH', ruta, cuerpo),
-  delete: (ruta) => peticion('DELETE', ruta),
+  get: (ruta, opciones) => peticion('GET', ruta, undefined, opciones),
+  post: (ruta, cuerpo, opciones) => peticion('POST', ruta, cuerpo, opciones),
+  put: (ruta, cuerpo, opciones) => peticion('PUT', ruta, cuerpo, opciones),
+  patch: (ruta, cuerpo, opciones) => peticion('PATCH', ruta, cuerpo, opciones),
+  delete: (ruta, opciones) => peticion('DELETE', ruta, undefined, opciones),
   /** Envía un formulario con archivos:  await api.subir('/establecimiento/logo', formData) */
   subir: (ruta, formData) => peticion('POST', ruta, formData),
 };

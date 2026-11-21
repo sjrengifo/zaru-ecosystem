@@ -1,6 +1,6 @@
 // HU-38 — Centro de notificaciones del cliente final en la app (RF-F6-22, RF-F6-23).
 //
-// El cliente entra con su pase (placa + celular, shared/paseCliente.js) y consulta los avisos que le
+// El cliente entra con su pase (código por SMS, shared/otpCliente.js) y consulta los avisos que le
 // llegaron en los últimos 90 días, del más reciente al más antiguo, con su marca de leída y el número
 // de pendientes (CA1, CA2). Cada aviso de estado lleva a su seguimiento o, si el vehículo ya se
 // entregó, al detalle del servicio en el historial (CA3).

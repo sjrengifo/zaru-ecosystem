@@ -35,6 +35,7 @@ export function crearTenantFalso(respuestasPorTabla = {}) {
     actualizar: vi.fn(async (tabla, id, cambios) => ({ id, ...cambios })),
     crearDetalle: vi.fn(async () => []),
     eliminar: vi.fn(async () => {}),
+    rpc: vi.fn(async () => null),
   };
 }
 

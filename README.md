@@ -98,6 +98,8 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `orden_servicios` | Servicios de cada orden con el precio y la duración vigentes al momento de crearla | HU-07, HU-08 |
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
 | `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
+| `campanas` | Campañas de promociones segmentadas; cada una se materializa en notificaciones comerciales | HU-35 |
+| `config_notificaciones` | Interruptores por sede de los estados del flujo que generan aviso automático al cliente | HU-31 |
 | `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
 | `politicas_datos` | Versiones de la política de tratamiento de datos; una versión publicada no se modifica ([texto v1.0](docs/legal/politica-tratamiento-datos-v1.0.md), [texto v1.1](docs/legal/politica-tratamiento-datos-v1.1.md)) | HU-51 |
 | `consentimientos` | Evidencia inmutable de cada autorización o revocación: fecha, hora, versión de la política, canal, IP y usuario | HU-51, HU-30 |
@@ -205,8 +207,9 @@ cp .env.example .env
 | `RESEND_API_KEY` | Clave **confidencial** cuando `CORREO_PROVEEDOR=resend` (requiere un dominio verificado en Resend) |
 | `NOTIFICACIONES_WORKER` | HU-34: `on` (por defecto) procesa la cola en segundo plano; `off` solo la alimenta, sin enviar |
 | `NOTIFICACIONES_ESPERAS_MS` | Esperas entre reintentos, separadas por comas. Por defecto `60000,120000,240000` (1, 2 y 4 minutos) |
-| `SMS_PROVEEDOR` | Canal alterno de HU-34: `consola` (por defecto, escribe en el log), `twilio` o `deshabilitado` |
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | Credenciales **confidenciales** cuando `SMS_PROVEEDOR=twilio` (número remitente en formato E.164) |
+| `SMS_PROVEEDOR` | Canal alterno de HU-34: `consola` (por defecto, escribe en el log), `twilio`, `deshabilitado` o `mixto` (todo al log y, además, por Twilio solo a `SMS_NUMEROS_REALES`) |
+| `SMS_NUMEROS_REALES` | Con `SMS_PROVEEDOR=mixto`: celulares separados por coma que sí reciben el SMS real (pruebas y demos) |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | Credenciales **confidenciales** cuando `SMS_PROVEEDOR=twilio` o `mixto` (número remitente en formato E.164) |
 | `ZARU_CLAVE_PASE` | Clave opcional de 32 bytes para firmar el pase del historial del cliente (HU-23/HU-24). Si falta se usa `ZARU_CLAVE_CIFRADO` |
 
 **`frontend/.env`**
@@ -219,7 +222,7 @@ cp .env.example .env
 
 Los archivos `.env.example` ya incluyen la URL de Supabase y la clave pública. La clave `service_role` se distribuye por un canal privado.
 
-Para HU-46, el proveedor `consola` permite probar el flujo sin enviar correos reales. En producción configura `CORREO_PROVEEDOR` como `smtp` o `resend` y agrega sus credenciales al entorno del backend. El correo se registra primero en la cola `notificaciones`; el envío ocurre en segundo plano y se reintenta hasta tres veces. No copies archivos `.env` entre carpetas ni los incluyas en commits.
+Para HU-46, el proveedor `consola` permite probar el flujo sin enviar correos reales. En producción configura `CORREO_PROVEEDOR` como `smtp` o `resend` y agrega sus credenciales al entorno del backend. El correo se registra primero en la cola `notificaciones`; el envío ocurre en segundo plano y se reintenta hasta tres veces. Cada cambio de estado hacia adelante genera su aviso con plantilla propia (recibido, lavado iniciado, secado, listo para entrega y entregado), sujeto a los interruptores de HU-31. No copies archivos `.env` entre carpetas ni los incluyas en commits.
 
 HU-18 publica la pantalla del cliente final en `/seguimiento/:codigo` (sin sesión). El correo de ingreso incluye el enlace, armado con `FRONTEND_URL`, y cada tarjeta del tablero permite copiarlo para compartirlo. No requiere migraciones ni variables nuevas.
 
@@ -227,15 +230,23 @@ HU-17 da a cada sede un enlace público, `/s/{slug}` (el slug se genera solo con
 
 HU-30 separa dos autorizaciones del cliente, además del tratamiento de datos: los **avisos del servicio** (correos de ingreso y de vehículo listo) y las **promociones**. Ambas se marcan en casillas separadas y desmarcadas al registrar el cliente o el ingreso, y se cambian luego desde su perfil. Cada cambio queda en `consentimientos` con fecha, hora, canal y versión de la política, y el administrador ve ese historial en el perfil. Los correos incluyen un enlace "Dejar de recibir estos avisos" (`/baja/{token}`, firmado con una clave derivada de `ZARU_CLAVE_CIFRADO`) que retira la autorización en el momento, sin iniciar sesión. Las campañas de promociones (HU-35) deben filtrar a los destinatarios con `destinatariosComerciales()` de `backend/src/shared/autorizaciones.js`. La política vigente queda pública en `/politica-datos`. Requiere la migración `hu30_autorizacion_notificaciones`; a los clientes que ya existían se les registra la autorización de avisos (finalidad de la política que aceptaron) y no la de promociones.
 
+HU-31 agrega en **Config. notificaciones** un interruptor por cada estado del flujo (`recibido`, `en_lavado`, `secado`, `listo`, `entregado`). El cambio se guarda al instante y aplica desde el siguiente cambio de estado de esa sede: si el interruptor está apagado no se crea el correo y la orden avanza igual. El aviso de **listo para entrega** es obligatorio y la API rechaza `400` cualquier intento de apagarlo. La configuración se guarda por establecimiento en `config_notificaciones` y la migración `20261110231500_hu31_configuracion_notificaciones` siembra los cinco estados activos para las sedes existentes y las nuevas.
+
+HU-35 agrega **Enviar promoción a tus clientes** dentro de **Promociones** (solo administrador): se elige una promoción vigente y un segmento por días sin visita (30, 60 o 90), servicios usados y tipo de vehículo, se previsualiza el total con las exclusiones (sin autorización comercial, límite semanal o sin correo) y se programa el envío. Solo salen mensajes entre las 7:00 a. m. y las 8:00 p. m. de Bogotá: una hora fuera de esa franja se mueve a las 7:00 a. m. del día siguiente y la pantalla lo avisa antes de confirmar. Cada cliente recibe como máximo 2 promociones de la sede en 7 días; el límite y la autorización se revalidan al confirmar y otra vez antes de cada envío. La campaña se guarda en `campanas`, se materializa en la cola `notificaciones` con prioridad comercial y se envía por correo con el enlace de baja de HU-30. `POST /campanas` exige el encabezado `Idempotency-Key` para que un reintento no duplique la campaña. Requiere la migración `20261118090000_hu35_campanas`. Para validar el segmento sin esperar 30, 60 o 90 días reales, el backend acepta la variable **solo de desarrollo** `HU35_ESCALA_MINUTOS=1,5,10`: los minutos que representan 30, 60 y 90 días respectivamente, mientras el panel sigue mostrando días. En producción debe quedar vacía o ausente (con `NODE_ENV=production` se ignora siempre).
+
 HU-19 agrega a esa pantalla la línea de tiempo del lavado: todas las etapas en orden, las completadas con check y la hora en que terminaron (`terminadaAt`), la actual resaltada y las pendientes en gris. Al entregar el vehículo todas quedan completadas. Tampoco requiere migraciones.
 
 HU-34 incorpora **Notificaciones** en el menú del administrador: bitácora por sede con fecha, hora, cliente, placa, canal, tipo y estado, filtros combinables (placa, rango de fechas, canal, estado, tipo), paginación y detalle de cada intento con el error real del proveedor. Los destinos se muestran enmascarados (`300****567`, `yel****@gmail.com`) porque el backend los descifra solo para enmascararlos. Los envíos se procesan en un worker del servidor con reintentos exponenciales acotados (solo errores recuperables) y, si el correo de "listo" agota sus intentos, un SMS alterno cuando `SMS_PROVEEDOR` está configurado y el cliente autorizó avisos. "Enviada" significa aceptada por el proveedor; "Entregada" requiere el acuse de entrega del proveedor. Requiere la migración `20261113032127_hu34_hu23_hu24_historiales.sql` (aplicada en Supabase el 12 de noviembre de 2026).
 
-HU-23/HU-24 publican el **historial de servicios del cliente final** en `/s/{slug}/historial`. El cliente confirma su identidad con placa + celular registrados y recibe un pase firmado de 30 minutos (HMAC, sin sesión de panel); con él ve solo sus órdenes entregadas, de la más reciente a la más antigua, filtra por placa y abre el detalle de una única orden. El establecimiento y el cliente salen del pase firmado, nunca de un id de la URL. Comparte la migración de HU-34 (índices de historial).
+HU-29 permite al cliente elegir, en `/s/{slug}/preferencias` (enlace "Preferencias de notificación" del centro de notificaciones), por cuáles canales recibe los avisos de su servicio: push, SMS y correo. Un cliente que nunca eligió sigue recibiendo por correo. El SMS se activa directo con el celular registrado, que el cliente ya validó al entrar con el código de HU-59. Solo si quiere recibirlo en **otro número** lo valida con un código de 6 dígitos (vence a los 10 minutos, 5 intentos, una solicitud por minuto y 3 por hora; solo se guarda su hash). Si desactiva todos los canales debe confirmar que no recibirá avisos. Desde que guarda, el motor de envío (`shared/notificaciones.js`) manda el aviso de ingreso y el de "listo" solo por los canales activos, y el SMS alterno de HU-34 no se envía a quien desactivó el SMS. El canal push se muestra como "Próximamente" y no se puede activar hasta que HU-40 registre el dispositivo (`pushDisponible()` en `backend/src/shared/preferenciasCanal.js`). Con `SMS_PROVEEDOR=consola` el código aparece en el log del servidor. Requiere la migración `20261111150000_hu29_preferencias_canal_notificacion.sql`.
+
+HU-23/HU-24 publican el **historial de servicios del cliente final** en `/s/{slug}/historial`. El cliente entra con el código de acceso de HU-59 y recibe un pase firmado de 30 días (HMAC, sin sesión de panel); con él ve solo sus órdenes entregadas, de la más reciente a la más antigua, filtra por placa y abre el detalle de una única orden. El establecimiento y el cliente salen del pase firmado, nunca de un id de la URL. Comparte la migración de HU-34 (índices de historial).
+
+HU-59 protege ese acceso: en `/s/{slug}/historial`, `/notificaciones` y `/preferencias` el cliente escribe su celular, elige recibir por **SMS o por correo** un **código de un solo uso** de 6 dígitos (si elige correo y no tiene uno registrado, le llega por SMS) (5 minutos de vigencia, 5 intentos, solo vale el último pedido, 3 solicitudes por celular cada 15 minutos). La respuesta es la misma exista o no el celular, y solo se guarda el hash del código. Con el código correcto el cliente queda dentro por 30 días en ese celular (`localStorage`) y puede salir con **Cerrar sesión**. El seguimiento del vehículo en servicio (HU-17/HU-18) sigue abierto con la placa o el celular. Con `SMS_PROVEEDOR=consola` el código aparece en el log del servidor. Requiere la migración `20261121120000_acceso_otp_cliente.sql`.
 
 HU-33 completa el envío de avisos cuando algo falla. Cada aviso tiene un intento inicial y hasta 3 reintentos a 1, 2 y 4 minutos, en cualquier canal. Si un aviso de "vehículo listo" agota sus intentos, sale por el siguiente canal del cliente que no se haya probado (push → SMS → correo), siempre que tenga el destino registrado y la autorización de avisos vigente (HU-30). Si ya no queda canal, el dashboard del administrador muestra la alerta con la placa y el celular del cliente para llamarlo, hasta que marque "Ya lo contacté" (`GET /notificaciones/fallidas`). Para no enviar duplicados, Resend recibe una clave de idempotencia por notificación, y los webhooks `POST /webhooks/resend` y `POST /webhooks/twilio`, verificados con la firma de cada proveedor, confirman entregas tardías: cancelan los reintentos y alternos pendientes y cierran la alerta. Variables: `RESEND_WEBHOOK_SECRET` (secreto `whsec_…` del webhook de Resend) y `API_URL_PUBLICA` (dirección pública de la API, para el aviso de entrega de Twilio). Sin ellas los webhooks responden `503` y todo lo demás funciona igual. Hoy el SMS sale en modo `consola` (solo el log) hasta que se configure Twilio, y el canal push se habilita con HU-40. Requiere la migración `20261113031900_hu33_reintento_canal_alterno.sql`.
 
-HU-38 agrega el **centro de notificaciones del cliente final** en `/s/{slug}/notificaciones`, con el mismo pase de HU-23 (si no lo tiene, pide placa + celular). Lista los avisos que le llegaron (estado `enviada` o `entregada`) en los últimos 90 días, del más reciente al más antiguo, y distingue los leídos de los no leídos. La campana del encabezado de la app muestra cuántos faltan por leer. Al abrir un aviso de estado se marca como leído (`notificaciones.leida_at`) y lleva al seguimiento si el vehículo sigue en servicio, o al detalle del servicio en el historial (`/s/{slug}/historial?orden={id}`) si ya se entregó. No requiere migraciones ni variables nuevas.
+HU-38 agrega el **centro de notificaciones del cliente final** en `/s/{slug}/notificaciones`, con el mismo pase de HU-23 (si no lo tiene, pide el código de acceso de HU-59). Lista los avisos que le llegaron (estado `enviada` o `entregada`) en los últimos 90 días, del más reciente al más antiguo, y distingue los leídos de los no leídos. La campana del encabezado de la app muestra cuántos faltan por leer. Al abrir un aviso de estado se marca como leído (`notificaciones.leida_at`) y lleva al seguimiento si el vehículo sigue en servicio, o al detalle del servicio en el historial (`/s/{slug}/historial?orden={id}`) si ya se entregó. No requiere migraciones ni variables nuevas.
 
 HU-57 incorpora el panel de superadministración para registrar establecimientos, invitar al administrador inicial, consultar periodos de prueba, activar, suspender y reenviar invitaciones. HU-59 centraliza los módulos permitidos por rol en el backend (`GET /me` y middleware `requiereModulo`) y usa esos permisos para filtrar el menú y proteger la navegación del frontend.
 
@@ -249,7 +260,7 @@ HU-57 incorpora el panel de superadministración para registrar establecimientos
 | `npm run cifrar:correos` | `backend/` | Cifra los correos de clientes que aún estén en texto plano (HU-50) |
 | `npm test` | `backend/` | Pruebas unitarias y de integración (Vitest). Las de integración requieren `.env` y `.env.spike.local`; sin ellos se omiten |
 | `npm run dev` | `frontend/` | Servidor de desarrollo de Vite — `http://localhost:5173` |
-| `npm test` | `frontend/` | Pruebas existentes con Node y pruebas HU-46/HU-57/HU-59 con Vitest |
+| `npm test` | `frontend/` | Pruebas existentes con Node y pruebas HU-31/HU-46/HU-57/HU-59 con Vitest |
 | `npm run build` | `frontend/` | Build de producción en `frontend/dist/` |
 
 Verificación de la API: `GET http://localhost:4000/api/v1/health`. Documentación: `http://localhost:4000/api/docs`.
@@ -275,6 +286,12 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, `/politicas-datos/vigente
 | GET | `/politicas-datos/vigente` | Público | Política de tratamiento de datos vigente (versión y texto) | Implementado |
 | GET | `/publico/sedes/:slug` | Público | Nombre y marca de la sede del enlace del cliente final (HU-17) | Implementado |
 | POST | `/publico/sedes/:slug/buscar` | Público | Acceso con la placa o el celular, sin contraseña (HU-17) | Implementado |
+| GET | `/publico/cliente/preferencias` | Pase del cliente | Canales push, sms y correo con su estado actual (HU-29) | Implementado |
+| PUT | `/publico/cliente/preferencias` | Pase del cliente | Guarda los canales elegidos; el sms usa el celular registrado (ya validado al entrar, HU-59) u otro validado, y pide confirmación si se desactivan todos (HU-29) | Implementado |
+| POST | `/publico/cliente/celular/codigo` | Pase del cliente | Envía por sms el código de 6 dígitos para validar el celular (HU-29) | Implementado |
+| POST | `/publico/cliente/celular/verificar` | Pase del cliente | Valida el código de otro número para el sms (HU-29) | Implementado |
+| POST | `/publico/sedes/:slug/otp` | Público | Envía por SMS el código de acceso del cliente; misma respuesta exista o no el celular (HU-59) | Implementado |
+| POST | `/publico/sedes/:slug/otp/verificar` | Público | Valida el código y entrega el pase de 30 días del cliente (HU-59) | Implementado |
 | GET | `/publico/baja/:token` | Público | Qué autorización retira el enlace "dejar de recibir" de un correo (HU-30) | Implementado |
 | POST | `/publico/baja/:token` | Público | Retira esa autorización y confirma la hora registrada (HU-30) | Implementado |
 | POST | `/webhooks/resend` | Firma del proveedor | Resend confirma la entrega de un correo (HU-33) | Implementado |
@@ -301,6 +318,11 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, `/politicas-datos/vigente
 | GET / POST / PUT | `/usuarios`, `/usuarios/:id` | Admin | Gestión de operarios | Pendiente |
 | GET | `/establecimiento` | Admin, Operario | Datos y branding del establecimiento | Implementado |
 | PUT | `/establecimiento/branding` | Admin | Actualizar logo y colores | Pendiente |
+| GET | `/configuracion/notificaciones` | Admin | Estados del flujo que generan aviso y su interruptor en la sede (HU-31) | Implementado |
+| PUT | `/configuracion/notificaciones` | Admin | Guardar los estados activos; `listo` es obligatorio y no se puede apagar (HU-31) | Implementado |
+| POST | `/campanas/estimar` | Admin | Previsualizar destinatarios y exclusiones de una campaña sin crearla (HU-35) | Implementado |
+| POST | `/campanas` | Admin | Crear una campaña de promoción segmentada; exige `Idempotency-Key` (HU-35) | Implementado |
+| GET | `/campanas` | Admin | Historial paginado de campañas de la sede (HU-35) | Implementado |
 
 Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle la historia correspondiente.
 
@@ -342,6 +364,8 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 |---|---|---|---|---|---|
 | ZARU-22 | HU-33 Reintento y canal alterno ante fallas de envío | 8 | Should | `AvisosFallidos.jsx` (dashboard) · `lib/avisosFallidos.js` | `shared/notificaciones.js` · `shared/confirmacionEntrega.js` · `webhooks.controller.js` · migración `hu33_reintento_canal_alterno` |
 | ZARU-19 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones | 5 | Must | `CasillasNotificaciones.jsx` · `AutorizacionesCliente.jsx` · `BajaNotificaciones.jsx` · `PoliticaDatos.jsx` | `shared/autorizaciones.js` · `shared/bajaPublica.js` · `baja.controller.js` · migración `hu30_autorizacion_notificaciones` |
+| ZARU-20 | HU-31 Configuración de los estados que generan notificación | 3 | Should | `Notificaciones.jsx` | `configuracion.routes.js` · `shared/configNotificaciones.js` · migración `hu31_configuracion_notificaciones` |
+| ZARU-24 | HU-35 Envío de promociones a clientes del establecimiento | 8 | Could | `CampanaPromociones.jsx` (dentro de Promociones) · `lib/campanas.js` | `campanas.routes.js` · `shared/campanas.js` · `shared/notificaciones.js` · migración `hu35_campanas` |
 
 Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
 

@@ -7,6 +7,7 @@ import { formatoDia } from '../lib/formato.js';
 import { ESTADOS_PROMOCION } from '../lib/validacionPromocion.js';
 import { useRol } from '../hooks/useRol.js';
 import FormularioPromocion from '../components/FormularioPromocion.jsx';
+import CampanaPromociones from '../components/CampanaPromociones.jsx';
 import Notificacion from '../components/Notificacion.jsx';
 import Cargando from '../components/Cargando.jsx';
 
@@ -167,6 +168,8 @@ export default function Promociones() {
           </tbody>
         </table>
       </div>
+
+      {esAdmin && <CampanaPromociones />}
     </section>
   );
 }
