@@ -39,7 +39,7 @@ import '../styles/notificaciones-cliente.css';
 import '../styles/preferencias-notificacion.css';
 
 const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
-const AVISO_VENCIDO = 'Tu sesión venció. Entra de nuevo con el código que te enviamos por SMS.';
+const AVISO_VENCIDO = 'Tu sesión venció. Entra de nuevo con un código nuevo.';
 const ICONOS = { push: Bell, sms: MessageSquare, correo: Mail };
 
 const estiloMarca = (sede) => {
@@ -366,7 +366,7 @@ export default function PreferenciasNotificacion() {
               slug={slug}
               alEntrar={alEntrar}
               titulo="Preferencias de notificación"
-              intro="Escribe el celular con el que te registraste. Te enviaremos un código por SMS para elegir cómo recibir tus avisos."
+              intro="Escribe el celular con el que te registraste. Te enviaremos un código para elegir cómo recibir tus avisos."
             />
           </>
         ) : (

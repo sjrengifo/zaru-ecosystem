@@ -125,7 +125,7 @@ describe('HU-29 · pantalla de preferencias', () => {
   it('con la sesión vencida vuelve a pedir el celular', async () => {
     simularApi({ 'GET /publico/cliente/preferencias': () => respuesta(401, { error: { mensaje: 'Venció' } }) });
     abrir();
-    expect(await screen.findByText('Tu sesión venció. Entra de nuevo con el código que te enviamos por SMS.')).toBeInTheDocument();
+    expect(await screen.findByText('Tu sesión venció. Entra de nuevo con un código nuevo.')).toBeInTheDocument();
   });
 
   it('CA2: sin celular registrado, activar el sms pide validar un número y solo entonces lo activa', async () => {
