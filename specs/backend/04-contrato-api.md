@@ -152,9 +152,10 @@ La sede va bajo `/publico/sedes/` para que ningún slug choque con `/publico/seg
 
 | Método | Ruta | Rol | HU |
 |---|---|---|---|
-| GET | `/cliente/preferencias` | cliente | HU-29 CA1 |
-| PUT | `/cliente/preferencias` | cliente | HU-29 CA3, CA4 |
-| POST | `/cliente/celular/verificar` | cliente | HU-29 CA2 |
+| GET | `/publico/cliente/preferencias` | pase del cliente (HU-23) | HU-29 CA1 |
+| PUT | `/publico/cliente/preferencias` | pase del cliente (HU-23) | HU-29 CA2, CA3, CA4 |
+| POST | `/publico/cliente/celular/codigo` | pase del cliente (HU-23) | HU-29 CA2 (envía el código de 6 dígitos) |
+| POST | `/publico/cliente/celular/verificar` | pase del cliente (HU-23) | HU-29 CA2 (valida el código) |
 | POST | `/cliente/push/suscripciones` | cliente | HU-46 |
 | GET | `/publico/cliente/notificaciones` | pase del cliente (HU-23) | HU-38 CA1, CA2, CA3 |
 | PATCH | `/publico/cliente/notificaciones/{id}/leida` | pase del cliente (HU-23) | HU-38 |

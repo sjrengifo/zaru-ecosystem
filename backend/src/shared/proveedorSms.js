@@ -3,6 +3,9 @@
 // Igual que el correo, el proveedor se elige por ambiente y la clave nunca sale del backend:
 // - consola (por defecto): escribe el mensaje en el log. Sirve para desarrollo y pruebas.
 // - twilio: API HTTP de Twilio con Basic Auth.
+// - mixto (desarrollo y demos): todo se escribe en el log como en consola y, además, sale por Twilio
+//   solo a los celulares de SMS_NUMEROS_REALES. Así se prueba el SMS real en el teléfono propio sin
+//   gastar saldo ni escribirle a clientes de prueba.
 //
 // `enviar` recibe el celular en texto plano (solo dentro del proceso) y devuelve el id del
 // proveedor. Nunca se escribe el celular completo en los logs.
@@ -11,9 +14,35 @@ import { enmascararCelular } from './mascaras.js';
 
 const TIEMPO_MAXIMO_MS = 10_000;
 
+/** SMS_NUMEROS_REALES: celulares separados por coma; se aceptan +57, espacios y guiones. */
+export function numerosReales(env = process.env) {
+  return new Set(
+    String(env.SMS_NUMEROS_REALES ?? '')
+      .split(',')
+      .map((n) => n.replace(/\D/g, '').replace(/^57(?=3\d{9}$)/, ''))
+      .filter((n) => /^3\d{9}$/.test(n)),
+  );
+}
+
 /** Proveedor de SMS según SMS_PROVEEDOR. Nunca lanza al construirse. */
 export function proveedorSms(env = process.env) {
   const tipo = String(env.SMS_PROVEEDOR ?? 'consola').toLowerCase();
+
+  if (tipo === 'mixto') {
+    const consola = proveedorSms({ ...env, SMS_PROVEEDOR: 'consola' });
+    const twilio = proveedorSms({ ...env, SMS_PROVEEDOR: 'twilio' });
+    const reales = numerosReales(env);
+    return {
+      nombre: 'mixto',
+      configurado: true,
+      async enviar(mensaje) {
+        const enConsola = await consola.enviar(mensaje);
+        if (!reales.has(String(mensaje.para))) return enConsola;
+        // Un fallo de Twilio se propaga para que el worker reintente igual que en modo twilio.
+        return twilio.enviar(mensaje);
+      },
+    };
+  }
 
   if (tipo === 'twilio') {
     const sid = env.TWILIO_ACCOUNT_SID;
@@ -77,6 +106,11 @@ export function urlConfirmacionTwilio(env, referencia) {
   return `${base}/api/v1/webhooks/twilio?n=${encodeURIComponent(referencia)}`;
 }
 
+/** HU-29: ¿el ambiente puede enviar SMS? Con SMS_PROVEEDOR=deshabilitado el canal no se ofrece. */
+export function smsDisponible(env = process.env) {
+  return String(env.SMS_PROVEEDOR ?? 'consola').toLowerCase() !== 'deshabilitado';
+}
+
 /** Texto corto para el aviso alterno de "listo". */
 export function textoAvisoListo({ establecimiento, placa, total }) {
   const sede = establecimiento?.nombre ? ` en ${establecimiento.nombre}` : '';
@@ -84,4 +118,20 @@ export function textoAvisoListo({ establecimiento, placa, total }) {
     ? ` Valor a pagar: $${Number(total).toLocaleString('es-CO')}.`
     : '';
   return `Zaru: tu vehículo ${placa ?? ''} está listo${sede}.${valor} El pago se realiza en el establecimiento.`;
+}
+
+/** HU-29: texto corto del aviso de ingreso cuando el cliente eligió SMS. */
+export function textoAvisoRecibido({ establecimiento, placa }) {
+  const sede = establecimiento?.nombre ? ` en ${establecimiento.nombre}` : '';
+  return `Zaru: recibimos tu vehículo ${placa ?? ''}${sede}. Te avisaremos cuando esté listo.`;
+}
+
+/** HU-29: texto del SMS de un evento de la orden (`orden.recibida` u `orden.lista`). */
+export function textoAvisoSms(evento, datos) {
+  return evento === 'orden.recibida' ? textoAvisoRecibido(datos) : textoAvisoListo(datos);
+}
+
+/** HU-29 CA2: SMS con el código de 6 dígitos para validar el celular. */
+export function textoCodigoVerificacion(codigo, minutosVigencia) {
+  return `Zaru: tu código de verificación es ${codigo}. Vence en ${minutosVigencia} minutos. No lo compartas con nadie.`;
 }

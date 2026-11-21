@@ -9,6 +9,7 @@ export const MENU = [
   { ruta: '/usuarios', texto: 'Usuarios', soloAdmin: true },
   { ruta: '/reportes', texto: 'Reportes', soloAdmin: true },
   { ruta: '/notificaciones', texto: 'Notificaciones', soloAdmin: true },
+  { ruta: '/configuracion-notificaciones', texto: 'Config. notificaciones', soloAdmin: true },
   { ruta: '/plantillas', texto: 'Plantillas', soloAdmin: true },
   { ruta: '/branding', texto: 'Branding', soloAdmin: true },
 ];
