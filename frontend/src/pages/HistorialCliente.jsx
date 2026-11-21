@@ -178,7 +178,7 @@ export default function HistorialCliente() {
     setVehiculos([]);
     setHistorial([]);
     setDetalleId(null);
-    setAvisoSesion('Tu sesión venció. Entra de nuevo con el código que te enviamos por SMS.');
+    setAvisoSesion('Tu sesión venció. Entra de nuevo con un código nuevo.');
   };
 
   // Con el pase cargado: vehículos (filtro) e historial. Un 401 obliga a verificar de nuevo.
@@ -227,7 +227,7 @@ export default function HistorialCliente() {
 
   const manejarSesionVencida = () => {
     vencerPase();
-    setAvisoSesion('Tu sesión venció. Entra de nuevo con el código que te enviamos por SMS.');
+    setAvisoSesion('Tu sesión venció. Entra de nuevo con un código nuevo.');
   };
 
   const { cargando: cargandoSede, sede, error: errorSede } = sedeEstado;

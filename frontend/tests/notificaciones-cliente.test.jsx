@@ -197,7 +197,7 @@ describe('HU-38 · pantalla del centro de notificaciones', () => {
     simularApi({ centro: [401, { error: { codigo: 'NO_AUTENTICADO', mensaje: 'Tu acceso venció' } }] });
     abrir();
 
-    expect(await screen.findByText('Tu sesión venció. Entra de nuevo con el código que te enviamos por SMS.')).toBeInTheDocument();
+    expect(await screen.findByText('Tu sesión venció. Entra de nuevo con un código nuevo.')).toBeInTheDocument();
     expect(localStorage.getItem(`zaru:historial:${SLUG}`)).toBeNull();
   });
 

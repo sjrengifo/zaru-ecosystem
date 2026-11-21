@@ -343,7 +343,8 @@ paths:
       summary: Pedir el código de acceso por SMS
       description: |
         RF-F5-11. El cliente final escribe su celular y, si está registrado en esa sede, le llega por SMS un
-        código de 6 dígitos que vence a los 5 minutos. La respuesta es la misma (`202`) exista o no el celular:
+        código de 6 dígitos que vence a los 5 minutos. Si tiene correo registrado, el mismo código también le
+        llega por correo; basta con que salga por uno de los dos canales. La respuesta es la misma (`202`) exista o no el celular:
         no revela quién es cliente de la sede. Solo se guarda el hash del código.
 
         Límite (RNF-F5-02): 3 solicitudes por celular cada 15 minutos; al exceder responde `429`.
@@ -366,7 +367,7 @@ paths:
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
         '500':
-          description: No se pudo enviar el SMS; el código queda invalidado.
+          description: No se pudo enviar el código por ningún canal (SMS ni correo); el código queda invalidado.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

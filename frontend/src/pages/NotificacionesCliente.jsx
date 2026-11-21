@@ -24,7 +24,7 @@ import '../styles/historial-cliente.css';
 import '../styles/notificaciones-cliente.css';
 
 const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
-const AVISO_VENCIDO = 'Tu sesión venció. Entra de nuevo con el código que te enviamos por SMS.';
+const AVISO_VENCIDO = 'Tu sesión venció. Entra de nuevo con un código nuevo.';
 
 function estiloMarca(sede) {
   const estilo = {};
@@ -194,7 +194,7 @@ export default function NotificacionesCliente() {
               slug={slug}
               alEntrar={alEntrar}
               titulo="Mis notificaciones"
-              intro="Escribe el celular con el que te registraste. Te enviaremos un código por SMS para ver tus avisos."
+              intro="Escribe el celular con el que te registraste. Te enviaremos un código para ver tus avisos."
             />
           </>
         ) : (
