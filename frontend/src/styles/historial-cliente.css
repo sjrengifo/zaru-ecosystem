@@ -29,6 +29,9 @@
   text-decoration: none;
 }
 .historial-volver:hover { color: var(--color-primario); border-color: var(--color-primario); }
+/* RF-F5-12: la sesión dura 30 días, así que el cliente puede cerrarla en un celular compartido. */
+.historial-acciones { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.historial-salir { background: none; font-family: inherit; cursor: pointer; }
 
 .historial-filtro { margin: 16px 0 4px; }
 .historial-filtro label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--color-texto-suave); }

@@ -336,20 +336,17 @@ paths:
                       revocadaAt: { type: [string, 'null'], format: date-time }
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
-  /publico/sedes/{slug}/historial/acceso:
+  /publico/sedes/{slug}/otp:
     post:
       tags: [Historial del cliente]
-      operationId: accederHistorialCliente
-      summary: Verificar placa y celular para abrir el historial de servicios
+      operationId: solicitarCodigoAccesoCliente
+      summary: Pedir el código de acceso por SMS
       description: |
-        HU-23. El cliente final confirma que es dueño del vehículo con la **placa + el celular** registrados en
-        esa sede. Si ambos coinciden, recibe un `pase` firmado de vida corta (30 minutos) que debe enviar como
-        `Authorization: Bearer <pase>` en las rutas del historial.
+        RF-F5-11. El cliente final escribe su celular y, si está registrado en esa sede, le llega por SMS un
+        código de 6 dígitos que vence a los 5 minutos. La respuesta es la misma (`202`) exista o no el celular:
+        no revela quién es cliente de la sede. Solo se guarda el hash del código.
 
-        El pase identifica al establecimiento y al cliente dentro de la firma: no se puede alterar ni usar para
-        otra sede. Si la placa o el celular no coinciden, la respuesta es el mismo `404` exista o no la placa
-        (no revela quién es cliente de la sede). Tras 5 intentos fallidos en 10 minutos desde el mismo origen
-        responde `429`.
+        Límite (RNF-F5-02): 3 solicitudes por celular cada 15 minutos; al exceder responde `429`.
       security: []
       parameters:
         - $ref: '#/components/parameters/SlugSede'
@@ -357,22 +354,61 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/AccesoHistorial' }
-            example: { placa: ABC123, celular: '3001234567' }
+            schema: { $ref: '#/components/schemas/SolicitudOtp' }
+            example: { celular: '3001234567' }
+      responses:
+        '202':
+          description: Solicitud recibida. Si el celular está registrado, el código va en camino.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SolicitudOtpRespuesta' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+        '500':
+          description: No se pudo enviar el SMS; el código queda invalidado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /publico/sedes/{slug}/otp/verificar:
+    post:
+      tags: [Historial del cliente]
+      operationId: verificarCodigoAccesoCliente
+      summary: Validar el código y abrir la sesión del cliente
+      description: |
+        RF-F5-12. Con el código correcto el cliente recibe un `pase` firmado de **30 días** que debe enviar como
+        `Authorization: Bearer <pase>` en las rutas `/publico/cliente/*` (historial, notificaciones, preferencias).
+        El pase identifica al establecimiento y al cliente dentro de la firma: no se puede alterar ni usar para
+        otra sede.
+
+        El código es de un solo uso y solo vale el último pedido. Con 5 intentos incorrectos queda invalidado.
+        Cualquier fallo (código incorrecto, vencido, usado o celular que no es cliente) responde el mismo `401`.
+        Tras 10 códigos incorrectos en 10 minutos desde el mismo origen responde `429`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugSede'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerificacionOtp' }
+            example: { celular: '3001234567', codigo: '123456' }
       responses:
         '200':
-          description: Pase emitido para consultar el historial de ese cliente en esa sede.
+          description: Pase emitido para ese cliente en esa sede.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AccesoHistorialRespuesta' }
         '400': { $ref: '#/components/responses/Validacion' }
-        '404':
-          description: La placa y el celular no coinciden con un vehículo de la sede (o la sede no existe).
+        '401':
+          description: El código no es válido, venció o ya se usó.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example:
-                error: { codigo: NO_ENCONTRADO, mensaje: No encontramos un vehículo con esa placa y celular en esta sede, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+                error: { codigo: NO_AUTENTICADO, mensaje: El código no es válido o ya venció. Revísalo o pide uno nuevo, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
 
   /publico/cliente/vehiculos:
@@ -2006,8 +2042,8 @@ components:
       scheme: bearer
       bearerFormat: pase
       description: >-
-        Pase firmado (HMAC) de 30 minutos emitido por POST /publico/sedes/{slug}/historial/acceso (HU-23).
-        Identifica la sede y el cliente verificados con placa + celular. No es un JWT de Supabase; el panel
+        Pase firmado (HMAC) de 30 días emitido por POST /publico/sedes/{slug}/otp/verificar (RF-F5-12).
+        Identifica la sede y el cliente verificados con el código enviado por SMS a su celular. No es un JWT de Supabase; el panel
         no lo usa.
 
   headers:
@@ -3092,18 +3128,29 @@ components:
               franja: { type: string }
               vehiculos: { type: integer, minimum: 0 }
 
-    AccesoHistorial:
+    SolicitudOtp:
       type: object
-      required: [placa, celular]
+      required: [celular]
       properties:
-        placa:
-          type: string
-          description: Placa del vehículo; se normaliza a mayúsculas y sin espacios.
-          example: ABC123
         celular:
           type: string
           description: Celular registrado para el cliente en esa sede (10 dígitos; acepta +57, espacios y guiones).
           example: '3001234567'
+
+    SolicitudOtpRespuesta:
+      type: object
+      required: [enviado, celular, expiraEn]
+      properties:
+        enviado: { type: boolean, const: true }
+        celular: { type: string, description: Celular enmascarado al que se envió., example: '300****567' }
+        expiraEn: { type: string, format: date-time }
+
+    VerificacionOtp:
+      type: object
+      required: [celular, codigo]
+      properties:
+        celular: { type: string, example: '3001234567' }
+        codigo: { type: string, pattern: '^[0-9]{6}$', example: '123456' }
 
     AccesoHistorialRespuesta:
       type: object
