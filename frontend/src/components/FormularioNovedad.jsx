@@ -4,11 +4,11 @@ import { api } from '../services/api.js';
 import Modal from './Modal.jsx';
 
 const TIPOS = [
-  { id: 'demora', titulo: 'Demora estimada', texto: 'Tu vehículo presenta una demora en el lavado.' },
-  { id: 'dano_preexistente', titulo: 'Daño preexistente', texto: 'Identificamos un daño preexistente en tu vehículo.' },
-  { id: 'objeto_encontrado', titulo: 'Objeto encontrado', texto: 'Encontramos un objeto en tu vehículo.' },
+  { id: 'demora', titulo: 'Demora estimada', descripcion: 'Informa el tiempo adicional del lavado.', texto: 'Tu vehículo presenta una demora en el lavado.' },
+  { id: 'dano_preexistente', titulo: 'Daño preexistente', descripcion: 'Registra un daño y adjunta evidencia.', texto: 'Identificamos un daño preexistente en tu vehículo.' },
+  { id: 'objeto_encontrado', titulo: 'Objeto encontrado', descripcion: 'Avisa sobre un objeto dentro del vehículo.', texto: 'Encontramos un objeto en tu vehículo.' },
 ];
-const TIPO_OTRO = { id: 'otro', titulo: 'Otro mensaje', texto: '' };
+const TIPO_OTRO = { id: 'otro', titulo: 'Otro mensaje', descripcion: 'Escribe una novedad personalizada.', texto: '' };
 const MAX_FOTOS = 3;
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -73,20 +73,25 @@ export default function FormularioNovedad({ orden, onCerrar, onGuardado }) {
   return (
     <Modal titulo={`Notificar novedad · ${orden.vehiculos?.placa ?? 'Vehículo'}`} onCerrar={onCerrar}>
       <form className="formulario-novedad modal-cuerpo" onSubmit={enviar}>
-        <p className="texto-suave">Elige un mensaje predefinido o edítalo antes de enviarlo.</p>
-        <div className="novedad-opciones" role="group" aria-label="Mensajes predefinidos">
-          {[...TIPOS, TIPO_OTRO].map((opcion) => (
-            <button
-              key={opcion.id}
-              type="button"
-              className={`boton secundario novedad-opcion${tipo === opcion.id ? ' seleccionada' : ''}`}
-              aria-pressed={tipo === opcion.id}
-              onClick={() => elegirTipo(opcion)}
-            >
-              {opcion.titulo}
-            </button>
-          ))}
-        </div>
+        <p className="novedad-intro">Selecciona una situación y ajusta el mensaje para informar al cliente.</p>
+        <fieldset className="novedad-tipos">
+          <legend>Tipo de novedad</legend>
+          <div className="novedad-opciones" role="group" aria-label="Mensajes predefinidos">
+            {[...TIPOS, TIPO_OTRO].map((opcion) => (
+              <button
+                key={opcion.id}
+                type="button"
+                className={`boton secundario novedad-opcion${tipo === opcion.id ? ' seleccionada' : ''}`}
+                aria-label={opcion.titulo}
+                aria-pressed={tipo === opcion.id}
+                onClick={() => elegirTipo(opcion)}
+              >
+                <span className="novedad-opcion-titulo">{opcion.titulo}</span>
+                <span className="novedad-opcion-descripcion">{opcion.descripcion}</span>
+              </button>
+            ))}
+          </div>
+        </fieldset>
 
         <label className="campo-novedad" htmlFor="novedad-mensaje">
           Mensaje para el cliente
@@ -100,7 +105,7 @@ export default function FormularioNovedad({ orden, onCerrar, onGuardado }) {
             placeholder="Escribe un mensaje breve"
             data-foco-inicial
           />
-          <span className="novedad-contador">{mensaje.length}/300 caracteres</span>
+          <span className="novedad-contador" aria-live="polite">{mensaje.length}/300 caracteres</span>
         </label>
 
         {tipo === 'demora' && (
@@ -123,7 +128,11 @@ export default function FormularioNovedad({ orden, onCerrar, onGuardado }) {
           <label className="campo-novedad" htmlFor="novedad-fotos">
             Fotos de evidencia (hasta 3, JPG o PNG, máximo 5 MB cada una)
             <input id="novedad-fotos" aria-label="Fotos de evidencia" type="file" accept="image/jpeg,image/png" multiple onChange={seleccionarFotos} />
-            {fotos.length > 0 && <span className="novedad-contador">{fotos.length} foto{fotos.length === 1 ? '' : 's'} seleccionada{fotos.length === 1 ? '' : 's'}</span>}
+            {fotos.length > 0 && (
+              <ul className="novedad-fotos-seleccionadas" aria-live="polite">
+                {fotos.map((foto) => <li key={`${foto.name}-${foto.size}`}>{foto.name}</li>)}
+              </ul>
+            )}
           </label>
         )}
 

@@ -160,7 +160,7 @@ export default function TarjetaOrden({ orden, onAvanzar, onNotificarNovedad, ava
       {orden.estado === 'en_lavado' && (
         <button
           type="button"
-          className="boton secundario tarjeta-vehiculo-novedad"
+          className="boton tarjeta-vehiculo-novedad"
           onClick={() => onNotificarNovedad(orden)}
         >
           Notificar novedad
