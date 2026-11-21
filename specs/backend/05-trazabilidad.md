@@ -60,7 +60,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-56 Automatizar la integración y el despliegue en ambientes separados | ZARU-62 | 5 | Should | María José | F0, F8 | RF-F0-08, RF-F8-01 a 04 | ESC-F0-06, ESC-F8-01, 02 | — | Pendiente |
 | HU-57 Registrar y activar un nuevo establecimiento afiliado | ZARU-63 | 5 | Should | Adri | F1 | RF-F1-09, 13 | ESC-F1-07 | — | Pendiente |
 | HU-58 Spike: validar la arquitectura y el stack del backend | ZARU-64 | 3 | Must | Samuel | F0 | RF-F0-09 | — | — | En desarrollo |
-| HU-59 Proteger el acceso sin contraseña del cliente final | ZARU-65 | 5 | Should | Adri | F5 | RF-F5-02 a 04, 11, 12 · RNF-F5-01 | ESC-F5-08 | — | Pendiente |
+| HU-59 Proteger el acceso sin contraseña del cliente final | ZARU-65 | 5 | Should | Adri | F5 | RF-F5-02 a 04, 11, 12 · RNF-F5-01 | ESC-F5-08 | `tests/unit/otp-acceso-cliente.test.js` · `tests/integration/centro-notificaciones.test.js` · `frontend/tests/notificaciones-cliente.test.jsx` | En desarrollo |
 
 **Total de la épica: 100 puntos.**
 
