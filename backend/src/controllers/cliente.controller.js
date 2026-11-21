@@ -6,6 +6,7 @@
 import { crearPaseParaCliente } from '../shared/paseCliente.js';
 import { detalleHistorial, listarHistorial, vehiculosDelCliente } from '../shared/historialCliente.js';
 import { listarCentro, marcarLeida } from '../shared/centroNotificaciones.js';
+import { confirmarCodigo, guardarPreferencias, obtenerPreferencias, solicitarCodigo } from '../shared/preferenciasCanal.js';
 import { crearLimiteIntentos } from '../shared/limiteIntentos.js';
 
 export const limiteAccesos = crearLimiteIntentos({ maximo: 5 });
@@ -74,6 +75,50 @@ export async function detalle(req, res, next) {
 export async function notificaciones(req, res, next) {
   try {
     const datos = await listarCentro(req.cliente.tenant, req.cliente.clienteId);
+    res.set('Cache-Control', 'no-store');
+    res.json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** GET /publico/cliente/preferencias — HU-29 CA1: canales push, sms y correo con su estado actual. */
+export async function preferencias(req, res, next) {
+  try {
+    const datos = await obtenerPreferencias(req.cliente.tenant, req.cliente.clienteId);
+    res.set('Cache-Control', 'no-store');
+    res.json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** PUT /publico/cliente/preferencias — HU-29 CA2, CA3, CA4: guarda los canales elegidos. */
+export async function guardarPreferenciasCanal(req, res, next) {
+  try {
+    const datos = await guardarPreferencias(req.cliente.tenant, req.cliente.clienteId, req.body);
+    res.set('Cache-Control', 'no-store');
+    res.json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** POST /publico/cliente/celular/codigo — HU-29 CA2: envía por sms un código de 6 dígitos al celular. */
+export async function solicitarCodigoCelular(req, res, next) {
+  try {
+    const datos = await solicitarCodigo(req.cliente.tenant, req.cliente.clienteId, req.body);
+    res.set('Cache-Control', 'no-store');
+    res.json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** POST /publico/cliente/celular/verificar — HU-29 CA2: valida el código y deja el celular verificado. */
+export async function verificarCodigoCelular(req, res, next) {
+  try {
+    const datos = await confirmarCodigo(req.cliente.tenant, req.cliente.clienteId, req.body);
     res.set('Cache-Control', 'no-store');
     res.json(datos);
   } catch (err) {

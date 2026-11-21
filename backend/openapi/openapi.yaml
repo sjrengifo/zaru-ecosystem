@@ -507,6 +507,130 @@ paths:
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /publico/cliente/preferencias:
+    get:
+      tags: [Notificaciones del cliente]
+      operationId: obtenerPreferenciasCanal
+      summary: Canales de notificación del cliente con su estado actual
+      description: |
+        HU-29 CA1. Devuelve los canales `push`, `sms` y `correo` con su estado (`activo`). Un cliente que nunca
+        eligió recibe solo por correo. Los destinos viajan enmascarados. `push` aparece con
+        `disponible: false` hasta que se registre el dispositivo (HU-40).
+      security:
+        - paseCliente: []
+      responses:
+        '200':
+          description: Canales y su estado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenciasCanal' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    put:
+      tags: [Notificaciones del cliente]
+      operationId: guardarPreferenciasCanal
+      summary: Guardar los canales por los que el cliente quiere recibir avisos
+      description: |
+        HU-29 CA2, CA3 y CA4. Las siguientes notificaciones salen únicamente por los canales activos.
+
+        - CA2: activar `sms` exige un celular validado con el código de 6 dígitos; si falta responde `400` con
+          `detalles[0].requiere = verificar_celular`.
+        - CA3: si los tres canales quedan inactivos responde `409` con `detalles[0].requiereConfirmacion = true`;
+          se repite la petición con `confirmarSinCanales: true` para confirmar la decisión.
+        - No se puede activar `correo` si el cliente no tiene correo registrado, ni `push` mientras no esté disponible.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [push, sms, correo]
+              properties:
+                push: { type: boolean }
+                sms: { type: boolean }
+                correo: { type: boolean }
+                confirmarSinCanales:
+                  type: boolean
+                  description: Confirma que el cliente entiende que no recibirá avisos (CA3).
+            example: { push: false, sms: true, correo: true }
+      responses:
+        '200':
+          description: Preferencias guardadas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenciasCanal' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /publico/cliente/celular/codigo:
+    post:
+      tags: [Notificaciones del cliente]
+      operationId: solicitarCodigoCelular
+      summary: Enviar por sms el código de 6 dígitos para validar el celular
+      description: |
+        HU-29 CA2. Envía un código de 6 dígitos al celular indicado o, si no se indica, al celular con el que el
+        cliente está registrado. El código vence a los 10 minutos y nunca se devuelve en la respuesta. Límites:
+        una solicitud por minuto y 3 por hora (`429`).
+      security:
+        - paseCliente: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                celular: { type: string, description: 'Celular de 10 dígitos (acepta +57). Opcional.', example: '3001234567' }
+      responses:
+        '200':
+          description: Código enviado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enviado, celular, expiraEn, reenvioEn]
+                properties:
+                  enviado: { type: boolean, const: true }
+                  celular: { type: string, description: Celular enmascarado., example: '300****567' }
+                  expiraEn: { type: string, format: date-time }
+                  reenvioEn: { type: string, format: date-time, description: Desde cuándo se puede pedir otro código. }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
+  /publico/cliente/celular/verificar:
+    post:
+      tags: [Notificaciones del cliente]
+      operationId: verificarCodigoCelular
+      summary: Validar el código de 6 dígitos y dejar el celular verificado
+      description: |
+        HU-29 CA2. Con el código correcto el celular queda verificado y el canal `sms` ya se puede activar al
+        guardar las preferencias. Un código incorrecto responde `400` con los intentos que quedan; tras 5 intentos
+        fallidos responde `429` y hay que pedir un código nuevo.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [codigo]
+              properties:
+                codigo: { type: string, pattern: '^[0-9]{6}$', example: '123456' }
+      responses:
+        '200':
+          description: Celular verificado; devuelve las preferencias actualizadas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenciasCanal' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
   /me:
     get:
       tags: [Sesión]
@@ -2909,6 +3033,39 @@ components:
           type: array
           items: { $ref: '#/components/schemas/NotificacionCliente' }
         noLeidas: { type: integer, minimum: 0, description: HU-38 CA2. Avisos de la lista sin leer. }
+
+    PreferenciasCanal:
+      type: object
+      required: [canales, sinCanales]
+      description: HU-29. Canales de notificación del cliente y su estado.
+      properties:
+        canales:
+          type: object
+          required: [push, sms, correo]
+          properties:
+            push:
+              type: object
+              required: [activo, disponible]
+              properties:
+                activo: { type: boolean }
+                disponible: { type: boolean, description: Falso hasta que el cliente registre su dispositivo (HU-40). }
+            sms:
+              type: object
+              required: [activo, disponible, verificado]
+              properties:
+                activo: { type: boolean }
+                disponible: { type: boolean, description: Falso si el ambiente no envía sms. }
+                verificado: { type: boolean, description: El celular del sms se validó con el código de 6 dígitos (CA2). }
+                celular: { type: [string, 'null'], description: Celular verificado, enmascarado., example: '300****567' }
+                celularRegistrado: { type: [string, 'null'], description: Celular con el que se registró el cliente, enmascarado., example: '300****567' }
+            correo:
+              type: object
+              required: [activo, disponible]
+              properties:
+                activo: { type: boolean }
+                disponible: { type: boolean, description: El cliente tiene un correo registrado. }
+                destino: { type: [string, 'null'], description: Correo enmascarado., example: 'yel****@gmail.com' }
+        sinCanales: { type: boolean, description: Los tres canales están inactivos (el cliente no recibe avisos). }
 
     Notificacion:
       type: object

@@ -77,6 +77,11 @@ export function urlConfirmacionTwilio(env, referencia) {
   return `${base}/api/v1/webhooks/twilio?n=${encodeURIComponent(referencia)}`;
 }
 
+/** HU-29: ¿el ambiente puede enviar SMS? Con SMS_PROVEEDOR=deshabilitado el canal no se ofrece. */
+export function smsDisponible(env = process.env) {
+  return String(env.SMS_PROVEEDOR ?? 'consola').toLowerCase() !== 'deshabilitado';
+}
+
 /** Texto corto para el aviso alterno de "listo". */
 export function textoAvisoListo({ establecimiento, placa, total }) {
   const sede = establecimiento?.nombre ? ` en ${establecimiento.nombre}` : '';
@@ -84,4 +89,20 @@ export function textoAvisoListo({ establecimiento, placa, total }) {
     ? ` Valor a pagar: $${Number(total).toLocaleString('es-CO')}.`
     : '';
   return `Zaru: tu vehículo ${placa ?? ''} está listo${sede}.${valor} El pago se realiza en el establecimiento.`;
+}
+
+/** HU-29: texto corto del aviso de ingreso cuando el cliente eligió SMS. */
+export function textoAvisoRecibido({ establecimiento, placa }) {
+  const sede = establecimiento?.nombre ? ` en ${establecimiento.nombre}` : '';
+  return `Zaru: recibimos tu vehículo ${placa ?? ''}${sede}. Te avisaremos cuando esté listo.`;
+}
+
+/** HU-29: texto del SMS de un evento de la orden (`orden.recibida` u `orden.lista`). */
+export function textoAvisoSms(evento, datos) {
+  return evento === 'orden.recibida' ? textoAvisoRecibido(datos) : textoAvisoListo(datos);
+}
+
+/** HU-29 CA2: SMS con el código de 6 dígitos para validar el celular. */
+export function textoCodigoVerificacion(codigo, minutosVigencia) {
+  return `Zaru: tu código de verificación es ${codigo}. Vence en ${minutosVigencia} minutos. No lo compartas con nadie.`;
 }

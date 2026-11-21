@@ -25,7 +25,15 @@ import * as webhooks from '../controllers/webhooks.controller.js';
 import * as cliente from '../controllers/cliente.controller.js';
 import { validar } from '../shared/validar.js';
 import { busquedaPublica } from '../schemas/publico.schemas.js';
-import { accesoHistorial, filtroHistorial, idNotificacionCliente, idOrden } from '../schemas/cliente.schemas.js';
+import {
+  accesoHistorial,
+  confirmacionCodigoSms,
+  filtroHistorial,
+  idNotificacionCliente,
+  idOrden,
+  preferenciasCanal,
+  solicitudCodigoSms,
+} from '../schemas/cliente.schemas.js';
 import { requierePase } from '../shared/paseCliente.js';
 
 export const VERSION_API = '1.0.0';
@@ -102,6 +110,12 @@ router.get('/publico/cliente/historial/:ordenId', requierePase, validar({ params
 // HU-38: centro de notificaciones del cliente final, con el mismo pase del historial.
 router.get('/publico/cliente/notificaciones', requierePase, cliente.notificaciones);
 router.patch('/publico/cliente/notificaciones/:id/leida', requierePase, validar({ params: idNotificacionCliente }), cliente.notificacionLeida);
+// HU-29: el cliente elige por qué canales recibe sus avisos (push, sms, correo) y valida su celular con
+// un código de 6 dígitos para activar el sms. Mismo pase del historial.
+router.get('/publico/cliente/preferencias', requierePase, cliente.preferencias);
+router.put('/publico/cliente/preferencias', requierePase, validar({ body: preferenciasCanal }), cliente.guardarPreferenciasCanal);
+router.post('/publico/cliente/celular/codigo', requierePase, validar({ body: solicitudCodigoSms }), cliente.solicitarCodigoCelular);
+router.post('/publico/cliente/celular/verificar', requierePase, validar({ body: confirmacionCodigoSms }), cliente.verificarCodigoCelular);
 
 // Todo lo demás requiere sesión.
 router.use(requiereSesion);

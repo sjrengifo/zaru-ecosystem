@@ -28,6 +28,7 @@ import HistorialCliente from './pages/HistorialCliente.jsx';
 import NotificacionesCliente from './pages/NotificacionesCliente.jsx';
 import PromocionesCliente from './pages/PromocionesCliente.jsx';
 import PromocionDetalleCliente from './pages/PromocionDetalleCliente.jsx';
+import PreferenciasNotificacion from './pages/PreferenciasNotificacion.jsx';
 
 const protegida = (ruta, elemento) => <RutaProtegida roles={rolesDeRuta(ruta)}>{elemento}</RutaProtegida>;
 const conModulo = (modulo, pagina) => <RequiereModulo modulo={modulo}>{pagina}</RequiereModulo>;
@@ -54,6 +55,8 @@ export default function App() {
       <Route path="/s/:slug/promociones" element={<PromocionesCliente />} />
       {/* HU-27: detalle y condiciones de una promoción vigente, también público. */}
       <Route path="/s/:slug/promociones/:id" element={<PromocionDetalleCliente />} />
+      {/* HU-29: el cliente elige por qué canales (push, sms, correo) recibe sus avisos. */}
+      <Route path="/s/:slug/preferencias" element={<PreferenciasNotificacion />} />
       <Route path="/superadmin" element={protegida('/superadmin', <Superadmin />)} />
 
       <Route element={<RutaProtegida><Layout /></RutaProtegida>}>

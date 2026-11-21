@@ -9,7 +9,7 @@
 // El cliente y la sede salen del pase firmado; es una página pública, sin sesión del panel.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Bell, BellOff, ChevronRight, Info, Megaphone, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Bell, BellOff, ChevronRight, Info, Megaphone, SlidersHorizontal, TriangleAlert } from 'lucide-react';
 import Cargando from '../components/Cargando.jsx';
 import FormularioPase from '../components/FormularioPase.jsx';
 import MarcaZaru from '../components/MarcaZaru.jsx';
@@ -22,6 +22,7 @@ import '../styles/seguimiento.css';
 import '../styles/acceso-cliente.css';
 import '../styles/historial-cliente.css';
 import '../styles/notificaciones-cliente.css';
+import '../styles/preferencias-notificacion.css';
 
 const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
 const AVISO_VENCIDO = 'Tu acceso venció. Verifica de nuevo tu placa y celular.';
@@ -237,6 +238,10 @@ export default function NotificacionesCliente() {
             <p className="notif-pie">
               <Info size={14} aria-hidden="true" /> Toca un aviso del estado de tu vehículo para ver su seguimiento o el detalle del servicio.
             </p>
+            {/* HU-29 CA1: desde aquí el cliente abre sus preferencias de notificación. */}
+            <Link className="notif-preferencias" to={`/s/${encodeURIComponent(slug)}/preferencias`}>
+              <SlidersHorizontal size={16} aria-hidden="true" /> Preferencias de notificación
+            </Link>
           </section>
         )}
       </div>
