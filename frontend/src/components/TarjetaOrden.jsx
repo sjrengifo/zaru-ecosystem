@@ -45,8 +45,8 @@ function HistorialNovedades({ ordenId }) {
 
   return (
     <div className="tarjeta-novedades">
-      <button type="button" className="boton-enlace" aria-expanded={abierto} onClick={alternar}>
-        {abierto ? 'Ocultar novedades' : 'Ver novedades'}
+      <button type="button" className="boton-enlace boton-historial-novedades" aria-expanded={abierto} onClick={alternar}>
+        {abierto ? 'Ocultar historial' : 'Historial de novedades'}
       </button>
       {abierto && (
         <div className="tarjeta-novedades-lista" aria-live="polite">

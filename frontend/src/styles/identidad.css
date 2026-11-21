@@ -491,7 +491,9 @@ input[type='file']::file-selector-button {
 
 /* ---------- HU-37 · Aviso de novedad desde la tarjeta y el formulario ---------- */
 .tarjeta-vehiculo-novedad {
+  width: 100%;
   min-height: 42px;
+  padding: 10px 14px;
   border-color: color-mix(in srgb, var(--color-primario) 32%, var(--color-borde));
   border-radius: 11px;
   color: var(--color-primario-hover);
@@ -504,6 +506,16 @@ input[type='file']::file-selector-button {
   border-color: var(--color-primario);
   background: var(--color-primario);
 }
+.boton-historial-novedades {
+  align-self: flex-start;
+  padding: 5px 0;
+  color: var(--color-texto-suave);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.boton-historial-novedades:hover { color: var(--color-primario-hover); }
 
 .formulario-novedad { gap: 18px; }
 .novedad-intro { margin: 0; color: var(--color-texto-suave); font-size: 14px; }
