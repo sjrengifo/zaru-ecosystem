@@ -1,14 +1,15 @@
 // HU-23 / HU-24 — Llamadas públicas del historial del cliente final. No usan la sesión del panel.
 //
-// El acceso se obtiene verificando placa + celular y devuelve un pase firmado de vida corta. El pase
-// se guarda en sessionStorage (se borra al cerrar la pestaña) y viaja en Authorization: Bearer.
+// RF-F5-11/12: el cliente entra con su celular y el código de 6 dígitos que le llega por SMS, y recibe
+// un pase firmado de 30 días. El pase se guarda en localStorage (sigue dentro al volver a abrir la app
+// en ese celular hasta que cierre sesión) y viaja en Authorization: Bearer.
 export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
 const clavePase = (slug) => `zaru:historial:${slug}`;
 
 export function leerPase(slug) {
   try {
-    return sessionStorage.getItem(clavePase(slug));
+    return localStorage.getItem(clavePase(slug));
   } catch {
     return null;
   }
@@ -16,10 +17,10 @@ export function leerPase(slug) {
 
 export function guardarPase(slug, pase) {
   try {
-    if (pase) sessionStorage.setItem(clavePase(slug), pase);
-    else sessionStorage.removeItem(clavePase(slug));
+    if (pase) localStorage.setItem(clavePase(slug), pase);
+    else localStorage.removeItem(clavePase(slug));
   } catch {
-    // sessionStorage puede no estar disponible (modo privado); la consulta se hace igual en memoria.
+    // localStorage puede no estar disponible (modo privado); la consulta se hace igual en memoria.
   }
 }
 
@@ -39,15 +40,22 @@ export function conPase(pase, opciones = {}) {
   return { ...opciones, headers: { ...(opciones.headers ?? {}), Authorization: `Bearer ${pase}` }, cache: 'no-store' };
 }
 
-/** POST /publico/sedes/{slug}/historial/acceso — { placa, celular } → { pase, expiraEn, sede, cliente }. */
-export async function accederHistorial(slug, { placa, celular }) {
-  const respuesta = await fetch(`${BASE_URL}/publico/sedes/${encodeURIComponent(slug)}/historial/acceso`, {
+const enviarAcceso = (slug, ruta, cuerpo) =>
+  fetch(`${BASE_URL}/publico/sedes/${encodeURIComponent(slug)}/${ruta}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ placa, celular }),
+    body: JSON.stringify(cuerpo),
     cache: 'no-store',
   });
-  return leer(respuesta, 'No pudimos verificar tu acceso');
+
+/** POST /publico/sedes/{slug}/otp — { celular, canal: 'sms'|'correo' } → 202 { enviado, canal, celular, expiraEn }. */
+export async function solicitarCodigoAcceso(slug, { celular, canal = 'sms' }) {
+  return leer(await enviarAcceso(slug, 'otp', { celular, canal }), 'No pudimos enviarte el código');
+}
+
+/** POST /publico/sedes/{slug}/otp/verificar — { celular, codigo } → { pase, expiraEn, sede, cliente }. */
+export async function verificarCodigoAcceso(slug, { celular, codigo }) {
+  return leer(await enviarAcceso(slug, 'otp/verificar', { celular, codigo }), 'No pudimos verificar el código');
 }
 
 /** Vehículos del cliente autenticado (para el filtro por placa). */
