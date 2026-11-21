@@ -1,6 +1,6 @@
 // HU-38: centro de notificaciones del cliente final, contra la API y Supabase (ESC-F6-13).
 // Requiere backend/.env y backend/.env.spike.local. Usa las sedes de prueba del spike HU-58.
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { hayEntornoIntegracion, faltantes } from '../helpers/entorno.js';
 
 const EST_A = '00000000-0000-0000-0000-00000000a058';
@@ -12,8 +12,26 @@ const NOMBRE = '[Prueba HU-38] Laura Gómez';
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 describe.skipIf(!hayEntornoIntegracion)(`HU-38 · centro de notificaciones${hayEntornoIntegracion ? '' : ` (omitida: faltan ${faltantes.join(', ')})`}`, () => {
-  let request, app, admin, limiteAccesos, slugA, slugB, pase;
+  let request, app, admin, limiteAccesos, limiteSolicitudes, slugA, slugB, pase;
   const ids = {};
+
+  /** RF-F5-11/12: entra como el cliente. Con SMS_PROVEEDOR=consola el código sale en el log. */
+  const entrar = async (slug) => {
+    limiteAccesos.reiniciar();
+    limiteSolicitudes.reiniciar();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const solicitud = await request(app).post(`/api/v1/publico/sedes/${slug}/otp`).send({ celular: TEL });
+      expect(solicitud.status).toBe(202);
+      const linea = log.mock.calls.map((c) => c.join(' ')).find((l) => l.includes('es tu código'));
+      const codigo = linea?.match(/(\d{6}) es tu código/)?.[1];
+      const acceso = await request(app).post(`/api/v1/publico/sedes/${slug}/otp/verificar`).send({ celular: TEL, codigo });
+      expect(acceso.status).toBe(200);
+      return acceso.body.pase;
+    } finally {
+      log.mockRestore();
+    }
+  };
 
   const centro = (conPase = pase) => {
     const peticion = request(app).get('/api/v1/publico/cliente/notificaciones');
@@ -36,6 +54,7 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-38 · centro de notificaciones${hayE
     app = (await import('../../src/app.js')).default;
     admin = (await import('../../src/config/supabase.js')).supabase;
     ({ limiteAccesos } = await import('../../src/controllers/cliente.controller.js'));
+    ({ limiteSolicitudes } = await import('../../src/shared/otpCliente.js'));
 
     const slugDe = async (id) => (await admin.from('establecimientos').select('slug').eq('id', id).single().throwOnError()).data.slug;
     slugA = await slugDe(EST_A);
@@ -78,12 +97,7 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-38 · centro de notificaciones${hayE
     await aviso('vieja', { orden_id: entregada.id, evento: 'orden.recibida', dias: 91 });
     await aviso('otraSede', { establecimiento_id: EST_B, cliente_id: clienteB.id, orden_id: otraSede.id, evento: 'orden.lista', dias: 1 });
 
-    limiteAccesos.reiniciar();
-    const acceso = await request(app)
-      .post(`/api/v1/publico/sedes/${slugA}/historial/acceso`)
-      .send({ placa: PLACA.enCurso, celular: TEL });
-    expect(acceso.status).toBe(200);
-    pase = acceso.body.pase;
+    pase = await entrar(slugA);
   });
 
   afterAll(async () => {
@@ -146,11 +160,7 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-38 · centro de notificaciones${hayE
   });
 
   it('el pase de la otra sede solo ve los avisos de esa sede', async () => {
-    limiteAccesos.reiniciar();
-    const acceso = await request(app)
-      .post(`/api/v1/publico/sedes/${slugB}/historial/acceso`)
-      .send({ placa: PLACA.otraSede, celular: TEL });
-    const res = await centro(acceso.body.pase);
+    const res = await centro(await entrar(slugB));
 
     expect(res.body.notificaciones.map((n) => n.id)).toEqual([ids.otraSede]);
   });

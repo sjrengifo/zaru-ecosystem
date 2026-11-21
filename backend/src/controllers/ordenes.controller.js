@@ -159,8 +159,10 @@ export async function cambiarEstado(req, res, next) {
     }
 
     const orden = detalle(await req.tenant.obtener('ordenes', id, COLUMNAS_DETALLE, 'Orden'));
-    const notificacion = orden.estado === 'listo' && revertir !== true
-      ? await avisarCliente(req.tenant, id, 'listo')
+    // HU-31 CA3: cada avance notifica el estado alcanzado. La configuración de la sede decide
+    // si ese estado genera correo; la reversión no genera un aviso nuevo (HU-28 CA3).
+    const notificacion = revertir !== true
+      ? await avisarCliente(req.tenant, id, orden.estado)
       : null;
     res.json({ ...orden, ...(notificacion ? { notificacion } : {}) }); // HU-46 CA2
   } catch (err) {

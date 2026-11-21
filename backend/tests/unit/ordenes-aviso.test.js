@@ -1,5 +1,5 @@
-// HU-46: el controlador de órdenes avisa al cliente al registrar el ingreso y al pasar a "Listo",
-// después de responder (CA3: el aviso no bloquea ni cambia la respuesta).
+// HU-46/HU-31: el controlador de órdenes avisa al cliente al registrar el ingreso y en cada avance
+// del flujo, después de responder (CA3: el aviso no bloquea ni cambia la respuesta).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 process.env.ZARU_CLAVE_CIFRADO ||= Buffer.alloc(32).toString('base64');
@@ -36,14 +36,17 @@ describe('avisos de HU-46 desde las órdenes', () => {
     expect(programarNotificacion).toHaveBeenCalledWith(tenant, ORDEN_ID, 'ingreso');
   });
 
-  it('CA2: al pasar a "Listo" programa el aviso de listo', async () => {
-    const tenant = tenantCon('listo');
-    await ejecutar(cambiarEstado, { tenant, ctx: { usuarioId: 'u1' }, params: { id: ORDEN_ID }, body: { estado: 'listo' } });
-    expect(programarNotificacion).toHaveBeenCalledWith(tenant, ORDEN_ID, 'listo');
+  it('CA2: cada avance del flujo programa el aviso del estado alcanzado', async () => {
+    for (const estado of ['en_lavado', 'secado', 'listo', 'entregado']) {
+      programarNotificacion.mockClear();
+      const tenant = tenantCon(estado);
+      const { res } = await ejecutar(cambiarEstado, { tenant, ctx: { usuarioId: 'u1' }, params: { id: ORDEN_ID }, body: { estado } });
+      expect(res.json).toHaveBeenCalled();
+      expect(programarNotificacion).toHaveBeenCalledWith(tenant, ORDEN_ID, estado);
+    }
   });
 
-  it('no avisa en otros estados ni al revertir', async () => {
-    await ejecutar(cambiarEstado, { tenant: tenantCon('en_lavado'), ctx: { usuarioId: 'u1' }, params: { id: ORDEN_ID }, body: { estado: 'en_lavado' } });
+  it('no avisa al revertir', async () => {
     await ejecutar(cambiarEstado, { tenant: tenantCon('listo'), ctx: { usuarioId: 'u1' }, params: { id: ORDEN_ID }, body: { revertir: true } });
     expect(programarNotificacion).not.toHaveBeenCalled();
   });
