@@ -5,9 +5,9 @@ import { crearTenantFalso } from '../helpers/tenantFalso.js';
 
 process.env.ZARU_CLAVE_CIFRADO ||= Buffer.alloc(32, 7).toString('base64');
 
-const { firmarPase, verificarPase, DURACION_PASE_MS } = await import('../../src/shared/paseCliente.js');
+const { firmarPase, verificarPase, crearPaseParaCliente, DURACION_PASE_MS } = await import('../../src/shared/paseCliente.js');
 const { tipoLavado, vehiculosDelCliente, listarHistorial, detalleHistorial } = await import('../../src/shared/historialCliente.js');
-const { filtroHistorial, idOrden } = await import('../../src/schemas/cliente.schemas.js');
+const { accesoHistorial, filtroHistorial, idOrden } = await import('../../src/schemas/cliente.schemas.js');
 
 const SEDE = { id: 'eeeeeeee-0000-4000-8000-000000000001', slug: 'car-wash-demo', nombre: 'Lavadero Norte', estado: 'activo' };
 const CLIENTE = '22222222-0000-4000-8000-000000000002';
@@ -31,7 +31,7 @@ const ordenEntregada = (extra = {}) => ({
 });
 
 describe('HU-23 · pase firmado del cliente', () => {
-  it('firma y verifica la sede y el cliente, con caducidad de 30 días (RF-F5-12)', () => {
+  it('firma y verifica la sede y el cliente, con caducidad de 30 minutos', () => {
     const ahora = Date.parse('2026-11-10T15:00:00Z');
     const { pase, expiraEn } = firmarPase({ establecimientoId: SEDE.id, clienteId: CLIENTE, ahora });
 
@@ -57,6 +57,62 @@ describe('HU-23 · pase firmado del cliente', () => {
       expect(capturar(() => verificarPase(invalido, { ahora }))).toMatchObject({ codigo: 'NO_AUTENTICADO', status: 401 });
     }
     expect(capturar(() => verificarPase(pase, { ahora: ahora + 61_000 }))).toMatchObject({ codigo: 'NO_AUTENTICADO', status: 401 });
+  });
+
+  function dbFalso(respuestas) {
+    const colas = Object.fromEntries(Object.entries(respuestas).map(([tabla, lista]) => [tabla, [...lista]]));
+    return {
+      from(tabla) {
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          maybeSingle() {
+            return Promise.resolve(colas[tabla]?.shift() ?? { data: null, error: null });
+          },
+        };
+      },
+    };
+  }
+
+  it('emite el pase solo cuando la placa y el celular coinciden con el vehículo de la sede', async () => {
+    const db = dbFalso({
+      establecimientos: [{ data: SEDE, error: null }],
+      vehiculos: [{ data: { id: 'v-1', placa: 'ABC123', cliente_id: CLIENTE }, error: null }],
+      clientes: [{ data: { id: CLIENTE, nombre: 'Yeliani', telefono: '3001234567' }, error: null }],
+    });
+
+    const datos = await crearPaseParaCliente('car-wash-demo', { placa: 'ABC123', celular: '+57 300 123 4567' }, { db });
+
+    expect(datos).toMatchObject({
+      sede: { slug: 'car-wash-demo', nombre: 'Lavadero Norte' },
+      cliente: { nombre: 'Yeliani' },
+    });
+    expect(verificarPase(datos.pase)).toMatchObject({ establecimientoId: SEDE.id, clienteId: CLIENTE });
+  });
+
+  it('con un celular que no coincide responde el mismo 404 que una placa inexistente', async () => {
+    const db = dbFalso({
+      establecimientos: [{ data: SEDE, error: null }, { data: SEDE, error: null }],
+      vehiculos: [
+        { data: { id: 'v-1', placa: 'ABC123', cliente_id: CLIENTE }, error: null },
+        { data: null, error: null },
+      ],
+      clientes: [{ data: { id: CLIENTE, nombre: 'Yeliani', telefono: '3001234567' }, error: null }],
+    });
+
+    await expect(crearPaseParaCliente('car-wash-demo', { placa: 'ABC123', celular: '3000000000' }, { db })).rejects.toMatchObject({
+      codigo: 'NO_ENCONTRADO',
+      status: 404,
+      message: 'No encontramos un vehículo con esa placa y celular en esta sede',
+    });
+    await expect(crearPaseParaCliente('car-wash-demo', { placa: 'ZZZ999', celular: '3001234567' }, { db })).rejects.toMatchObject({
+      codigo: 'NO_ENCONTRADO',
+      message: 'No encontramos un vehículo con esa placa y celular en esta sede',
+    });
   });
 });
 
@@ -163,6 +219,15 @@ describe('HU-24 · detalle de un único servicio', () => {
 });
 
 describe('HU-23/HU-24 · validación de entrada', () => {
+  it('normaliza placa y celular del acceso', () => {
+    expect(accesoHistorial.parse({ placa: ' abc-123 ', celular: '+57 300 123 4567' })).toEqual({ placa: 'ABC123', celular: '3001234567' });
+  });
+
+  it('rechaza una placa o un celular inválidos', () => {
+    expect(accesoHistorial.safeParse({ placa: 'A', celular: '3001234567' }).success).toBe(false);
+    expect(accesoHistorial.safeParse({ placa: 'ABC123', celular: '12345' }).success).toBe(false);
+  });
+
   it('el filtro de placa es opcional y el id del detalle debe ser UUID', () => {
     expect(filtroHistorial.parse({}).placa).toBeUndefined();
     expect(filtroHistorial.parse({ placa: 'xyz-987' })).toEqual({ placa: 'XYZ987' });

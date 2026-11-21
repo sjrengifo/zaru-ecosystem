@@ -8,14 +8,12 @@ import vehiculosRoutes from './vehiculos.routes.js';
 import serviciosRoutes from './servicios.routes.js';
 import ordenesRoutes from './ordenes.routes.js';
 import promocionesRoutes from './promociones.routes.js';
-import campanasRoutes from './campanas.routes.js';
 import usuariosRoutes from './usuarios.routes.js';
 import establecimientoRoutes from './establecimiento.routes.js';
 import superadminRoutes from './superadmin.routes.js';
 import reportesRoutes from './reportes.routes.js';
 import notificacionesRoutes from './notificaciones.routes.js';
 import plantillasRoutes from './plantillas.routes.js';
-import configuracionRoutes from './configuracion.routes.js';
 import * as me from '../controllers/me.controller.js';
 import * as politicas from '../controllers/politicas.controller.js';
 import * as seguimiento from '../controllers/seguimiento.controller.js';
@@ -26,7 +24,7 @@ import * as webhooks from '../controllers/webhooks.controller.js';
 import * as cliente from '../controllers/cliente.controller.js';
 import { validar } from '../shared/validar.js';
 import { busquedaPublica } from '../schemas/publico.schemas.js';
-import { filtroHistorial, idNotificacionCliente, idOrden, solicitudOtp, verificacionOtp } from '../schemas/cliente.schemas.js';
+import { accesoHistorial, filtroHistorial, idNotificacionCliente, idOrden } from '../schemas/cliente.schemas.js';
 import { requierePase } from '../shared/paseCliente.js';
 
 export const VERSION_API = '1.0.0';
@@ -37,8 +35,6 @@ export const MODULOS = [
   ['/servicios', serviciosRoutes],
   ['/ordenes', ordenesRoutes],
   ['/promociones', promocionesRoutes],
-  // HU-35: campañas de promociones segmentadas.
-  ['/campanas', campanasRoutes],
   ['/usuarios', usuariosRoutes],
   ['/establecimiento', establecimientoRoutes],
   ['/superadmin', superadminRoutes],
@@ -46,8 +42,6 @@ export const MODULOS = [
   ['/notificaciones', notificacionesRoutes],
   // HU-32: plantillas de notificación de la sede.
   ['/plantillas', plantillasRoutes],
-  // HU-31: configuración de los estados que generan notificación.
-  ['/configuracion', configuracionRoutes],
 ];
 
 export const MODULO_DE_PREFIJO = {
@@ -56,15 +50,11 @@ export const MODULO_DE_PREFIJO = {
   '/ordenes': 'dashboard',
   // '/promociones' NO va aquí: GET es de solo lectura para el operario (FormularioIngreso pide las vigentes
   // al registrar un ingreso). POST/PATCH ya exigen requiereRol('admin') en promociones.routes.js.
-  // HU-35: las campañas sí son exclusivas del administrador y viven en el módulo de promociones.
-  '/campanas': 'promociones',
   '/usuarios': 'usuarios',
   '/reportes': 'reportes',
   '/notificaciones': 'notificaciones',
   // HU-32: las plantillas son parte de las notificaciones; solo el administrador.
   '/plantillas': 'notificaciones',
-  // HU-31: la configuración de avisos también vive en el módulo de notificaciones.
-  '/configuracion': 'notificaciones',
 };
 
 const router = Router();
@@ -97,11 +87,10 @@ router.post('/webhooks/twilio', express.urlencoded({ extended: false, limit: '64
 // HU-30 CA3: el cliente deja de recibir avisos o promociones desde el enlace del correo, sin sesión.
 router.get('/publico/baja/:token', baja.consultar);
 router.post('/publico/baja/:token', baja.confirmar);
-// HU-23 / HU-24: historial y detalle de servicios del cliente final. Ninguna de estas rutas acepta
-// un id de cliente o de sede ajeno: ambos salen del pase firmado.
-// RF-F5-11 / RF-F5-12: el cliente entra con su celular y un código de un solo uso por SMS.
-router.post('/publico/sedes/:slug/otp', validar({ body: solicitudOtp }), cliente.solicitarOtp);
-router.post('/publico/sedes/:slug/otp/verificar', validar({ body: verificacionOtp }), cliente.verificarOtp);
+// HU-23 / HU-24: historial y detalle de servicios del cliente final. El cliente verifica que es
+// dueño del vehículo con placa + celular y recibe un pase firmado de vida corta; ninguna de estas
+// rutas acepta un id de cliente o de sede ajeno.
+router.post('/publico/sedes/:slug/historial/acceso', validar({ body: accesoHistorial }), cliente.acceso);
 router.get('/publico/cliente/vehiculos', requierePase, cliente.vehiculos);
 router.get('/publico/cliente/historial', requierePase, validar({ query: filtroHistorial }), cliente.historial);
 router.get('/publico/cliente/historial/:ordenId', requierePase, validar({ params: idOrden }), cliente.detalle);

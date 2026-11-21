@@ -73,8 +73,6 @@ describe('HU-59 CA3 · la API niega las secciones ajenas aunque se escriba la di
     ['PATCH', '/api/v1/servicios/00000000-0000-4000-8000-000000000001'], // la API edita con PATCH, no PUT
     ['PUT', '/api/v1/establecimiento/branding'],
     ['POST', '/api/v1/establecimiento/logo'],
-    ['GET', '/api/v1/configuracion/notificaciones'],
-    ['PUT', '/api/v1/configuracion/notificaciones'],
     ['DELETE', '/api/v1/clientes/00000000-0000-4000-8000-000000000001'],
     ['GET', '/api/v1/notificaciones'],
     ['GET', '/api/v1/notificaciones/00000000-0000-4000-8000-000000000001'],
@@ -103,7 +101,6 @@ describe('HU-59 CA3 · la API niega las secciones ajenas aunque se escriba la di
     ['GET', '/api/v1/promociones'],
     ['GET', '/api/v1/ordenes/activas'],
     ['GET', '/api/v1/servicios'],
-    ['GET', '/api/v1/configuracion/notificaciones'],
   ])('admin: %s %s está permitido', async (metodo, ruta) => {
     const res = await request(app)[metodo.toLowerCase()](ruta).use(como('admin'));
     expect(res.status).not.toBe(403);

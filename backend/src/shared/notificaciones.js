@@ -30,34 +30,11 @@ import { proveedorCorreo, conTiempoMaximo, enmascararCorreo } from './correo.js'
 import { proveedorSms, textoAvisoListo } from './proveedorSms.js';
 import { proveedorPush } from './proveedorPush.js';
 import { clasificarError, esperaExponencial, esperasConfiguradas } from './reintentos.js';
-import { PLANTILLAS, plantillaPromocion } from './plantillasCorreo.js';
+import { PLANTILLAS } from './plantillasCorreo.js';
 import { enlaceBaja, puedeRecibir, TIPOS } from './autorizaciones.js';
 import { crearAccesoTenant } from './tenant.js';
 
-export const EVENTOS = {
-  RECIBIDA: 'orden.recibida',
-  EN_LAVADO: 'orden.en_lavado',
-  SECADO: 'orden.secado',
-  LISTA: 'orden.lista',
-  ENTREGADA: 'orden.entregada',
-};
-
-/** HU-31: cada evento corresponde a un estado del flujo y a su interruptor en la sede. */
-export const ESTADO_DE_EVENTO = {
-  [EVENTOS.RECIBIDA]: 'recibido',
-  [EVENTOS.EN_LAVADO]: 'en_lavado',
-  [EVENTOS.SECADO]: 'secado',
-  [EVENTOS.LISTA]: 'listo',
-  [EVENTOS.ENTREGADA]: 'entregado',
-};
-
-const EVENTO_POR_ESTADO = Object.fromEntries(
-  Object.entries(ESTADO_DE_EVENTO).map(([evento, estado]) => [estado, evento]),
-);
-
-/** Traduce el estado de la orden al evento que se guarda en `notificaciones`. */
-export const eventoDeEstado = (estado) => EVENTO_POR_ESTADO[estado] ?? null;
-
+export const EVENTOS = { RECIBIDA: 'orden.recibida', LISTA: 'orden.lista' };
 /** HU-33 CA1: el intento inicial más 3 reintentos (1, 2 y 4 minutos). */
 export const MAX_REINTENTOS = 3;
 export const MAX_INTENTOS = MAX_REINTENTOS + 1;
@@ -74,15 +51,6 @@ const ahoraIso = () => new Date().toISOString();
 function enlaceDeBaja(tenant, clienteId) {
   try {
     return enlaceBaja({ establecimientoId: tenant.establecimientoId, clienteId, tipo: TIPOS.servicio });
-  } catch {
-    return null;
-  }
-}
-
-/** HU-35 / RF-F7-10: el enlace de baja de una promoción revoca solo la autorización comercial. */
-function enlaceDeBajaComercial(tenant, clienteId) {
-  try {
-    return enlaceBaja({ establecimientoId: tenant.establecimientoId, clienteId, tipo: TIPOS.comerciales });
   } catch {
     return null;
   }
@@ -107,18 +75,6 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
   try {
     const plantilla = PLANTILLAS[evento];
     if (!plantilla) throw new Error(`Evento de correo desconocido: ${evento}`);
-
-    // HU-31 CA3: la configuración se consulta en cada envío y por el tenant de la sesión.
-    // Así un interruptor apagado aplica de inmediato y nunca alcanza a otra sede.
-    const estado = ESTADO_DE_EVENTO[evento];
-    const { data: config, error: errorConfig } = await tenant
-      .listar('config_notificaciones', 'activo')
-      .eq('estado', estado)
-      .maybeSingle();
-    if (errorConfig) throw errorConfig;
-    if (config && config.activo === false) {
-      return { resumen: resumen('omitida', { motivo: 'desactivado' }), enviar: sinEnvio };
-    }
 
     const { data: orden, error } = await tenant.listar('ordenes', COLUMNAS_ORDEN).eq('id', ordenId).maybeSingle();
     if (error) throw error;
@@ -299,42 +255,10 @@ export function enSegundoPlano(tarea) {
 }
 
 /**
- * Reconstruye el correo de una campaña comercial. El cuerpo sale de la foto de la promoción que
- * se guardó al confirmar; el cliente y la marca se leen de nuevo para incluir el enlace de baja
- * vigente (RF-F7-10).
- * @returns {Promise<{ mensaje: object, cliente: object, establecimiento: object } | null>}
- */
-async function reconstruirComercial(tenant, fila) {
-  const promocion = fila.contenido?.promocion;
-  if (!promocion) return null;
-
-  const { data: cliente, error } = await tenant
-    .listar('clientes', 'id, nombre')
-    .eq('id', fila.cliente_id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!cliente) return null;
-
-  const { data: establecimiento } = await tenant
-    .listar('establecimientos', 'nombre, logo_url, color_primario')
-    .maybeSingle();
-
-  const mensaje = plantillaPromocion({
-    establecimiento,
-    cliente,
-    promocion,
-    enlaceBaja: enlaceDeBajaComercial(tenant, cliente.id),
-  });
-  return { mensaje, cliente, establecimiento };
-}
-
-/**
  * Reconstruye el mensaje de correo desde la orden y la plantilla. No se guarda el cuerpo en la cola.
- * @returns {Promise<{ mensaje: object, orden?: object, cliente: object, vehiculo?: object, establecimiento: object } | null>}
+ * @returns {Promise<{ mensaje: object, orden: object, cliente: object, establecimiento: object } | null>}
  */
 async function reconstruirMensaje(tenant, fila) {
-  if (fila.tipo === 'comercial') return reconstruirComercial(tenant, fila);
-
   const plantilla = PLANTILLAS[fila.evento];
   if (!plantilla || !fila.orden_id) return null;
 
@@ -498,20 +422,6 @@ const SIN_DESTINO = {
 };
 
 /**
- * HU-35 (RNF-F7-02): el worker reclama una fila comercial por 10 minutos. `reclamar_comercial`
- * cuenta esas filas en curso para que dos workers no superen juntos el límite semanal.
- */
-export const ARRIENDO_COMERCIAL_MS = 10 * 60 * 1000;
-
-/** Motivos con los que la base rechaza un envío comercial; quedan visibles en la bitácora. */
-const MOTIVOS_COMERCIAL = {
-  sin_autorizacion: 'El cliente revocó la autorización de promociones',
-  limite_semanal: 'El cliente ya recibió 2 promociones de la sede en los últimos 7 días',
-  no_existe: 'La notificación comercial ya no existe',
-  no_comercial: 'La notificación no es comercial',
-};
-
-/**
  * Un solo intento del worker. Deja la fila pendiente con `proximo_intento_at` (reintento
  * recuperable) o fallida (permanente o sin intentos). Registra el intento (HU-34) y, al agotar un
  * aviso "listo", crea el canal alterno o marca el fallo definitivo (HU-33).
@@ -551,37 +461,6 @@ export async function enviarUnIntento(tenant, fila, opciones = {}) {
 
   if (['enviada', 'entregada', 'cancelada'].includes(fila.estado)) {
     return { estado: fila.estado, intentos: Number(fila.intentos ?? 0), omitida: true };
-  }
-
-  // HU-35 CA2/CA3: antes de cada envío comercial se vuelven a leer la autorización y el límite
-  // semanal. La estimación no basta: el cliente pudo revocar o recibir otra promoción entre tanto.
-  // La función bloquea la fila, así dos workers no deciden al mismo tiempo.
-  if (fila.tipo === 'comercial') {
-    let revision;
-    try {
-      revision = await tenant.rpc('reclamar_comercial', {
-        p_notificacion_id: fila.id,
-        p_ahora: ahora.toISOString(),
-      });
-    } catch (err) {
-      return fallar(err, true);
-    }
-    if (revision === 'ya_procesada') {
-      return { estado: fila.estado, intentos: Number(fila.intentos ?? 0), omitida: true };
-    }
-    if (revision !== 'ok') {
-      const motivo = MOTIVOS_COMERCIAL[revision] ?? 'La promoción ya no se puede enviar';
-      await marcar(tenant, fila.id, { estado: 'cancelada', error: motivo, proximo_intento_at: null });
-      await registrarIntento(tenant, {
-        notificacionId: fila.id,
-        intento,
-        canal,
-        resultado: 'fallido',
-        recuperable: false,
-        error: motivo,
-      });
-      return { estado: 'cancelada', intentos: intento, omitida: true, motivo: revision };
-    }
   }
 
   // CA4: un alterno no sale si el original (u otro alterno) ya llegó, aunque haya sido tarde.
@@ -683,8 +562,6 @@ export async function procesarCola(db, { limite = 20, ahora = new Date(), provee
     .in('estado', ['pendiente', 'programada'])
     .lte('programada_para', iso)
     .or(`proximo_intento_at.is.null,proximo_intento_at.lte.${iso}`)
-    // RNF-F7-02: primero las novedades (0), luego las operativas (1) y al final las comerciales (2).
-    .order('prioridad', { ascending: true })
     .order('programada_para', { ascending: true })
     .limit(limite);
   if (error) throw error;
@@ -692,14 +569,9 @@ export async function procesarCola(db, { limite = 20, ahora = new Date(), provee
   const resultados = [];
   for (const fila of vencidas ?? []) {
     // Reclamo atómico: solo el worker que logra cambiar el estado desde pendiente/programada envía.
-    // Una fila comercial deja un arriendo de 10 minutos para que otro worker la cuente como en curso.
-    const reclamo = { estado: 'enviando' };
-    if (fila.tipo === 'comercial') {
-      reclamo.proximo_intento_at = new Date(ahora.getTime() + ARRIENDO_COMERCIAL_MS).toISOString();
-    }
     const { data: reclamada, error: errorReclamo } = await db
       .from('notificaciones')
-      .update(reclamo)
+      .update({ estado: 'enviando' })
       .eq('id', fila.id)
       .in('estado', ['pendiente', 'programada'])
       .select('*')
@@ -736,8 +608,7 @@ export async function procesarCola(db, { limite = 20, ahora = new Date(), provee
  * envíos del mismo mensaje. En pruebas o con NOTIFICACIONES_WORKER=off se envía en segundo plano.
  */
 export async function programarNotificacion(tenant, ordenId, tipo) {
-  // `ingreso` se conserva por compatibilidad; el resto son estados del flujo (HU-31).
-  const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : eventoDeEstado(tipo) ?? EVENTOS.LISTA;
+  const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : EVENTOS.LISTA;
   const preparado = await prepararCorreo(tenant, { evento, ordenId });
   const workerActivo = process.env.NODE_ENV !== 'test' && String(process.env.NOTIFICACIONES_WORKER ?? 'on') !== 'off';
   if (preparado.resumen.estado === 'pendiente' && !workerActivo) enSegundoPlano(preparado.enviar);
@@ -746,7 +617,7 @@ export async function programarNotificacion(tenant, ordenId, tipo) {
 
 /** Adaptador para pruebas/integraciones antiguas que ejecutan el envío de forma síncrona. */
 export async function notificarOrden(tenant, ordenId, tipo, { enviar } = {}) {
-  const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : eventoDeEstado(tipo) ?? EVENTOS.LISTA;
+  const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : EVENTOS.LISTA;
   const proveedor = enviar ? {
     nombre: 'prueba',
     async enviar({ para, ...mensaje }) {

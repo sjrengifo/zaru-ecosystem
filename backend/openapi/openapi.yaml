@@ -62,8 +62,6 @@ tags:
     description: HU-57
   - name: Reportes
     description: HU-16
-  - name: Notificaciones
-    description: HU-31 (estados que generan aviso al cliente)
   - name: Seguimiento
     description: HU-18 (cliente final, sin sesión)
   - name: Acceso del cliente
@@ -336,56 +334,20 @@ paths:
                       revocadaAt: { type: [string, 'null'], format: date-time }
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
-  /publico/sedes/{slug}/otp:
+  /publico/sedes/{slug}/historial/acceso:
     post:
       tags: [Historial del cliente]
-      operationId: solicitarCodigoAccesoCliente
-      summary: Pedir el código de acceso por SMS
+      operationId: accederHistorialCliente
+      summary: Verificar placa y celular para abrir el historial de servicios
       description: |
-        RF-F5-11. El cliente final escribe su celular, elige el `canal` (`sms` por defecto o `correo`) y, si
-        está registrado en esa sede, le llega un código de 6 dígitos que vence a los 5 minutos. Si eligió
-        `correo` y no tiene uno registrado, el código sale por SMS (la respuesta es la misma en ambos casos). La respuesta es la misma (`202`) exista o no el celular:
-        no revela quién es cliente de la sede. Solo se guarda el hash del código.
+        HU-23. El cliente final confirma que es dueño del vehículo con la **placa + el celular** registrados en
+        esa sede. Si ambos coinciden, recibe un `pase` firmado de vida corta (30 minutos) que debe enviar como
+        `Authorization: Bearer <pase>` en las rutas del historial.
 
-        Límite (RNF-F5-02): 3 solicitudes por celular cada 15 minutos; al exceder responde `429`.
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/SlugSede'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/SolicitudOtp' }
-            example: { celular: '3001234567', canal: correo }
-      responses:
-        '202':
-          description: Solicitud recibida. Si el celular está registrado, el código va en camino.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SolicitudOtpRespuesta' }
-        '400': { $ref: '#/components/responses/Validacion' }
-        '404': { $ref: '#/components/responses/NoEncontrado' }
-        '429': { $ref: '#/components/responses/LimiteExcedido' }
-        '500':
-          description: No se pudo enviar el código por el canal elegido; el código queda invalidado.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-
-  /publico/sedes/{slug}/otp/verificar:
-    post:
-      tags: [Historial del cliente]
-      operationId: verificarCodigoAccesoCliente
-      summary: Validar el código y abrir la sesión del cliente
-      description: |
-        RF-F5-12. Con el código correcto el cliente recibe un `pase` firmado de **30 días** que debe enviar como
-        `Authorization: Bearer <pase>` en las rutas `/publico/cliente/*` (historial, notificaciones, preferencias).
         El pase identifica al establecimiento y al cliente dentro de la firma: no se puede alterar ni usar para
-        otra sede.
-
-        El código es de un solo uso y solo vale el último pedido. Con 5 intentos incorrectos queda invalidado.
-        Cualquier fallo (código incorrecto, vencido, usado o celular que no es cliente) responde el mismo `401`.
-        Tras 10 códigos incorrectos en 10 minutos desde el mismo origen responde `429`.
+        otra sede. Si la placa o el celular no coinciden, la respuesta es el mismo `404` exista o no la placa
+        (no revela quién es cliente de la sede). Tras 5 intentos fallidos en 10 minutos desde el mismo origen
+        responde `429`.
       security: []
       parameters:
         - $ref: '#/components/parameters/SlugSede'
@@ -393,23 +355,22 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/VerificacionOtp' }
-            example: { celular: '3001234567', codigo: '123456' }
+            schema: { $ref: '#/components/schemas/AccesoHistorial' }
+            example: { placa: ABC123, celular: '3001234567' }
       responses:
         '200':
-          description: Pase emitido para ese cliente en esa sede.
+          description: Pase emitido para consultar el historial de ese cliente en esa sede.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AccesoHistorialRespuesta' }
         '400': { $ref: '#/components/responses/Validacion' }
-        '401':
-          description: El código no es válido, venció o ya se usó.
+        '404':
+          description: La placa y el celular no coinciden con un vehículo de la sede (o la sede no existe).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example:
-                error: { codigo: NO_AUTENTICADO, mensaje: El código no es válido o ya venció. Revísalo o pide uno nuevo, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
-        '404': { $ref: '#/components/responses/NoEncontrado' }
+                error: { codigo: NO_ENCONTRADO, mensaje: No encontramos un vehículo con esa placa y celular en esta sede, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
 
   /publico/cliente/vehiculos:
@@ -1106,93 +1067,6 @@ paths:
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
-  /campanas:
-    get:
-      tags: [Promociones]
-      operationId: listarCampanas
-      summary: Historial de campañas de promociones (solo administrador)
-      description: >-
-        HU-35 (RF-F7-06). Campañas de la sede, de la más reciente a la más antigua. Cada una conserva la foto de la
-        promoción al confirmar, el segmento, la hora solicitada y la hora ajustada al horario de Bogotá (CA4), el
-        total de destinatarios, las exclusiones de la estimación y los omitidos al materializar.
-      parameters:
-        - name: pagina
-          in: query
-          description: Página solicitada (empieza en 1).
-          schema: { type: integer, minimum: 1, default: 1 }
-        - name: porPagina
-          in: query
-          description: Campañas por página.
-          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
-      responses:
-        '200':
-          description: Campañas de la sede y datos de paginación.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/CampanasHistorial' }
-        '400': { $ref: '#/components/responses/Validacion' }
-        '401': { $ref: '#/components/responses/NoAutenticado' }
-        '403': { $ref: '#/components/responses/SinPermiso' }
-    post:
-      tags: [Promociones]
-      operationId: crearCampana
-      summary: Crear una campaña de promoción segmentada (solo administrador)
-      description: >-
-        HU-35 CA1 y CA4 (RF-F7-06, RF-F7-09, RF-F7-10). Vuelve a estimar al confirmar y guarda la foto de la promoción.
-        Una hora entre las 8:00 p. m. y las 7:00 a. m. de Bogotá se reprograma a las 7:00 a. m. del día siguiente; la
-        respuesta trae `programadaPara`, `programadaSolicitada` y `ajustada`. El encabezado `Idempotency-Key` evita
-        campañas duplicadas si se reintenta la petición. Los mensajes se encolan como `comercial` con prioridad menor
-        que los operativos (RNF-F7-02) y cada uno lleva el enlace de baja de promociones (RF-F7-10).
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CampanaNueva' }
-            example:
-              promocionId: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10
-              segmento:
-                diasSinVisita: 60
-                servicioIds: []
-                tiposVehiculo: [automovil]
-              programadaPara: '2026-11-20T15:00:00-05:00'
-      responses:
-        '201':
-          description: Campaña creada, con la hora ya ajustada al horario permitido.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Campana' }
-        '400': { $ref: '#/components/responses/Validacion' }
-        '401': { $ref: '#/components/responses/NoAutenticado' }
-        '403': { $ref: '#/components/responses/SinPermiso' }
-        '404': { $ref: '#/components/responses/NoEncontrado' }
-
-  /campanas/estimar:
-    post:
-      tags: [Promociones]
-      operationId: estimarCampana
-      summary: Estimar los destinatarios de una campaña (solo administrador)
-      description: >-
-        HU-35 CA2 y CA3 (RF-F7-07, RF-F7-08). No crea nada: devuelve el total de destinatarios y el detalle de
-        exclusiones. Se excluye a quien no autorizó comunicaciones comerciales (HU-30), a quien ya recibió 2 mensajes
-        comerciales de la sede en los últimos 7 días y a quien no tiene correo. La promoción debe estar vigente.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CampanaSegmento' }
-      responses:
-        '200':
-          description: Total de destinatarios, exclusiones y la promoción sobre la que se enviará.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/EstimacionCampana' }
-        '400': { $ref: '#/components/responses/Validacion' }
-        '401': { $ref: '#/components/responses/NoAutenticado' }
-        '403': { $ref: '#/components/responses/SinPermiso' }
-        '404': { $ref: '#/components/responses/NoEncontrado' }
-
   /reportes/servicios:
     get:
       tags: [Reportes]
@@ -1497,64 +1371,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/VistaPreviaPlantilla' }
-        '400': { $ref: '#/components/responses/Validacion' }
-        '401': { $ref: '#/components/responses/NoAutenticado' }
-        '403': { $ref: '#/components/responses/SinPermiso' }
-
-  /configuracion/notificaciones:
-    get:
-      tags: [Notificaciones]
-      operationId: obtenerConfiguracionNotificaciones
-      summary: Estados del flujo que generan notificación en la sede (solo administrador)
-      description: >-
-        HU-31 CA1. Devuelve siempre los cinco estados del flujo, en el orden en que los vive el cliente,
-        con su interruptor. Un estado sin fila guardada se considera activo. `obligatorio` marca el
-        aviso de "listo para entrega", que no se puede apagar (CA2). La configuración es de la sede de
-        la sesión (CA3).
-      responses:
-        '200':
-          description: Configuración de la sede, con los cinco estados.
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/EstadoNotificacion' }
-              example:
-                - { estado: recibido, titulo: En cola, activo: true, obligatorio: false }
-                - { estado: en_lavado, titulo: Lavado iniciado, activo: true, obligatorio: false }
-                - { estado: secado, titulo: Secado, activo: true, obligatorio: false }
-                - { estado: listo, titulo: Listo para recoger, activo: true, obligatorio: true }
-                - { estado: entregado, titulo: Entregado, activo: true, obligatorio: false }
-        '401': { $ref: '#/components/responses/NoAutenticado' }
-        '403': { $ref: '#/components/responses/SinPermiso' }
-    put:
-      tags: [Notificaciones]
-      operationId: actualizarConfiguracionNotificaciones
-      summary: Guardar los estados que generan notificación (solo administrador)
-      description: >-
-        HU-31 CA2 y CA3. Guarda los interruptores de la sede de la sesión en una sola operación; los
-        estados omitidos conservan su valor. Apagar "listo" responde 400 porque ese aviso es
-        obligatorio. El cambio aplica al siguiente cambio de estado de una orden, sin reiniciar el
-        servicio, y nunca afecta a otra sede.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ConfiguracionNotificacionesEntrada' }
-            example:
-              - { estado: recibido, activo: true }
-              - { estado: en_lavado, activo: true }
-              - { estado: secado, activo: false }
-              - { estado: listo, activo: true }
-              - { estado: entregado, activo: true }
-      responses:
-        '200':
-          description: Configuración guardada, con los cinco estados.
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/EstadoNotificacion' }
         '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
@@ -1919,8 +1735,8 @@ components:
       scheme: bearer
       bearerFormat: pase
       description: >-
-        Pase firmado (HMAC) de 30 días emitido por POST /publico/sedes/{slug}/otp/verificar (RF-F5-12).
-        Identifica la sede y el cliente verificados con el código enviado por SMS a su celular. No es un JWT de Supabase; el panel
+        Pase firmado (HMAC) de 30 minutos emitido por POST /publico/sedes/{slug}/historial/acceso (HU-23).
+        Identifica la sede y el cliente verificados con placa + celular. No es un JWT de Supabase; el panel
         no lo usa.
 
   headers:
@@ -1961,15 +1777,6 @@ components:
       description: Identificador UUID del recurso.
       schema: { type: string, format: uuid }
       example: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10
-    IdempotencyKey:
-      name: Idempotency-Key
-      in: header
-      required: true
-      description: >-
-        Clave única de la operación (HU-35). Si se repite la petición con la misma clave, la API devuelve la campaña
-        ya creada en lugar de duplicarla.
-      schema: { type: string, minLength: 1, maxLength: 200 }
-      example: campana-2026-11-20-motor-60
 
   responses:
     LimiteExcedido:
@@ -2689,120 +2496,6 @@ components:
           items: { type: string, format: uuid }
         activa: { type: boolean }
 
-    SegmentoCampana:
-      type: object
-      description: >-
-        HU-35 (RF-F7-06): filtros del segmento. Una lista vacía no restringe. Los días sin visita se cuentan desde la
-        última orden entregada del cliente en la sede.
-      required: [diasSinVisita]
-      additionalProperties: false
-      properties:
-        diasSinVisita:
-          type: integer
-          enum: [30, 60, 90]
-          description: Clientes cuya última visita fue hace al menos estos días.
-        servicioIds:
-          type: array
-          description: Servicios usados por el cliente. Vacío = cualquiera.
-          maxItems: 50
-          items: { type: string, format: uuid }
-        tiposVehiculo:
-          type: array
-          description: Tipos de vehículo del cliente, sin distinguir mayúsculas. Vacío = cualquiera.
-          maxItems: 20
-          items: { type: string, minLength: 1, maxLength: 40 }
-
-    CampanaSegmento:
-      type: object
-      required: [promocionId, segmento]
-      additionalProperties: false
-      properties:
-        promocionId: { type: string, format: uuid }
-        segmento: { $ref: '#/components/schemas/SegmentoCampana' }
-
-    CampanaNueva:
-      type: object
-      required: [promocionId, segmento]
-      additionalProperties: false
-      properties:
-        promocionId: { type: string, format: uuid }
-        segmento: { $ref: '#/components/schemas/SegmentoCampana' }
-        programadaPara:
-          type: string
-          format: date-time
-          description: >-
-            Hora deseada en formato ISO 8601. Si cae entre las 8:00 p. m. y las 7:00 a. m. de Bogotá, la API la mueve
-            a las 7:00 a. m. del día siguiente. Sin este campo se envía de inmediato (con el mismo ajuste).
-
-    PromocionCampana:
-      type: object
-      description: Foto de la promoción guardada al confirmar la campaña (no cambia si luego se edita la promoción).
-      properties:
-        id: { type: string, format: uuid }
-        nombre: { type: string }
-        descripcion: { type: [string, 'null'] }
-        condiciones: { type: [string, 'null'] }
-        descuentoPct: { type: number, minimum: 0, maximum: 100 }
-        fechaInicio: { type: string, format: date }
-        fechaFin: { type: string, format: date }
-        servicios:
-          type: array
-          items: { type: string }
-
-    ExclusionesCampana:
-      type: object
-      description: Conteo de clientes del segmento que no reciben la campaña, por motivo.
-      properties:
-        sinAutorizacion: { type: integer, minimum: 0, description: No autorizó comunicaciones comerciales (HU-30). }
-        limiteSemanal: { type: integer, minimum: 0, description: Ya recibió 2 mensajes comerciales en 7 días. }
-        sinCanal: { type: integer, minimum: 0, description: No tiene correo registrado. }
-
-    Campana:
-      type: object
-      required: [id, promocionId, promocion, segmento, estado, programadaPara, programadaSolicitada, ajustada, totalDestinatarios, exclusiones, omitidos, createdAt]
-      properties:
-        id: { type: string, format: uuid }
-        promocionId: { type: string, format: uuid }
-        promocion: { $ref: '#/components/schemas/PromocionCampana' }
-        segmento: { $ref: '#/components/schemas/SegmentoCampana' }
-        estado: { type: string, enum: [programada, enviando, enviada, cancelada] }
-        programadaPara: { type: string, format: date-time, description: 'Hora efectiva, ya ajustada al horario de Bogotá.' }
-        programadaSolicitada: { type: string, format: date-time, description: Hora pedida por el administrador. }
-        ajustada: { type: boolean, description: true si la hora se movió por la franja nocturna. }
-        totalDestinatarios: { type: integer, minimum: 0, description: Mensajes realmente encolados al materializar. }
-        exclusiones: { $ref: '#/components/schemas/ExclusionesCampana' }
-        omitidos:
-          type: object
-          description: Exclusiones detectadas al materializar, incluidos duplicados y correos que ya no existen.
-          additionalProperties: { type: integer, minimum: 0 }
-        materializadaAt: { type: [string, 'null'], format: date-time }
-        error: { type: [string, 'null'], description: Motivo si la campaña se canceló al materializar. }
-        createdAt: { type: string, format: date-time }
-
-    EstimacionCampana:
-      type: object
-      required: [total, exclusiones, promocion]
-      properties:
-        total: { type: integer, minimum: 0 }
-        exclusiones: { $ref: '#/components/schemas/ExclusionesCampana' }
-        promocion: { $ref: '#/components/schemas/PromocionCampana' }
-
-    CampanasHistorial:
-      type: object
-      required: [campanas, paginacion]
-      properties:
-        campanas:
-          type: array
-          items: { $ref: '#/components/schemas/Campana' }
-        paginacion:
-          type: object
-          required: [pagina, porPagina, total, totalPaginas]
-          properties:
-            pagina: { type: integer, minimum: 1 }
-            porPagina: { type: integer, minimum: 1 }
-            total: { type: integer, minimum: 0 }
-            totalPaginas: { type: integer, minimum: 0 }
-
     Usuario:
       type: object
       description: Operario del establecimiento. El correo vive en Supabase Auth, no en `perfiles`.
@@ -2849,33 +2542,6 @@ components:
               type: string
               format: uri
               description: Enlace seguro de respaldo; solo aparece cuando `enviada` es false.
-
-    EstadoNotificacion:
-      type: object
-      description: >-
-        Un estado del flujo con su interruptor de avisos (HU-31 CA1). `obligatorio` es true solo para
-        "listo para entrega", que siempre permanece activo (CA2).
-      required: [estado, titulo, activo, obligatorio]
-      properties:
-        estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
-        titulo: { type: string, example: Lavado iniciado }
-        activo: { type: boolean, description: Si el estado genera un correo al cliente. }
-        obligatorio: { type: boolean, description: Indica que no se puede desactivar (solo "listo"). }
-
-    ConfiguracionNotificacionesEntrada:
-      type: array
-      minItems: 1
-      maxItems: 5
-      description: >-
-        Interruptores a guardar (HU-31). Los estados omitidos conservan su valor. "listo" debe venir
-        activo; enviarlo en false responde 400.
-      items:
-        type: object
-        required: [estado, activo]
-        additionalProperties: false
-        properties:
-          estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
-          activo: { type: boolean }
 
     Establecimiento:
       type: object
@@ -3005,35 +2671,18 @@ components:
               franja: { type: string }
               vehiculos: { type: integer, minimum: 0 }
 
-    SolicitudOtp:
+    AccesoHistorial:
       type: object
-      required: [celular]
+      required: [placa, celular]
       properties:
+        placa:
+          type: string
+          description: Placa del vehículo; se normaliza a mayúsculas y sin espacios.
+          example: ABC123
         celular:
           type: string
           description: Celular registrado para el cliente en esa sede (10 dígitos; acepta +57, espacios y guiones).
           example: '3001234567'
-        canal:
-          type: string
-          enum: [sms, correo]
-          default: sms
-          description: Por dónde quiere recibir el código. Con `correo` y sin correo registrado, sale por SMS.
-
-    SolicitudOtpRespuesta:
-      type: object
-      required: [enviado, canal, celular, expiraEn]
-      properties:
-        enviado: { type: boolean, const: true }
-        canal: { type: string, enum: [sms, correo], description: El canal que pidió el cliente. }
-        celular: { type: string, description: Celular enmascarado al que se envió., example: '300****567' }
-        expiraEn: { type: string, format: date-time }
-
-    VerificacionOtp:
-      type: object
-      required: [celular, codigo]
-      properties:
-        celular: { type: string, example: '3001234567' }
-        codigo: { type: string, pattern: '^[0-9]{6}$', example: '123456' }
 
     AccesoHistorialRespuesta:
       type: object

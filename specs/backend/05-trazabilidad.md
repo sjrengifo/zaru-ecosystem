@@ -60,7 +60,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-56 Automatizar la integración y el despliegue en ambientes separados | ZARU-62 | 5 | Should | María José | F0, F8 | RF-F0-08, RF-F8-01 a 04 | ESC-F0-06, ESC-F8-01, 02 | — | Pendiente |
 | HU-57 Registrar y activar un nuevo establecimiento afiliado | ZARU-63 | 5 | Should | Adri | F1 | RF-F1-09, 13 | ESC-F1-07 | — | Pendiente |
 | HU-58 Spike: validar la arquitectura y el stack del backend | ZARU-64 | 3 | Must | Samuel | F0 | RF-F0-09 | — | — | En desarrollo |
-| HU-59 Proteger el acceso sin contraseña del cliente final | ZARU-65 | 5 | Should | Adri | F5 | RF-F5-02 a 04, 11, 12 · RNF-F5-01 | ESC-F5-08 | `tests/unit/otp-acceso-cliente.test.js` · `tests/integration/centro-notificaciones.test.js` · `frontend/tests/notificaciones-cliente.test.jsx` | En desarrollo |
+| HU-59 Proteger el acceso sin contraseña del cliente final | ZARU-65 | 5 | Should | Adri | F5 | RF-F5-02 a 04, 11, 12 · RNF-F5-01 | ESC-F5-08 | — | Pendiente |
 
 **Total de la épica: 100 puntos.**
 
@@ -89,11 +89,11 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-28 Notificación automática por cambio de estado del vehículo | ZARU-17 | 8 | Must | — | F3, F6 | RF-F3-07, 08, RF-F6-01 a 05 | ESC-F3-05, ESC-F6-01 a 04 | — | Pendiente |
 | HU-29 Selección del canal de notificación preferido | ZARU-18 | 5 | Should | — | F6 | RF-F6-07 a 10 | ESC-F6-05, 06 | — | Pendiente |
 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones (ley 1581 de 2012) | ZARU-19 | 5 | Must | Samuel | F2, F6, F7 | RF-F2-03 a 05, RF-F6-24, 25 | ESC-F2-03, ESC-F6-14 | `tests/unit/autorizaciones.test.js` · `tests/integration/autorizaciones.test.js` · `database/pruebas/05_consentimientos.sql` · `frontend/tests/autorizaciones.test.jsx` | Cubierta |
-| HU-31 Configuración de los estados que generan notificación | ZARU-20 | 3 | Should | — | F6 | RF-F6-12 a 14 | ESC-F6-07, 08 | `tests/unit/configuracion-notificaciones.test.js` · `tests/integration/configuracion-notificaciones.test.js` · `database/pruebas/12_configuracion_notificaciones.sql` | En desarrollo |
+| HU-31 Configuración de los estados que generan notificación | ZARU-20 | 3 | Should | — | F6 | RF-F6-12 a 14 | ESC-F6-07, 08 | — | Pendiente |
 | HU-32 Personalización de plantillas de mensajes con la marca de la sede | ZARU-21 | 5 | Could | María José | F7 | RF-F7-01 a 05 | ESC-F7-01 a 03 | `tests/unit/hu32-plantillas.test.js` · `tests/integration/hu32-plantillas.test.js` · `frontend/tests/plantillas-notificacion.test.jsx` | En desarrollo |
 | HU-33 Reintento y canal alterno ante fallas de envío | ZARU-22 | 8 | Should | Samuel | F6 | RF-F6-16 a 19 | ESC-F6-09 a 11 | `tests/unit/hu33-reintento-alterno.test.js` · `tests/integration/hu33-reintento-alterno.test.js` · `frontend/tests/avisos-fallidos.test.jsx` | Cubierta |
 | HU-34 Bitácora de notificaciones enviadas | ZARU-23 | 5 | Should | — | F6 | RF-F6-20, 21 | ESC-F6-12 | — | Pendiente |
-| HU-35 Envío de promociones a clientes del establecimiento | ZARU-24 | 8 | Could | — | F7 | RF-F7-06 a 10 | ESC-F7-04, 05 | `tests/unit/campanas.test.js` · `tests/integration/campanas.test.js` · `frontend/tests/campanas.test.jsx` · `frontend/tests/api-idempotencia.test.js` | En desarrollo |
+| HU-35 Envío de promociones a clientes del establecimiento | ZARU-24 | 8 | Could | — | F7 | RF-F7-06 a 10 | ESC-F7-04, 05 | — | Pendiente |
 | HU-36 Recordatorio de próximo lavado | ZARU-25 | 5 | Could | — | F7 | RF-F7-11 a 14 | ESC-F7-06, 07 | — | Pendiente |
 | HU-37 Mensaje manual del operario durante el lavado | ZARU-26 | 5 | Should | — | F7 | RF-F7-15 a 18 | ESC-F7-08, 09 | — | Pendiente |
 | HU-38 Centro de notificaciones en la app | ZARU-27 | 3 | Should | Nikol | F6 | RF-F6-22, 23 | ESC-F6-13 | `tests/unit/hu38-centro-notificaciones.test.js` · `tests/integration/centro-notificaciones.test.js` · `frontend/tests/notificaciones-cliente.test.jsx` | Cubierta |
