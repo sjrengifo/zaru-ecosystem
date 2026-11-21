@@ -37,7 +37,7 @@ export function detalleCanal(canal, preferencias) {
   if (canal === 'sms') {
     if (!datos.disponible) return 'Por ahora no enviamos avisos por SMS.';
     if (datos.verificado && datos.celular) return `Al celular ${datos.celular}.`;
-    return 'Debes validar tu celular con un código de 6 dígitos.';
+    return 'No tienes un celular registrado. Agrega uno con «Usar otro número».';
   }
   return datos.disponible && datos.destino ? `A ${datos.destino}.` : 'No tienes un correo registrado.';
 }

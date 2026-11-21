@@ -3,9 +3,10 @@
 // El cliente final elige desde la app por cuáles canales quiere recibir los avisos de su servicio:
 // push, sms y correo.
 //   CA1: `obtenerPreferencias` devuelve cada canal con su estado actual (activo/inactivo).
-//   CA2: el SMS solo se activa con un celular validado con un código de 6 dígitos
-//        (`solicitarCodigo` + `confirmarCodigo`). El código vence, tiene intentos limitados y solo se
-//        guarda su hash.
+//   CA2: el SMS solo se activa con un celular validado. El celular registrado ya está validado: el
+//        cliente solo obtiene el pase con el código que le llegó a ese número (HU-59, otpCliente.js).
+//        Para usar otro número se valida con un código de 6 dígitos (`solicitarCodigo` +
+//        `confirmarCodigo`), que vence, tiene intentos limitados y solo se guarda su hash.
 //   CA3: si se desactivan todos los canales hay que confirmar la decisión (`confirmarSinCanales`).
 //   CA4: el motor de envío (shared/notificaciones.js) consulta `canalesActivos` antes de cada despacho.
 //
@@ -77,6 +78,15 @@ async function leerCliente(tenant, clienteId) {
 
 const celularVerificado = (fila) => Boolean(fila?.telefono_sms && fila?.telefono_sms_verificado_at);
 
+/**
+ * Celular al que iría el SMS: el validado en preferencias o, si no hay, el registrado. El registrado
+ * cuenta como validado porque el pase solo se emite con el código enviado a ese número (HU-59).
+ */
+function celularParaSms(fila, cliente) {
+  if (celularVerificado(fila)) return fila.telefono_sms;
+  return celularLimpio(cliente.telefono);
+}
+
 /** Estado de cada canal de una fila de preferencias (o el estado por defecto si no hay fila). */
 function estadoDe(fila) {
   if (!fila) return { ...POR_DEFECTO };
@@ -94,8 +104,8 @@ async function vistaDe(fila, cliente) {
       sms: {
         activo: estado.sms,
         disponible: smsDisponible(),
-        verificado: celularVerificado(fila),
-        celular: fila?.telefono_sms ? enmascararCelular(fila.telefono_sms) : null,
+        verificado: Boolean(celularParaSms(fila, cliente)),
+        celular: celularParaSms(fila, cliente) ? enmascararCelular(celularParaSms(fila, cliente)) : null,
         celularRegistrado: registrado ? enmascararCelular(registrado) : null,
       },
       correo: {
@@ -161,8 +171,8 @@ export async function guardarPreferencias(tenant, clienteId, entrada, { ahora = 
         { campo: 'sms', mensaje: 'Por ahora no enviamos avisos por sms. Elige correo' },
       ]);
     }
-    // CA2: sin celular registrado y validado no se activa el canal.
-    if (!celularVerificado(fila)) {
+    // CA2: sin un celular validado (el registrado o uno validado con código) no se activa el canal.
+    if (!celularParaSms(fila, cliente)) {
       throw new AppError('VALIDACION', 'Valida tu celular para activar el canal sms', [
         { campo: 'sms', mensaje: 'Registra tu celular y valídalo con el código de 6 dígitos', requiere: 'verificar_celular' },
       ]);
@@ -181,6 +191,10 @@ export async function guardarPreferencias(tenant, clienteId, entrada, { ahora = 
   }
 
   const valores = {
+    // HU-59: el registrado se guarda como validado al activar el SMS, sin pedir un segundo código.
+    ...(nuevo.sms && !celularVerificado(fila)
+      ? { telefono_sms: celularLimpio(cliente.telefono), telefono_sms_verificado_at: ahora.toISOString() }
+      : {}),
     canal_push: nuevo.push,
     canal_sms: nuevo.sms,
     canal_correo: nuevo.correo,

@@ -1,13 +1,14 @@
 // HU-29 — Selección del canal de notificación preferido, en la app del cliente final.
 //
-// /s/:slug/preferencias. El cliente entra con el mismo pase del historial (placa + celular, HU-23).
+// /s/:slug/preferencias. El cliente entra con el mismo pase del historial (código por SMS, HU-59).
 //   CA1: muestra los canales push, sms y correo con su estado actual (activo/inactivo).
-//   CA2: para activar el sms valida el celular con un código de 6 dígitos.
+//   CA2: el sms se activa directo con el celular registrado, que el cliente ya validó al entrar con el
+//        código de HU-59. Solo si quiere usar otro número lo valida con un código de 6 dígitos.
 //   CA3: si desactiva todos los canales, le advierte que no recibirá avisos y pide confirmar.
 //   CA4: al guardar, las siguientes notificaciones salen solo por los canales activos.
 import { useEffect, useId, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Bell, CircleCheck, Mail, MessageSquare, Smartphone, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Bell, CircleCheck, LogOut, Mail, MessageSquare, Smartphone, TriangleAlert } from 'lucide-react';
 import Cargando from '../components/Cargando.jsx';
 import FormularioPase from '../components/FormularioPase.jsx';
 import MarcaZaru from '../components/MarcaZaru.jsx';
@@ -38,7 +39,7 @@ import '../styles/notificaciones-cliente.css';
 import '../styles/preferencias-notificacion.css';
 
 const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
-const AVISO_VENCIDO = 'Tu acceso venció. Verifica de nuevo tu placa y celular.';
+const AVISO_VENCIDO = 'Tu sesión venció. Entra de nuevo con el código que te enviamos por SMS.';
 const ICONOS = { push: Bell, sms: MessageSquare, correo: Mail };
 
 const estiloMarca = (sede) => {
@@ -64,7 +65,10 @@ function Encabezado({ sede }) {
   );
 }
 
-/** CA2: validación del celular. Paso 1 elige el número y envía el código; paso 2 lo valida. */
+/**
+ * CA2: validación de un celular distinto al registrado. Paso 1 recibe el número y envía el código;
+ * paso 2 lo valida. Sin `celularRegistrado` va directo al número nuevo.
+ */
 function VerificacionCelular({ celularRegistrado, alEnviar, alValidar, alCancelar }) {
   const id = useId();
   const [paso, setPaso] = useState('celular');
@@ -126,7 +130,7 @@ function VerificacionCelular({ celularRegistrado, alEnviar, alValidar, alCancela
 
   return (
     <section className="pref-verificacion" aria-labelledby={`${id}-titulo`}>
-      <h2 id={`${id}-titulo`} className="pref-verificacion-titulo">Valida tu celular para activar el SMS</h2>
+      <h2 id={`${id}-titulo`} className="pref-verificacion-titulo">Recibir los SMS en otro número</h2>
 
       {paso === 'celular' ? (
         <form onSubmit={enviarCodigo} noValidate>
@@ -222,6 +226,11 @@ export default function PreferenciasNotificacion() {
   useEffect(() => {
     if (sedeEstado.sede?.nombre) document.title = `${sedeEstado.sede.nombre} · Preferencias de notificación`;
   }, [sedeEstado.sede]);
+
+  const cerrarSesion = () => {
+    vencerPase();
+    setAvisoSesion('');
+  };
 
   const vencerPase = () => {
     guardarPase(slug, null);
@@ -357,8 +366,7 @@ export default function PreferenciasNotificacion() {
               slug={slug}
               alEntrar={alEntrar}
               titulo="Preferencias de notificación"
-              intro="Verifica tu placa y el celular con el que registraste el vehículo para elegir cómo quieres recibir tus avisos."
-              textoBoton="Ver mis preferencias"
+              intro="Escribe el celular con el que te registraste. Te enviaremos un código por SMS para elegir cómo recibir tus avisos."
             />
           </>
         ) : (
@@ -368,9 +376,14 @@ export default function PreferenciasNotificacion() {
                 <h1 id="preferencias-titulo" className="historial-titulo">Preferencias de notificación</h1>
                 <p className="historial-subtitulo">Elige por dónde quieres recibir los avisos de tu servicio.</p>
               </div>
-              <Link className="historial-volver" to={`/s/${encodeURIComponent(slug)}/notificaciones`}>
-                <ArrowLeft size={16} aria-hidden="true" /> Notificaciones
-              </Link>
+              <div className="historial-acciones">
+                <Link className="historial-volver" to={`/s/${encodeURIComponent(slug)}/notificaciones`}>
+                  <ArrowLeft size={16} aria-hidden="true" /> Notificaciones
+                </Link>
+                <button type="button" className="historial-volver historial-salir" onClick={cerrarSesion}>
+                  <LogOut size={16} aria-hidden="true" /> Cerrar sesión
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -408,6 +421,11 @@ export default function PreferenciasNotificacion() {
                             aria-label={NOMBRE_CANAL[canal]}
                           />
                         </label>
+                        {canal === 'sms' && datos.disponible && !verificando && (
+                          <button type="button" className="acceso-enlace pref-otro-numero" onClick={() => setVerificando(true)}>
+                            Usar otro número
+                          </button>
+                        )}
                       </li>
                     );
                   })}
@@ -415,7 +433,7 @@ export default function PreferenciasNotificacion() {
 
                 {verificando && (
                   <VerificacionCelular
-                    celularRegistrado={preferencias.canales.sms.celularRegistrado}
+                    celularRegistrado={null}
                     alEnviar={enviarCodigo}
                     alValidar={validarCodigo}
                     alCancelar={() => setVerificando(false)}

@@ -568,8 +568,9 @@ paths:
       description: |
         HU-29 CA2, CA3 y CA4. Las siguientes notificaciones salen únicamente por los canales activos.
 
-        - CA2: activar `sms` exige un celular validado con el código de 6 dígitos; si falta responde `400` con
-          `detalles[0].requiere = verificar_celular`.
+        - CA2: activar `sms` exige un celular validado. El registrado ya lo está (el pase solo se emite con el
+          código enviado a ese número, HU-59) y se guarda como validado al activar el canal. Otro número se valida
+          con el código de 6 dígitos; si no hay ninguno válido responde `400` con `detalles[0].requiere = verificar_celular`.
         - CA3: si los tres canales quedan inactivos responde `409` con `detalles[0].requiereConfirmacion = true`;
           se repite la petición con `confirmarSinCanales: true` para confirmar la decisión.
         - No se puede activar `correo` si el cliente no tiene correo registrado, ni `push` mientras no esté disponible.
@@ -3312,9 +3313,9 @@ components:
               properties:
                 activo: { type: boolean }
                 disponible: { type: boolean, description: Falso si el ambiente no envía sms. }
-                verificado: { type: boolean, description: El celular del sms se validó con el código de 6 dígitos (CA2). }
-                celular: { type: [string, 'null'], description: Celular verificado, enmascarado., example: '300****567' }
-                celularRegistrado: { type: [string, 'null'], description: Celular con el que se registró el cliente, enmascarado., example: '300****567' }
+                verificado: { type: boolean, description: 'Hay un celular validado para el sms: el registrado (validado al entrar, HU-59) u otro validado con el código de 6 dígitos (CA2).' }
+                celular: { type: [string, 'null'], description: 'Celular al que llegaría el sms, enmascarado.', example: '300****567' }
+                celularRegistrado: { type: [string, 'null'], description: 'Celular con el que se registró el cliente, enmascarado.', example: '300****567' }
             correo:
               type: object
               required: [activo, disponible]

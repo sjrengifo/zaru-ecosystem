@@ -12,10 +12,17 @@ import {
 const SLUG = 'lavadero-norte';
 const SEDE = { slug: SLUG, nombre: 'Lavadero Norte', logoUrl: null, colorPrimario: '#0F766E', colorSecundario: null };
 
-const preferencias = ({ correo = true, sms = false, verificado = false, sinCanalesActivos = false } = {}) => ({
+// HU-59: por defecto el celular registrado ya cuenta como validado (el cliente entró con el código a ese número).
+const preferencias = ({ correo = true, sms = false, verificado = true, sinCanalesActivos = false } = {}) => ({
   canales: {
     push: { activo: false, disponible: false },
-    sms: { activo: sms, disponible: true, verificado, celular: verificado ? '310****877' : null, celularRegistrado: '300****567' },
+    sms: {
+      activo: sms,
+      disponible: true,
+      verificado,
+      celular: verificado ? '300****567' : null,
+      celularRegistrado: verificado ? '300****567' : null,
+    },
     correo: { activo: correo, disponible: true, destino: 'lui****@correo.com' },
   },
   sinCanales: sinCanalesActivos,
@@ -60,8 +67,8 @@ function abrir() {
 const interruptor = (nombre) => screen.getByRole('switch', { name: nombre });
 
 beforeEach(() => {
-  sessionStorage.clear();
-  sessionStorage.setItem(`zaru:historial:${SLUG}`, 'pase-valido');
+  localStorage.clear();
+  localStorage.setItem(`zaru:historial:${SLUG}`, 'pase-valido');
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -83,8 +90,8 @@ describe('reglas de presentación', () => {
     expect(textoEstado('correo', datos)).toBe('Activo');
     expect(textoEstado('sms', preferencias())).toBe('Inactivo');
     expect(textoEstado('push', datos)).toBe('Próximamente');
-    expect(detalleCanal('sms', datos)).toBe('Al celular 310****877.');
-    expect(detalleCanal('sms', preferencias())).toContain('6 dígitos');
+    expect(detalleCanal('sms', datos)).toBe('Al celular 300****567.');
+    expect(detalleCanal('sms', preferencias({ verificado: false }))).toContain('Usar otro número');
     expect(detalleCanal('correo', datos)).toBe('A lui****@correo.com.');
   });
 
@@ -115,25 +122,25 @@ describe('HU-29 · pantalla de preferencias', () => {
     expect(screen.getByText('A lui****@correo.com.')).toBeInTheDocument();
   });
 
-  it('con el pase vencido vuelve a pedir la placa y el celular', async () => {
+  it('con la sesión vencida vuelve a pedir el celular', async () => {
     simularApi({ 'GET /publico/cliente/preferencias': () => respuesta(401, { error: { mensaje: 'Venció' } }) });
     abrir();
-    expect(await screen.findByText('Tu acceso venció. Verifica de nuevo tu placa y celular.')).toBeInTheDocument();
+    expect(await screen.findByText('Tu sesión venció. Entra de nuevo con el código que te enviamos por SMS.')).toBeInTheDocument();
   });
 
-  it('CA2: activar el sms sin celular validado pide el código de 6 dígitos y solo entonces lo activa', async () => {
-    const api = simularApi();
+  it('CA2: sin celular registrado, activar el sms pide validar un número y solo entonces lo activa', async () => {
+    const api = simularApi({ 'GET /publico/cliente/preferencias': () => respuesta(200, preferencias({ verificado: false })) });
     abrir();
     await screen.findByRole('heading', { name: 'Preferencias de notificación' });
 
     fireEvent.click(interruptor('Mensaje de texto (SMS)'));
-    expect(screen.getByRole('heading', { name: 'Valida tu celular para activar el SMS' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Recibir los SMS en otro número' })).toBeInTheDocument();
     expect(interruptor('Mensaje de texto (SMS)')).not.toBeChecked(); // todavía no se activa
 
+    fireEvent.change(screen.getByLabelText('Número de celular'), { target: { value: '310 999 8877' } });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar código' }));
-    expect(await screen.findByText(/Enviamos un código al celular 300\*\*\*567/)).toBeInTheDocument();
-    // Con el celular registrado no se manda número: la API usa el del cliente.
-    expect(JSON.parse(llamadas(api, 'POST /publico/cliente/celular/codigo')[0][1].body)).toEqual({});
+    await screen.findByLabelText('Código de 6 dígitos');
+    expect(JSON.parse(llamadas(api, 'POST /publico/cliente/celular/codigo')[0][1].body)).toEqual({ celular: '3109998877' });
 
     fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '12ab3456' } });
     expect(screen.getByLabelText('Código de 6 dígitos')).toHaveValue('123456');
@@ -141,7 +148,7 @@ describe('HU-29 · pantalla de preferencias', () => {
 
     await waitFor(() => expect(interruptor('Mensaje de texto (SMS)')).toBeChecked());
     expect(JSON.parse(llamadas(api, 'POST /publico/cliente/celular/verificar')[0][1].body)).toEqual({ codigo: '123456' });
-    expect(screen.queryByRole('heading', { name: 'Valida tu celular para activar el SMS' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Recibir los SMS en otro número' })).not.toBeInTheDocument();
     expect(llamadas(api, 'PUT /publico/cliente/preferencias')).toHaveLength(0); // aún no se guardó
   });
 
@@ -151,9 +158,7 @@ describe('HU-29 · pantalla de preferencias', () => {
     });
     abrir();
     await screen.findByRole('heading', { name: 'Preferencias de notificación' });
-    fireEvent.click(interruptor('Mensaje de texto (SMS)'));
-
-    fireEvent.click(screen.getByLabelText('Usar otro número'));
+    fireEvent.click(screen.getByRole('button', { name: 'Usar otro número' }));
     fireEvent.change(screen.getByLabelText('Número de celular'), { target: { value: '310 999 8877' } });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar código' }));
     await screen.findByLabelText('Código de 6 dígitos');
@@ -169,19 +174,22 @@ describe('HU-29 · pantalla de preferencias', () => {
     simularApi();
     abrir();
     await screen.findByRole('heading', { name: 'Preferencias de notificación' });
-    fireEvent.click(interruptor('Mensaje de texto (SMS)'));
+    fireEvent.click(screen.getByRole('button', { name: 'Usar otro número' }));
+    fireEvent.change(screen.getByLabelText('Número de celular'), { target: { value: '310 999 8877' } });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar código' }));
     expect(await screen.findByRole('button', { name: /Reenviar en \d+ s/ })).toBeDisabled();
   });
 
-  it('CA2: con el celular ya validado activa el sms sin pedir otro código', async () => {
-    simularApi({ 'GET /publico/cliente/preferencias': () => respuesta(200, preferencias({ verificado: true })) });
+  it('CA2 (HU-59): activa el sms con el celular registrado sin pedir un segundo código', async () => {
+    const api = simularApi();
     abrir();
     await screen.findByRole('heading', { name: 'Preferencias de notificación' });
+    expect(screen.getByText('Al celular 300****567.')).toBeInTheDocument();
 
     fireEvent.click(interruptor('Mensaje de texto (SMS)'));
     expect(interruptor('Mensaje de texto (SMS)')).toBeChecked();
-    expect(screen.queryByRole('heading', { name: 'Valida tu celular para activar el SMS' })).not.toBeInTheDocument();
+    expect(llamadas(api, 'POST /publico/cliente/celular/codigo')).toHaveLength(0);
+    expect(screen.queryByRole('heading', { name: 'Recibir los SMS en otro número' })).not.toBeInTheDocument();
   });
 
   it('CA3: al desactivar todo advierte que no recibirá avisos y solo guarda si lo confirma', async () => {
@@ -202,7 +210,7 @@ describe('HU-29 · pantalla de preferencias', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Guardar preferencias' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Sí, no quiero avisos' }));
-    expect(await screen.findByText(/no recibirás avisos del estado de tu vehículo/i)).toBeInTheDocument();
+    expect(await screen.findByText('Guardamos tu decisión: no recibirás avisos del estado de tu vehículo.')).toBeInTheDocument();
     expect(JSON.parse(llamadas(api, 'PUT /publico/cliente/preferencias')[0][1].body)).toEqual({ push: false, sms: false, correo: false, confirmarSinCanales: true });
   });
 
@@ -235,7 +243,7 @@ describe('HU-29 · pantalla de preferencias', () => {
     fireEvent.click(interruptor('Mensaje de texto (SMS)'));
     fireEvent.click(screen.getByRole('button', { name: 'Guardar preferencias' }));
 
-    expect(await screen.findByRole('heading', { name: 'Valida tu celular para activar el SMS' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Recibir los SMS en otro número' })).toBeInTheDocument();
     expect(interruptor('Mensaje de texto (SMS)')).not.toBeChecked();
   });
 });

@@ -4,8 +4,10 @@
 
 .historial-etiqueta-celular { margin-top: 14px; }
 
-.historial-panel { padding: 18px; }
+.historial-panel { padding: 20px; }
 .historial-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+/* Con acciones (volver y cerrar sesión) se arma una barra arriba y el título queda con todo el ancho. */
+.historial-cabecera:has(.historial-acciones) { flex-direction: column-reverse; align-items: stretch; gap: 14px; }
 .historial-saludo { margin: 0; font-size: 13px; font-weight: 600; color: var(--color-primario); }
 .historial-titulo {
   margin: 2px 0 4px;
@@ -30,8 +32,9 @@
 }
 .historial-volver:hover { color: var(--color-primario); border-color: var(--color-primario); }
 /* RF-F5-12: la sesión dura 30 días, así que el cliente puede cerrarla en un celular compartido. */
-.historial-acciones { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.historial-acciones { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .historial-salir { background: none; font-family: inherit; cursor: pointer; }
+.historial-salir:hover { color: var(--color-error); border-color: color-mix(in srgb, var(--color-error) 45%, var(--color-borde)); }
 
 .historial-filtro { margin: 16px 0 4px; }
 .historial-filtro label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--color-texto-suave); }

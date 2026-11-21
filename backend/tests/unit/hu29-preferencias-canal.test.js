@@ -57,7 +57,8 @@ describe('HU-29 CA1 · canales con su estado actual', () => {
     const vista = await obtenerPreferencias(tenantCon(), CLIENTE_ID);
 
     expect(vista.canales.correo).toEqual({ activo: true, disponible: true, destino: 'lui****@correo.com' });
-    expect(vista.canales.sms).toMatchObject({ activo: false, verificado: false, celular: null, celularRegistrado: '300****567' });
+    // HU-59: el celular registrado ya está validado (el cliente entró con el código enviado a ese número).
+    expect(vista.canales.sms).toMatchObject({ activo: false, verificado: true, celular: '300****567', celularRegistrado: '300****567' });
     expect(vista.canales.push).toEqual({ activo: false, disponible: false });
     expect(vista.sinCanales).toBe(false);
     // Nunca viajan el correo ni el celular completos.
@@ -84,8 +85,27 @@ describe('HU-29 CA1 · canales con su estado actual', () => {
 });
 
 describe('HU-29 CA2 · activar sms exige un celular validado', () => {
-  it('no activa sms si el celular no está verificado y pide validarlo', async () => {
+  it('HU-59: activa sms con el celular registrado sin pedir un segundo código y lo guarda como validado', async () => {
     const tenant = tenantCon();
+    const vista = await guardarPreferencias(tenant, CLIENTE_ID, { push: false, sms: true, correo: true }, { ahora: AHORA });
+
+    expect(tenant.crear.mock.calls[0][1]).toMatchObject({
+      cliente_id: CLIENTE_ID,
+      canal_sms: true,
+      telefono_sms: '3001234567',
+      telefono_sms_verificado_at: AHORA.toISOString(),
+    });
+    expect(vista.canales.sms).toMatchObject({ activo: true, verificado: true, celular: '300****567' });
+  });
+
+  it('con otro celular ya validado lo conserva y no lo cambia por el registrado', async () => {
+    const tenant = tenantCon({ preferencias: filaConSms({ canal_sms: false }) });
+    await guardarPreferencias(tenant, CLIENTE_ID, { push: false, sms: true, correo: true });
+    expect(tenant.actualizar.mock.calls[0][2]).not.toHaveProperty('telefono_sms');
+  });
+
+  it('sin un celular registrado válido no activa sms y pide validarlo', async () => {
+    const tenant = tenantCon({ cliente: { ...CLIENTE, telefono: null } });
     const error = await errorDe(guardarPreferencias(tenant, CLIENTE_ID, { push: false, sms: true, correo: true }));
 
     expect(error.codigo).toBe('VALIDACION');

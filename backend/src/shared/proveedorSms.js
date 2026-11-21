@@ -3,6 +3,9 @@
 // Igual que el correo, el proveedor se elige por ambiente y la clave nunca sale del backend:
 // - consola (por defecto): escribe el mensaje en el log. Sirve para desarrollo y pruebas.
 // - twilio: API HTTP de Twilio con Basic Auth.
+// - mixto (desarrollo y demos): todo se escribe en el log como en consola y, además, sale por Twilio
+//   solo a los celulares de SMS_NUMEROS_REALES. Así se prueba el SMS real en el teléfono propio sin
+//   gastar saldo ni escribirle a clientes de prueba.
 //
 // `enviar` recibe el celular en texto plano (solo dentro del proceso) y devuelve el id del
 // proveedor. Nunca se escribe el celular completo en los logs.
@@ -11,9 +14,35 @@ import { enmascararCelular } from './mascaras.js';
 
 const TIEMPO_MAXIMO_MS = 10_000;
 
+/** SMS_NUMEROS_REALES: celulares separados por coma; se aceptan +57, espacios y guiones. */
+export function numerosReales(env = process.env) {
+  return new Set(
+    String(env.SMS_NUMEROS_REALES ?? '')
+      .split(',')
+      .map((n) => n.replace(/\D/g, '').replace(/^57(?=3\d{9}$)/, ''))
+      .filter((n) => /^3\d{9}$/.test(n)),
+  );
+}
+
 /** Proveedor de SMS según SMS_PROVEEDOR. Nunca lanza al construirse. */
 export function proveedorSms(env = process.env) {
   const tipo = String(env.SMS_PROVEEDOR ?? 'consola').toLowerCase();
+
+  if (tipo === 'mixto') {
+    const consola = proveedorSms({ ...env, SMS_PROVEEDOR: 'consola' });
+    const twilio = proveedorSms({ ...env, SMS_PROVEEDOR: 'twilio' });
+    const reales = numerosReales(env);
+    return {
+      nombre: 'mixto',
+      configurado: true,
+      async enviar(mensaje) {
+        const enConsola = await consola.enviar(mensaje);
+        if (!reales.has(String(mensaje.para))) return enConsola;
+        // Un fallo de Twilio se propaga para que el worker reintente igual que en modo twilio.
+        return twilio.enviar(mensaje);
+      },
+    };
+  }
 
   if (tipo === 'twilio') {
     const sid = env.TWILIO_ACCOUNT_SID;
