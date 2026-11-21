@@ -1,24 +1,28 @@
-// HU-23 / HU-24 / RF-F5-12 — Sesión del cliente final (historial, notificaciones, preferencias).
+// HU-23 / HU-24 — Acceso verificado del cliente final a su historial.
 //
-// El cliente entra con un código de un solo uso que le llega por SMS a su celular registrado
-// (shared/otpCliente.js). Al validarlo, el backend emite un "pase": un token firmado (HMAC) que viaja
-// en la cabecera Authorization y solo da acceso a los datos de ese cliente en esa sede.
+// El cliente del proyecto todavía no tiene cuenta ni sesión OTP implementada (RF-F5-11/12).
+// Para no inventar un sistema de contraseñas ni dejar el historial abierto, se usa un "pase":
+// el cliente demuestra que es dueño del vehículo con la **placa + el celular registrado** en esa
+// sede; el backend verifica ambos y emite un token firmado (HMAC) de vida corta. El pase viaja en
+// la cabecera Authorization y solo da acceso a los datos de ese cliente en esa sede.
 //
 // - La firma usa ZARU_CLAVE_PASE o, si no existe, ZARU_CLAVE_CIFRADO. Nunca llega al frontend.
-// - El pase dura 30 días (RF-F5-12) y no se puede alterar: cualquier cambio invalida la firma.
+// - El pase caduca a los 30 minutos y no se puede alterar: cualquier cambio invalida la firma.
 // - El establecimiento y el cliente salen del pase firmado, jamás de un id enviado por el usuario.
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { supabase } from '../config/supabase.js';
 import { crearAccesoTenant } from './tenant.js';
 import { AppError, noEncontrado } from './errores.js';
+import { cargarSede, normalizarCelular } from './accesoCliente.js';
 
-export const DURACION_PASE_MS = 30 * 24 * 60 * 60 * 1000;
+export const DURACION_PASE_MS = 30 * 60 * 1000;
 
+const MENSAJE_ACCESO = 'No encontramos un vehículo con esa placa y celular en esta sede';
+const accesoSinHistorial = () => new AppError('NO_ENCONTRADO', MENSAJE_ACCESO);
 const paseInvalido = () =>
-  new AppError('NO_AUTENTICADO', 'Tu sesión venció. Entra de nuevo con el código que te enviamos por SMS');
+  new AppError('NO_AUTENTICADO', 'Tu acceso al historial venció. Verifica de nuevo tu placa y celular');
 
-/** Clave del servidor para firmar pases; otpCliente deriva de ella la del hash de los códigos. */
-export function clavePase() {
+function clavePase() {
   const valor = process.env.ZARU_CLAVE_PASE || process.env.ZARU_CLAVE_CIFRADO;
   const bytes = valor ? Buffer.from(valor, 'base64') : null;
   if (!bytes || bytes.length < 32) {
@@ -64,6 +68,39 @@ export function paseDeLaPeticion(req) {
   const [esquema, valor] = encabezado.split(' ');
   if (esquema === 'Bearer' && valor) return valor;
   return req.get?.('x-pase') ?? null;
+}
+
+/**
+ * Verifica placa + celular y emite el pase. Ambos datos deben coincidir con el vehículo y su dueño
+ * dentro de la sede; si algo falla, el mensaje es el mismo (no revela si la placa existe).
+ */
+export async function crearPaseParaCliente(slug, { placa, celular }, { db = supabase } = {}) {
+  const sede = await cargarSede(slug, { db });
+  const tenant = crearAccesoTenant(db, { establecimientoId: sede.id });
+
+  const { data: vehiculo, error } = await tenant
+    .listar('vehiculos', 'id, placa, cliente_id')
+    .eq('placa', placa)
+    .maybeSingle();
+  if (error) throw error;
+  if (!vehiculo) throw accesoSinHistorial();
+
+  const { data: cliente, error: errorCliente } = await tenant
+    .listar('clientes', 'id, nombre, telefono')
+    .eq('id', vehiculo.cliente_id)
+    .maybeSingle();
+  if (errorCliente) throw errorCliente;
+
+  // El celular debe ser exactamente el registrado en esa sede.
+  if (!cliente || normalizarCelular(cliente.telefono) !== normalizarCelular(celular)) throw accesoSinHistorial();
+
+  const { pase, expiraEn } = firmarPase({ establecimientoId: sede.id, clienteId: cliente.id });
+  return {
+    pase,
+    expiraEn,
+    sede: { slug: sede.slug, nombre: sede.nombre },
+    cliente: { nombre: cliente.nombre },
+  };
 }
 
 /**

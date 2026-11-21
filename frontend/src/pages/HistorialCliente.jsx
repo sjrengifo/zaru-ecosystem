@@ -1,14 +1,14 @@
 // HU-23 / HU-24 — Historial de servicios del cliente final.
 //
-// El cliente entra desde /s/{slug}/historial con su celular y el código que le llega por SMS
-// (RF-F5-11/12) y recibe un pase firmado de 30 días. Con el pase se listan solo sus órdenes
+// El cliente entra desde /s/{slug}/historial, confirma que es dueño de su vehículo con **placa +
+// celular** y recibe un pase firmado de vida corta. Con el pase se listan solo sus órdenes
 // entregadas, de la más reciente a la más antigua, y se abre el detalle de una única orden.
 //
 // El establecimiento y el cliente salen del pase firmado: escribir otro id en la URL no da acceso a
 // datos ajenos (la API responde 404/401). Es una página pública, sin sesión del panel.
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CarFront, ChevronRight, Clock, Droplets, Info, LogOut, MapPin, Receipt, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, CarFront, ChevronRight, Clock, Droplets, Info, MapPin, Receipt, TriangleAlert } from 'lucide-react';
 import Cargando from '../components/Cargando.jsx';
 import CampanaNotificaciones from '../components/CampanaNotificaciones.jsx';
 import FormularioPase from '../components/FormularioPase.jsx';
@@ -178,7 +178,7 @@ export default function HistorialCliente() {
     setVehiculos([]);
     setHistorial([]);
     setDetalleId(null);
-    setAvisoSesion('Tu sesión venció. Entra de nuevo con un código nuevo.');
+    setAvisoSesion('Tu acceso venció. Verifica de nuevo tu placa y celular.');
   };
 
   // Con el pase cargado: vehículos (filtro) e historial. Un 401 obliga a verificar de nuevo.
@@ -212,11 +212,6 @@ export default function HistorialCliente() {
     };
   }, [pase, placa, slug, recargas]);
 
-  const cerrarSesion = () => {
-    vencerPase();
-    setAvisoSesion('');
-  };
-
   const alEntrar = (datos) => {
     guardarPase(slug, datos.pase);
     setCliente(datos.cliente ?? null);
@@ -227,7 +222,7 @@ export default function HistorialCliente() {
 
   const manejarSesionVencida = () => {
     vencerPase();
-    setAvisoSesion('Tu sesión venció. Entra de nuevo con un código nuevo.');
+    setAvisoSesion('Tu acceso venció. Verifica de nuevo tu placa y celular.');
   };
 
   const { cargando: cargandoSede, sede, error: errorSede } = sedeEstado;
@@ -268,14 +263,9 @@ export default function HistorialCliente() {
                 <h1 id="historial-titulo" className="historial-titulo">Historial de servicios</h1>
                 <p className="historial-subtitulo">{sede?.nombre ? `Servicios entregados en ${sede.nombre}.` : 'Tus servicios entregados.'}</p>
               </div>
-              <div className="historial-acciones">
-                <Link className="historial-volver" to={`/s/${encodeURIComponent(slug)}`}>
-                  <ArrowLeft size={16} aria-hidden="true" /> Inicio
-                </Link>
-                <button type="button" className="historial-volver historial-salir" onClick={cerrarSesion}>
-                  <LogOut size={16} aria-hidden="true" /> Cerrar sesión
-                </button>
-              </div>
+              <Link className="historial-volver" to={`/s/${encodeURIComponent(slug)}`}>
+                <ArrowLeft size={16} aria-hidden="true" /> Inicio
+              </Link>
             </div>
 
             {vehiculos.length > 1 && (

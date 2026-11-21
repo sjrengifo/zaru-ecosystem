@@ -1,12 +1,12 @@
 // HU-34 — Enmascarado, clasificación de errores y canal alterno.
 // Sin Supabase ni red: todo se prueba en funciones puras y en el proveedor de consola.
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 process.env.ZARU_CLAVE_CIFRADO ||= Buffer.alloc(32, 7).toString('base64');
 
 const { enmascararCelular, enmascararCorreo, enmascararDestino, celularEnmascarado } = await import('../../src/shared/mascaras.js');
 const { clasificarError, esperaExponencial, esperasConfiguradas, ESPERAS_POR_DEFECTO_MS } = await import('../../src/shared/reintentos.js');
-const { proveedorSms, textoAvisoListo, numerosReales } = await import('../../src/shared/proveedorSms.js');
+const { proveedorSms, textoAvisoListo } = await import('../../src/shared/proveedorSms.js');
 const { cifrar } = await import('../../src/shared/cifrado.js');
 
 describe('HU-34 CA3 · datos personales enmascarados', () => {
@@ -107,52 +107,5 @@ describe('HU-34 RF-F6-17 · canal alterno por SMS', () => {
     const proveedor = proveedorSms({ SMS_PROVEEDOR: 'twilio' });
     expect(proveedor.configurado).toBe(false);
     await expect(proveedor.enviar({ para: '3001234567', texto: 'hola' })).rejects.toMatchObject({ recuperable: false });
-  });
-  describe('modo mixto: consola para todos y Twilio solo para SMS_NUMEROS_REALES', () => {
-    const ENV = {
-      SMS_PROVEEDOR: 'mixto',
-      SMS_NUMEROS_REALES: '+57 305 123 4264, 3009998877, 12345',
-      TWILIO_ACCOUNT_SID: 'AC123',
-      TWILIO_AUTH_TOKEN: 'secreto',
-      TWILIO_FROM: '+15550001111',
-    };
-    let log;
-    let fetchFalso;
-    beforeEach(() => {
-      log = vi.spyOn(console, 'log').mockImplementation(() => {});
-      fetchFalso = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ sid: 'SM1' }) }));
-      vi.stubGlobal('fetch', fetchFalso);
-    });
-    afterEach(() => {
-      log.mockRestore();
-      vi.unstubAllGlobals();
-    });
-
-    it('normaliza la lista y descarta números inválidos', () => {
-      expect([...numerosReales(ENV)]).toEqual(['3051234264', '3009998877']);
-      expect(numerosReales({}).size).toBe(0);
-    });
-
-    it('a un número de la lista lo escribe en consola y además lo envía por Twilio', async () => {
-      const resultado = await proveedorSms(ENV).enviar({ para: '3051234264', texto: 'Tu vehículo está listo' });
-
-      expect(log).toHaveBeenCalledWith(expect.stringContaining('305****264'));
-      expect(fetchFalso).toHaveBeenCalledTimes(1);
-      expect(String(fetchFalso.mock.calls[0][1].body)).toContain('To=%2B573051234264');
-      expect(resultado.idProveedor).toBe('SM1');
-    });
-
-    it('a un número fuera de la lista solo lo escribe en consola', async () => {
-      const resultado = await proveedorSms(ENV).enviar({ para: '3001234567', texto: 'hola' });
-
-      expect(log).toHaveBeenCalledWith(expect.stringContaining('300****567'));
-      expect(fetchFalso).not.toHaveBeenCalled();
-      expect(resultado.idProveedor).toMatch(/^consola-/);
-    });
-
-    it('si Twilio falla, el error se propaga para que el worker reintente', async () => {
-      fetchFalso.mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({ message: 'caído' }) });
-      await expect(proveedorSms(ENV).enviar({ para: '3051234264', texto: 'hola' })).rejects.toMatchObject({ recuperable: true });
-    });
   });
 });

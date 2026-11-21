@@ -97,13 +97,10 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-46 · avisos por correo${hayEntornoI
     expect(res.status).toBe(200);
     expect(res.body.estado).toBe('listo');
 
-    // HU-31: "en lavado" también genera aviso, así que se espera el de "listo" en concreto.
     let aviso;
-    for (let i = 0; i < 40; i += 1) {
-      const filas = await avisos(orden.id);
-      aviso = filas.find((fila) => fila.evento === 'orden.lista');
-      if (['enviada', 'fallida'].includes(aviso?.estado)) break;
+    for (let i = 0; i < 40 && !['enviada', 'fallida'].includes(aviso?.estado); i += 1) {
       await esperar(250);
+      [aviso] = await avisos(orden.id);
     }
     expect(aviso).toMatchObject({ evento: 'orden.lista', canal: 'correo' });
     // Con SMTP configurado queda "enviada"; sin él, "fallida" con el motivo, y la orden siguió igual.
