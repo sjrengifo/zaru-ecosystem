@@ -26,9 +26,7 @@ const esquema = z
     // HU-34: worker de la cola y canal alterno por SMS.
     NOTIFICACIONES_WORKER: z.enum(['on', 'off']).default('on'),
     NOTIFICACIONES_ESPERAS_MS: z.string().optional(),
-    SMS_PROVEEDOR: z.enum(['consola', 'twilio', 'deshabilitado', 'mixto']).default('consola'),
-    // Con mixto: celulares separados por coma que además reciben el SMS real por Twilio.
-    SMS_NUMEROS_REALES: z.string().optional(),
+    SMS_PROVEEDOR: z.enum(['consola', 'twilio', 'deshabilitado']).default('consola'),
     TWILIO_ACCOUNT_SID: z.string().optional(),
     TWILIO_AUTH_TOKEN: z.string().optional(),
     TWILIO_FROM: z.string().optional(),
@@ -46,7 +44,7 @@ const esquema = z
     if (env.CORREO_PROVEEDOR === 'smtp' && !env.SMTP_HOST) {
       ctx.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'es obligatorio con CORREO_PROVEEDOR=smtp' });
     }
-    if (['twilio', 'mixto'].includes(env.SMS_PROVEEDOR) && !(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_FROM)) {
+    if (env.SMS_PROVEEDOR === 'twilio' && !(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_FROM)) {
       ctx.addIssue({
         code: 'custom',
         path: ['SMS_PROVEEDOR'],

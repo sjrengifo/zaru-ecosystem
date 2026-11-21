@@ -1,40 +1,28 @@
 // HU-23 / HU-24 — Historial de servicios del cliente final (sin sesión de panel).
 //
-// El acceso se obtiene con el celular y un código de un solo uso por SMS (shared/otpCliente.js) y
-// el pase se envía en `Authorization: Bearer <pase>`. El cliente y la sede salen del pase firmado;
-// ninguna consulta acepta un id de cliente, de sede o de orden ajeno.
-import { solicitarCodigoAcceso, verificarCodigoAcceso } from '../shared/otpCliente.js';
+// El acceso se obtiene con placa + celular (shared/paseCliente.js) y se envía en
+// `Authorization: Bearer <pase>`. El cliente y la sede salen del pase firmado; ninguna consulta
+// acepta un id de cliente, de sede o de orden ajeno.
+import { crearPaseParaCliente } from '../shared/paseCliente.js';
 import { detalleHistorial, listarHistorial, vehiculosDelCliente } from '../shared/historialCliente.js';
 import { listarCentro, marcarLeida } from '../shared/centroNotificaciones.js';
-import { confirmarCodigo, guardarPreferencias, obtenerPreferencias, solicitarCodigo } from '../shared/preferenciasCanal.js';
 import { crearLimiteIntentos } from '../shared/limiteIntentos.js';
 
-// Códigos incorrectos por dirección IP, además de los 5 intentos de cada código.
-export const limiteAccesos = crearLimiteIntentos({ maximo: 10 });
+export const limiteAccesos = crearLimiteIntentos({ maximo: 5 });
 const origenDe = (req) => req.ip ?? 'desconocido';
 
-/** POST /publico/sedes/:slug/otp — RF-F5-11: envía el código. 202 exista o no el celular. */
-export async function solicitarOtp(req, res, next) {
-  try {
-    const datos = await solicitarCodigoAcceso(req.params.slug, req.body);
-    res.set('Cache-Control', 'no-store');
-    res.status(202).json(datos);
-  } catch (err) {
-    next(err);
-  }
-}
-
-/** POST /publico/sedes/:slug/otp/verificar — RF-F5-12: valida el código y emite el pase de 30 días. */
-export async function verificarOtp(req, res, next) {
+/** POST /publico/sedes/:slug/historial/acceso — verifica placa + celular y emite el pase. */
+export async function acceso(req, res, next) {
   const origen = origenDe(req);
   try {
     limiteAccesos.verificar(origen);
-    const datos = await verificarCodigoAcceso(req.params.slug, req.body);
+    const datos = await crearPaseParaCliente(req.params.slug, req.body);
     res.set('Cache-Control', 'no-store');
     res.json(datos);
   } catch (err) {
-    // Solo cuentan los códigos incorrectos; un fallo de base no debe bloquear al cliente.
-    if (err?.codigo === 'NO_AUTENTICADO') limiteAccesos.registrarFallo(origen);
+    // Solo los intentos con datos que no coinciden cuentan para el límite; un fallo de base no
+    // debe bloquear al cliente que sí conoce sus datos.
+    if (err?.codigo === 'NO_ENCONTRADO') limiteAccesos.registrarFallo(origen);
     next(err);
   }
 }
@@ -86,50 +74,6 @@ export async function detalle(req, res, next) {
 export async function notificaciones(req, res, next) {
   try {
     const datos = await listarCentro(req.cliente.tenant, req.cliente.clienteId);
-    res.set('Cache-Control', 'no-store');
-    res.json(datos);
-  } catch (err) {
-    next(err);
-  }
-}
-
-/** GET /publico/cliente/preferencias — HU-29 CA1: canales push, sms y correo con su estado actual. */
-export async function preferencias(req, res, next) {
-  try {
-    const datos = await obtenerPreferencias(req.cliente.tenant, req.cliente.clienteId);
-    res.set('Cache-Control', 'no-store');
-    res.json(datos);
-  } catch (err) {
-    next(err);
-  }
-}
-
-/** PUT /publico/cliente/preferencias — HU-29 CA2, CA3, CA4: guarda los canales elegidos. */
-export async function guardarPreferenciasCanal(req, res, next) {
-  try {
-    const datos = await guardarPreferencias(req.cliente.tenant, req.cliente.clienteId, req.body);
-    res.set('Cache-Control', 'no-store');
-    res.json(datos);
-  } catch (err) {
-    next(err);
-  }
-}
-
-/** POST /publico/cliente/celular/codigo — HU-29 CA2: envía por sms un código de 6 dígitos al celular. */
-export async function solicitarCodigoCelular(req, res, next) {
-  try {
-    const datos = await solicitarCodigo(req.cliente.tenant, req.cliente.clienteId, req.body);
-    res.set('Cache-Control', 'no-store');
-    res.json(datos);
-  } catch (err) {
-    next(err);
-  }
-}
-
-/** POST /publico/cliente/celular/verificar — HU-29 CA2: valida el código y deja el celular verificado. */
-export async function verificarCodigoCelular(req, res, next) {
-  try {
-    const datos = await confirmarCodigo(req.cliente.tenant, req.cliente.clienteId, req.body);
     res.set('Cache-Control', 'no-store');
     res.json(datos);
   } catch (err) {

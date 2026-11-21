@@ -61,22 +61,11 @@
 .notif-tarjeta:hover { border-color: var(--color-primario); box-shadow: var(--sombra-2); }
 .notif-tarjeta:active { transform: scale(0.995); }
 
-/* No leída: tarjeta blanca con una franja del color de la sede, punto y título en negrita.
-   Leída: se hunde en el fondo con texto suave, para que lo pendiente resalte sin un bloque gris pesado. */
+/* No leída: fondo con el tono de la sede, punto y título en negrita. Leída: tono neutro y texto suave. */
 .notif-no-leida {
-  position: relative;
-  overflow: hidden;
-  border-color: color-mix(in srgb, var(--color-primario) 22%, var(--color-borde));
-  box-shadow: var(--sombra-1);
+  border-color: color-mix(in srgb, var(--color-primario) 35%, var(--color-borde));
+  background: var(--color-primario-suave);
 }
-.notif-no-leida::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
-  background: var(--color-primario);
-}
-.notif-leida { background: color-mix(in srgb, var(--color-fondo) 55%, #fff); }
 .notif-leida .notif-titulo { color: var(--color-texto-suave); font-weight: 500; }
 
 .notif-icono {
@@ -92,17 +81,20 @@
 .notif-leida .notif-icono { color: var(--color-texto-suave); background: var(--color-fondo); }
 
 .notif-cuerpo { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
-/* Categoría y fecha en dos líneas cortas: en un celular no caben lado a lado sin partir la categoría. */
-.notif-cabecera { display: flex; flex-direction: column; gap: 1px; }
-.notif-categoria { font-size: 11px; font-weight: 700; color: var(--color-primario); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+.notif-cabecera { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.notif-categoria { font-size: 12px; font-weight: 650; color: var(--color-primario); text-transform: uppercase; letter-spacing: 0.04em; }
 .notif-leida .notif-categoria { color: var(--color-texto-suave); }
 .notif-fecha { flex-shrink: 0; font-size: 12px; color: var(--color-texto-suave); }
-.notif-titulo { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
-.notif-punto { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--color-primario); transform: translateY(-1px); }
+.notif-titulo { display: flex; align-items: center; gap: 8px; font-weight: 700; overflow-wrap: anywhere; }
+.notif-punto { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--color-primario); }
 .notif-accion { display: inline-flex; align-items: center; gap: 2px; margin-top: 2px; font-size: 13px; font-weight: 650; color: var(--color-primario); }
 
 .notif-pie { display: flex; align-items: flex-start; gap: 6px; margin: 16px 0 0; font-size: 13px; color: var(--color-texto-suave); }
 .notif-pie svg { flex-shrink: 0; margin-top: 3px; }
+
+@media (max-width: 360px) {
+  .notif-cabecera { flex-direction: column; gap: 0; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .campana-cliente,

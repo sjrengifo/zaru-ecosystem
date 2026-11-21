@@ -217,11 +217,6 @@ function FormularioAcceso({ slug, sede }) {
         ¿Ya te entregaron tu vehículo?{' '}
         <Link to={`/s/${encodeURIComponent(slug)}/historial`}>Consulta tu historial de servicios</Link>
       </p>
-      {/* HU-29: el cliente elige por qué canales (SMS, correo) le avisamos del estado de su vehículo. */}
-      <p className="acceso-codigo">
-        ¿Cómo quieres que te avisemos?{' '}
-        <Link to={`/s/${encodeURIComponent(slug)}/preferencias`}>Elige tus canales de notificación</Link>
-      </p>
       <p className="acceso-codigo">
         <Link to={`/s/${encodeURIComponent(slug)}/promociones`}>Ver promociones{sede?.nombre ? ` de ${sede.nombre}` : ''}</Link>
       </p>

@@ -17,7 +17,6 @@ import Branding from './pages/Branding.jsx';
 import Reportes from './pages/Reportes.jsx';
 import HistorialNotificaciones from './pages/HistorialNotificaciones.jsx';
 import PlantillasNotificacion from './pages/PlantillasNotificacion.jsx';
-import Notificaciones from './pages/Notificaciones.jsx';
 import Superadmin from './pages/Superadmin.jsx';
 import AceptarInvitacion from './pages/AceptarInvitacion.jsx';
 import Seguimiento from './pages/Seguimiento.jsx';
@@ -28,7 +27,6 @@ import HistorialCliente from './pages/HistorialCliente.jsx';
 import NotificacionesCliente from './pages/NotificacionesCliente.jsx';
 import PromocionesCliente from './pages/PromocionesCliente.jsx';
 import PromocionDetalleCliente from './pages/PromocionDetalleCliente.jsx';
-import PreferenciasNotificacion from './pages/PreferenciasNotificacion.jsx';
 
 const protegida = (ruta, elemento) => <RutaProtegida roles={rolesDeRuta(ruta)}>{elemento}</RutaProtegida>;
 const conModulo = (modulo, pagina) => <RequiereModulo modulo={modulo}>{pagina}</RequiereModulo>;
@@ -55,8 +53,6 @@ export default function App() {
       <Route path="/s/:slug/promociones" element={<PromocionesCliente />} />
       {/* HU-27: detalle y condiciones de una promoción vigente, también público. */}
       <Route path="/s/:slug/promociones/:id" element={<PromocionDetalleCliente />} />
-      {/* HU-29: el cliente elige por qué canales (push, sms, correo) recibe sus avisos. */}
-      <Route path="/s/:slug/preferencias" element={<PreferenciasNotificacion />} />
       <Route path="/superadmin" element={protegida('/superadmin', <Superadmin />)} />
 
       <Route element={<RutaProtegida><Layout /></RutaProtegida>}>
@@ -69,8 +65,6 @@ export default function App() {
         <Route path="/branding" element={protegida('/branding', conModulo('branding', <Branding />))} />
         <Route path="/reportes" element={protegida('/reportes', conModulo('reportes', <Reportes />))} />
         <Route path="/notificaciones" element={protegida('/notificaciones', conModulo('notificaciones', <HistorialNotificaciones />))} />
-        {/* HU-31: configuración de los estados que generan aviso (solo administrador). */}
-        <Route path="/configuracion-notificaciones" element={protegida('/configuracion-notificaciones', conModulo('notificaciones', <Notificaciones />))} />
         {/* HU-32: plantillas de notificación con la marca de la sede (solo administrador). */}
         <Route path="/plantillas" element={protegida('/plantillas', conModulo('notificaciones', <PlantillasNotificacion />))} />
         <Route path="/aceptar-invitacion" element={<AceptarInvitacion />} />

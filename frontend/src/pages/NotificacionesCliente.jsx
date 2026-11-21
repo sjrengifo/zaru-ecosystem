@@ -1,6 +1,6 @@
 // HU-38 — Centro de notificaciones del cliente final en la app.
 //
-// /s/:slug/notificaciones. El cliente entra con el mismo pase del historial (código por SMS, RF-F5-11/12).
+// /s/:slug/notificaciones. El cliente entra con el mismo pase del historial (placa + celular, HU-23).
 //   CA1: lista sus avisos de los últimos 90 días, del más reciente al más antiguo, y distingue las
 //        leídas de las no leídas.
 //   CA2: muestra cuántos avisos siguen pendientes (también en la campana del encabezado).
@@ -9,7 +9,7 @@
 // El cliente y la sede salen del pase firmado; es una página pública, sin sesión del panel.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Bell, BellOff, ChevronRight, Info, LogOut, Megaphone, SlidersHorizontal, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Bell, BellOff, ChevronRight, Info, Megaphone, TriangleAlert } from 'lucide-react';
 import Cargando from '../components/Cargando.jsx';
 import FormularioPase from '../components/FormularioPase.jsx';
 import MarcaZaru from '../components/MarcaZaru.jsx';
@@ -22,10 +22,9 @@ import '../styles/seguimiento.css';
 import '../styles/acceso-cliente.css';
 import '../styles/historial-cliente.css';
 import '../styles/notificaciones-cliente.css';
-import '../styles/preferencias-notificacion.css';
 
 const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
-const AVISO_VENCIDO = 'Tu sesión venció. Entra de nuevo con un código nuevo.';
+const AVISO_VENCIDO = 'Tu acceso venció. Verifica de nuevo tu placa y celular.';
 
 function estiloMarca(sede) {
   const estilo = {};
@@ -133,11 +132,6 @@ export default function NotificacionesCliente() {
     };
   }, [pase, slug, recargas]);
 
-  const cerrarSesion = () => {
-    vencerPase();
-    setAvisoSesion('');
-  };
-
   const alEntrar = (datos) => {
     guardarPase(slug, datos.pase);
     setAvisoSesion('');
@@ -195,7 +189,8 @@ export default function NotificacionesCliente() {
               slug={slug}
               alEntrar={alEntrar}
               titulo="Mis notificaciones"
-              intro="Escribe el celular con el que te registraste. Te enviaremos un código para ver tus avisos."
+              intro="Verifica tu placa y el celular con el que registraste el vehículo para ver los avisos que te enviamos."
+              textoBoton="Ver mis notificaciones"
             />
           </>
         ) : (
@@ -209,14 +204,9 @@ export default function NotificacionesCliente() {
                     : `${noLeidas} ${noLeidas === 1 ? 'aviso sin leer' : 'avisos sin leer'} · últimos 90 días`}
                 </p>
               </div>
-              <div className="historial-acciones">
-                <Link className="historial-volver" to={`/s/${encodeURIComponent(slug)}`}>
-                  <ArrowLeft size={16} aria-hidden="true" /> Inicio
-                </Link>
-                <button type="button" className="historial-volver historial-salir" onClick={cerrarSesion}>
-                  <LogOut size={16} aria-hidden="true" /> Cerrar sesión
-                </button>
-              </div>
+              <Link className="historial-volver" to={`/s/${encodeURIComponent(slug)}`}>
+                <ArrowLeft size={16} aria-hidden="true" /> Inicio
+              </Link>
             </div>
 
             {error && (
@@ -247,10 +237,6 @@ export default function NotificacionesCliente() {
             <p className="notif-pie">
               <Info size={14} aria-hidden="true" /> Toca un aviso del estado de tu vehículo para ver su seguimiento o el detalle del servicio.
             </p>
-            {/* HU-29 CA1: desde aquí el cliente abre sus preferencias de notificación. */}
-            <Link className="notif-preferencias" to={`/s/${encodeURIComponent(slug)}/preferencias`}>
-              <SlidersHorizontal size={16} aria-hidden="true" /> Preferencias de notificación
-            </Link>
           </section>
         )}
       </div>

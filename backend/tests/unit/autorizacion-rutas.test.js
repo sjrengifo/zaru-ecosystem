@@ -83,8 +83,6 @@ const RUTAS_ADMIN = [
   ['PATCH', `/api/v1/promociones/${ID}`],
   ['PUT', '/api/v1/establecimiento/branding'],
   ['POST', '/api/v1/establecimiento/logo'],
-  ['GET', '/api/v1/configuracion/notificaciones'],
-  ['PUT', '/api/v1/configuracion/notificaciones'],
   ['GET', '/api/v1/reportes/servicios'],
   ['GET', '/api/v1/reportes/afluencia'],
   ['GET', '/api/v1/notificaciones'],
@@ -132,9 +130,6 @@ describe('CA2: rutas administrativas protegidas en el backend', () => {
     const listado = await pedir('GET', '/api/v1/usuarios', 'token-admin');
     expect(listado.status).toBe(200);
 
-    const configuracion = await pedir('GET', '/api/v1/configuracion/notificaciones', 'token-admin');
-    expect(configuracion.status).toBe(200);
-
     // Un cuerpo inválido responde 400: la petición ya cruzó el filtro de rol (no es 403).
     const escrituras = [
       ['POST', '/api/v1/usuarios'],
@@ -145,7 +140,6 @@ describe('CA2: rutas administrativas protegidas en el backend', () => {
       ['PATCH', `/api/v1/promociones/${ID}`],
       ['PUT', '/api/v1/establecimiento/branding'],
       ['POST', '/api/v1/establecimiento/logo'],
-      ['PUT', '/api/v1/configuracion/notificaciones'],
       ['GET', '/api/v1/reportes/servicios'],
       ['GET', '/api/v1/reportes/afluencia'],
       ['PUT', '/api/v1/plantillas/listo/sms'],

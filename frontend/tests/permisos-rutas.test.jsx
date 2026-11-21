@@ -22,7 +22,7 @@ const { default: App } = await import('../src/App.jsx');
 
 const PERMISOS = {
   operario: { modulos: ['dashboard', 'clientes', 'vehiculos'], inicio: '/' },
-  admin: { modulos: ['dashboard', 'clientes', 'vehiculos', 'servicios', 'promociones', 'usuarios', 'branding', 'reportes', 'notificaciones'], inicio: '/' },
+  admin: { modulos: ['dashboard', 'clientes', 'vehiculos', 'servicios', 'promociones', 'usuarios', 'branding', 'reportes'], inicio: '/' },
   superadmin: { modulos: ['superadmin'], inicio: '/superadmin' },
 };
 
@@ -55,11 +55,11 @@ describe('HU-59 · panel según el rol', () => {
     abrir('/');
     const menu = await screen.findByRole('navigation');
     expect([...menu.querySelectorAll('a')].map((a) => a.textContent)).toEqual(
-      ['Dashboard', 'Clientes', 'Vehículos', 'Servicios', 'Promociones', 'Usuarios', 'Branding', 'Reportes', 'Notificaciones', 'Config. notificaciones', 'Plantillas'],
+      ['Dashboard', 'Clientes', 'Vehículos', 'Servicios', 'Promociones', 'Usuarios', 'Branding', 'Reportes'],
     );
   });
 
-  it.each(['/promociones', '/branding', '/usuarios', '/servicios', '/notificaciones', '/configuracion-notificaciones', '/plantillas'])(
+  it.each(['/promociones', '/branding', '/usuarios', '/servicios'])(
     'CA3: el operario que escribe %s a mano vuelve al inicio con un aviso',
     async (ruta) => {
       sesionDe('operario');

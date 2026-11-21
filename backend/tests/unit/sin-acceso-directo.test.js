@@ -33,8 +33,6 @@ function archivos(dir) {
 //   la sede y el cliente, y desde ahí lee con el acceso del tenant de esa sede.
 // - promocionesPublicas.js (HU-26): sin sesión, como accesoCliente.js: resuelve la sede por su slug y
 //   lee las promociones vigentes con el acceso del tenant de esa sede.
-// - otpCliente.js (RF-F5-11/12): el cliente aún no tiene sesión cuando pide o valida su código;
-//   resuelve la sede por su slug y lee el cliente y los códigos con el acceso del tenant de esa sede.
 // - workerNotificaciones.js (HU-34): cola global de envíos en segundo plano, sin petición ni sesión;
 //   cada notificación se procesa con el acceso del tenant de su establecimiento.
 const PERMITIDOS = new Set([
@@ -46,7 +44,6 @@ const PERMITIDOS = new Set([
   'shared/accesoCliente.js',
   'shared/bajaPublica.js',
   'shared/paseCliente.js',
-  'shared/otpCliente.js',
   'shared/promocionesPublicas.js',
   'shared/workerNotificaciones.js',
   // HU-33 CA4: el webhook no tiene sesión; el establecimiento sale de la notificación misma.
