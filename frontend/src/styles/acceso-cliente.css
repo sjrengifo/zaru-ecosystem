@@ -137,7 +137,17 @@
 .acceso-opcion-texto { flex: 1; color: var(--color-texto-suave); font-size: 14px; }
 
 .acceso-codigo { margin: 20px 0 0; font-size: 14px; color: var(--color-texto-suave); text-align: center; }
-.acceso-codigo a { color: var(--color-primario); font-weight: 650; }
+.acceso-codigo a { display: inline-flex; align-items: center; gap: 4px; color: var(--color-primario); font-weight: 650; }
+.acceso-enlace {
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--color-primario);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.acceso-enlace:disabled { opacity: 0.5; cursor: default; }
 
 @keyframes acceso-aparecer { from { opacity: 0; transform: translateY(-4px); } }
 

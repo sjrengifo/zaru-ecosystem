@@ -26,7 +26,7 @@ import * as webhooks from '../controllers/webhooks.controller.js';
 import * as cliente from '../controllers/cliente.controller.js';
 import { validar } from '../shared/validar.js';
 import { busquedaPublica } from '../schemas/publico.schemas.js';
-import { accesoHistorial, filtroHistorial, idNotificacionCliente, idOrden } from '../schemas/cliente.schemas.js';
+import { filtroHistorial, idNotificacionCliente, idOrden, solicitudOtp, verificacionOtp } from '../schemas/cliente.schemas.js';
 import { requierePase } from '../shared/paseCliente.js';
 
 export const VERSION_API = '1.0.0';
@@ -97,10 +97,11 @@ router.post('/webhooks/twilio', express.urlencoded({ extended: false, limit: '64
 // HU-30 CA3: el cliente deja de recibir avisos o promociones desde el enlace del correo, sin sesión.
 router.get('/publico/baja/:token', baja.consultar);
 router.post('/publico/baja/:token', baja.confirmar);
-// HU-23 / HU-24: historial y detalle de servicios del cliente final. El cliente verifica que es
-// dueño del vehículo con placa + celular y recibe un pase firmado de vida corta; ninguna de estas
-// rutas acepta un id de cliente o de sede ajeno.
-router.post('/publico/sedes/:slug/historial/acceso', validar({ body: accesoHistorial }), cliente.acceso);
+// HU-23 / HU-24: historial y detalle de servicios del cliente final. Ninguna de estas rutas acepta
+// un id de cliente o de sede ajeno: ambos salen del pase firmado.
+// RF-F5-11 / RF-F5-12: el cliente entra con su celular y un código de un solo uso por SMS.
+router.post('/publico/sedes/:slug/otp', validar({ body: solicitudOtp }), cliente.solicitarOtp);
+router.post('/publico/sedes/:slug/otp/verificar', validar({ body: verificacionOtp }), cliente.verificarOtp);
 router.get('/publico/cliente/vehiculos', requierePase, cliente.vehiculos);
 router.get('/publico/cliente/historial', requierePase, validar({ query: filtroHistorial }), cliente.historial);
 router.get('/publico/cliente/historial/:ordenId', requierePase, validar({ params: idOrden }), cliente.detalle);

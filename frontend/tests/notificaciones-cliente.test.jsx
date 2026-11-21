@@ -33,10 +33,15 @@ function respuesta(status, cuerpo) {
   return Promise.resolve({ ok: status >= 200 && status < 300, status, json: () => Promise.resolve(cuerpo) });
 }
 
-/** Simula la API por ruta: sede, acceso con placa + celular, centro y marcar como leída. */
+/** Simula la API por ruta: sede, acceso con código por SMS, centro y marcar como leída. */
 function simularApi({ centro = [200, { notificaciones: NOTIFICACIONES, noLeidas: 2 }], leida = [200, { leida: true }] } = {}) {
   const fetchFalso = vi.fn((url, opciones = {}) => {
-    if (url.includes('/historial/acceso')) return respuesta(200, { pase: 'pase-nuevo', expiraEn: '2026-11-10T16:00:00Z', sede: SEDE, cliente: { nombre: 'Laura' } });
+    if (url.endsWith('/otp')) return respuesta(202, { enviado: true, celular: '300****567', expiraEn: '2026-11-10T15:05:00Z' });
+    if (url.endsWith('/otp/verificar')) {
+      return JSON.parse(opciones.body).codigo === '123456'
+        ? respuesta(200, { pase: 'pase-nuevo', expiraEn: '2026-12-10T15:00:00Z', sede: SEDE, cliente: { nombre: 'Laura' } })
+        : respuesta(401, { error: { codigo: 'NO_AUTENTICADO', mensaje: 'El código no es válido o ya venció. Revísalo o pide uno nuevo' } });
+    }
     if (opciones.method === 'PATCH') return respuesta(...leida);
     if (url.endsWith('/publico/cliente/notificaciones')) return respuesta(...centro);
     return respuesta(200, SEDE);
@@ -68,11 +73,11 @@ function abrir(ruta = `/s/${SLUG}/notificaciones`) {
   );
 }
 
-const conPase = () => sessionStorage.setItem(`zaru:historial:${SLUG}`, 'pase-valido');
+const conPase = () => localStorage.setItem(`zaru:historial:${SLUG}`, 'pase-valido');
 const tarjetas = () => screen.getAllByRole('listitem').map((li) => within(li).getByRole('button'));
 
 beforeEach(() => {
-  sessionStorage.clear();
+  localStorage.clear();
   document.title = '';
 });
 afterEach(() => {
@@ -101,17 +106,30 @@ describe('reglas del centro de notificaciones', () => {
 });
 
 describe('HU-38 · pantalla del centro de notificaciones', () => {
-  it('sin acceso pide la placa y el celular, y luego muestra los avisos', async () => {
+  it('RF-F5-11/12: sin sesión pide el celular, luego el código del SMS, y muestra los avisos', async () => {
     const api = simularApi();
     abrir();
 
     expect(await screen.findByRole('heading', { name: 'Mis notificaciones' })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Placa del vehículo'), { target: { value: 'abc123' } });
-    fireEvent.change(screen.getByLabelText('Número de celular'), { target: { value: '3001234567' } });
-    fireEvent.click(screen.getByRole('button', { name: /Ver mis notificaciones/ }));
+    expect(screen.queryByLabelText('Placa del vehículo')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Número de celular'), { target: { value: '300 123 4567' } });
+    fireEvent.click(screen.getByRole('button', { name: /Enviarme el código/ }));
+
+    expect(await screen.findByText('300****567')).toBeInTheDocument();
+    const solicitud = api.mock.calls.find(([url]) => url.endsWith('/otp'));
+    expect(JSON.parse(solicitud[1].body)).toEqual({ celular: '3001234567' });
+
+    // Un código equivocado muestra el error y deja intentar de nuevo.
+    fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '000000' } });
+    fireEvent.click(screen.getByRole('button', { name: /Entrar/ }));
+    expect(await screen.findByText('El código no es válido o ya venció. Revísalo o pide uno nuevo.')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '12-34 56' } });
+    expect(screen.getByLabelText('Código de 6 dígitos')).toHaveValue('123456');
+    fireEvent.click(screen.getByRole('button', { name: /Entrar/ }));
 
     expect(await screen.findByRole('heading', { name: 'Notificaciones' })).toBeInTheDocument();
-    expect(sessionStorage.getItem(`zaru:historial:${SLUG}`)).toBe('pase-nuevo');
+    expect(localStorage.getItem(`zaru:historial:${SLUG}`)).toBe('pase-nuevo');
     const llamada = api.mock.calls.find(([url]) => url.endsWith('/publico/cliente/notificaciones'));
     expect(llamada[1].headers.Authorization).toBe('Bearer pase-nuevo');
   });
@@ -174,13 +192,23 @@ describe('HU-38 · pantalla del centro de notificaciones', () => {
     expect(await screen.findByText('No tienes notificaciones de los últimos 90 días.')).toBeInTheDocument();
   });
 
-  it('con el acceso vencido vuelve a pedir la placa y el celular', async () => {
+  it('con la sesión vencida vuelve a pedir el celular', async () => {
     conPase();
     simularApi({ centro: [401, { error: { codigo: 'NO_AUTENTICADO', mensaje: 'Tu acceso venció' } }] });
     abrir();
 
-    expect(await screen.findByText('Tu acceso venció. Verifica de nuevo tu placa y celular.')).toBeInTheDocument();
-    expect(sessionStorage.getItem(`zaru:historial:${SLUG}`)).toBeNull();
+    expect(await screen.findByText('Tu sesión venció. Entra de nuevo con el código que te enviamos por SMS.')).toBeInTheDocument();
+    expect(localStorage.getItem(`zaru:historial:${SLUG}`)).toBeNull();
+  });
+
+  it('Cerrar sesión borra el pase del celular y vuelve a pedir el acceso', async () => {
+    conPase();
+    simularApi();
+    abrir();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Cerrar sesión/ }));
+    expect(await screen.findByLabelText('Número de celular')).toBeInTheDocument();
+    expect(localStorage.getItem(`zaru:historial:${SLUG}`)).toBeNull();
   });
 });
 
