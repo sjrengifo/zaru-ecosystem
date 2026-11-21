@@ -1,16 +1,19 @@
 // RF-F5-11 / RF-F5-12 — Acceso del cliente final con un código de un solo uso por SMS.
-// Paso 1: el cliente escribe su celular y le llega un código de 6 dígitos por SMS y, si tiene correo
-//         registrado, también por correo.
+// Paso 1: el cliente escribe su celular y elige recibir el código de 6 dígitos por SMS o por correo.
 // Paso 2: escribe el código y recibe el pase de 30 días con el que la app abre el historial, el centro
 //         de notificaciones y las preferencias.
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, KeyRound, MessageSquareText, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, KeyRound, Mail, MessageSquareText, TriangleAlert } from 'lucide-react';
 import { errorBusqueda, formatoCelular, limpiarCelular } from '../lib/accesoCliente.js';
 import { solicitarCodigoAcceso, verificarCodigoAcceso } from '../services/historialCliente.js';
 
 const limpiarCodigo = (valor) => String(valor ?? '').replace(/\D/g, '').slice(0, 6);
 const ERROR_CONEXION = 'No pudimos conectarnos. Revisa tu conexión e inténtalo de nuevo.';
+const MEDIOS = [
+  { canal: 'sms', nombre: 'SMS', Icono: MessageSquareText },
+  { canal: 'correo', nombre: 'Correo', Icono: Mail },
+];
 
 export default function FormularioPase({
   slug,
@@ -22,6 +25,7 @@ export default function FormularioPase({
   const campoCodigo = useRef(null);
   const [paso, setPaso] = useState('celular'); // 'celular' | 'codigo'
   const [celular, setCelular] = useState('');
+  const [canal, setCanal] = useState('sms');
   const [codigo, setCodigo] = useState('');
   const [enmascarado, setEnmascarado] = useState('');
   const [errorCampo, setErrorCampo] = useState('');
@@ -48,7 +52,7 @@ export default function FormularioPase({
     if (error) return;
     setEnviando(true);
     try {
-      const datos = await solicitarCodigoAcceso(slug, { celular: limpiarCelular(celular) });
+      const datos = await solicitarCodigoAcceso(slug, { celular: limpiarCelular(celular), canal });
       setEnmascarado(datos.celular ?? formatoCelular(celular));
       setCodigo('');
       setPaso('codigo');
@@ -138,14 +142,45 @@ export default function FormularioPase({
               />
             </div>
             {ayuda('El mismo celular que diste al registrar tu vehículo.')}
-            {botonEnviar('Enviarme el código', MessageSquareText)}
+
+            <fieldset className="acceso-medios">
+              <legend className="acceso-etiqueta">¿Cómo quieres recibir el código?</legend>
+              <div className="acceso-medios-opciones">
+                {MEDIOS.map(({ canal: valor, nombre, Icono }) => (
+                  <label key={valor} className="acceso-medio">
+                    <input
+                      type="radio"
+                      name={`${idBase}-medio`}
+                      value={valor}
+                      checked={canal === valor}
+                      onChange={() => setCanal(valor)}
+                      disabled={enviando}
+                    />
+                    <Icono size={18} aria-hidden="true" />
+                    {nombre}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {botonEnviar(canal === 'correo' ? 'Enviarme el código por correo' : 'Enviarme el código por SMS', canal === 'correo' ? Mail : MessageSquareText)}
           </form>
         </>
       ) : (
         <>
           <p className="acceso-intro" role="status">
-            Si <strong>{enmascarado}</strong> está registrado en esta sede, te enviamos un código de 6 dígitos por SMS
-            y a tu correo, si lo tienes registrado. Vence en 5 minutos.
+            {canal === 'correo' ? (
+              <>
+                Si <strong>{enmascarado}</strong> está registrado en esta sede, te enviamos un código de 6 dígitos
+                al correo que diste en el car wash (revisa también spam). Si no tienes correo registrado, te llegó
+                por SMS. Vence en 5 minutos.
+              </>
+            ) : (
+              <>
+                Si <strong>{enmascarado}</strong> está registrado en esta sede, te enviamos un SMS con un código de
+                6 dígitos. Vence en 5 minutos.
+              </>
+            )}
           </p>
           <form onSubmit={validarCodigo} noValidate>
             <label htmlFor={`${idBase}-codigo`} className="acceso-etiqueta">Código de 6 dígitos</label>
@@ -176,7 +211,7 @@ export default function FormularioPase({
             </button>
             {' · '}
             <button type="button" className="acceso-enlace" onClick={cambiarCelular} disabled={enviando}>
-              Cambiar celular
+              Cambiar celular o medio
             </button>
           </p>
         </>

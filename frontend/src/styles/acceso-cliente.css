@@ -202,3 +202,33 @@
 .baja-tarjeta .boton { width: 100%; margin-top: 4px; }
 .baja-tarjeta .baja-nota { margin: 16px 0 0; font-size: 13px; }
 .baja-tarjeta .baja-registro { margin: 0 0 4px; color: var(--color-texto); }
+
+/* RF-F5-11: el cliente elige recibir el código por SMS o por correo (dos opciones tipo segmento). */
+.acceso-medios { margin: 14px 0 16px; padding: 0; border: 0; min-width: 0; }
+.acceso-medios legend { width: 100%; padding: 0; }
+.acceso-medios-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.acceso-medio {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px;
+  border: 1.5px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: var(--color-texto-suave);
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color var(--transicion), background var(--transicion), color var(--transicion);
+}
+.acceso-medio input { position: absolute; opacity: 0; pointer-events: none; }
+.acceso-medio:hover { border-color: color-mix(in srgb, var(--color-primario) 45%, var(--color-borde)); }
+.acceso-medio:has(input:checked) {
+  border-color: var(--color-primario);
+  background: var(--color-primario-suave);
+  color: var(--color-texto);
+}
+.acceso-medio:has(input:focus-visible) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primario) 30%, transparent); }
+.acceso-medio:has(input:disabled) { cursor: default; opacity: 0.7; }

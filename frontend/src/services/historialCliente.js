@@ -48,9 +48,9 @@ const enviarAcceso = (slug, ruta, cuerpo) =>
     cache: 'no-store',
   });
 
-/** POST /publico/sedes/{slug}/otp — { celular } → 202 { enviado, celular (enmascarado), expiraEn }. */
-export async function solicitarCodigoAcceso(slug, { celular }) {
-  return leer(await enviarAcceso(slug, 'otp', { celular }), 'No pudimos enviarte el código');
+/** POST /publico/sedes/{slug}/otp — { celular, canal: 'sms'|'correo' } → 202 { enviado, canal, celular, expiraEn }. */
+export async function solicitarCodigoAcceso(slug, { celular, canal = 'sms' }) {
+  return leer(await enviarAcceso(slug, 'otp', { celular, canal }), 'No pudimos enviarte el código');
 }
 
 /** POST /publico/sedes/{slug}/otp/verificar — { celular, codigo } → { pase, expiraEn, sede, cliente }. */

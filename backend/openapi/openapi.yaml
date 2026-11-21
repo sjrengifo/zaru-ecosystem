@@ -342,9 +342,9 @@ paths:
       operationId: solicitarCodigoAccesoCliente
       summary: Pedir el código de acceso por SMS
       description: |
-        RF-F5-11. El cliente final escribe su celular y, si está registrado en esa sede, le llega por SMS un
-        código de 6 dígitos que vence a los 5 minutos. Si tiene correo registrado, el mismo código también le
-        llega por correo; basta con que salga por uno de los dos canales. La respuesta es la misma (`202`) exista o no el celular:
+        RF-F5-11. El cliente final escribe su celular, elige el `canal` (`sms` por defecto o `correo`) y, si
+        está registrado en esa sede, le llega un código de 6 dígitos que vence a los 5 minutos. Si eligió
+        `correo` y no tiene uno registrado, el código sale por SMS (la respuesta es la misma en ambos casos). La respuesta es la misma (`202`) exista o no el celular:
         no revela quién es cliente de la sede. Solo se guarda el hash del código.
 
         Límite (RNF-F5-02): 3 solicitudes por celular cada 15 minutos; al exceder responde `429`.
@@ -356,7 +356,7 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/SolicitudOtp' }
-            example: { celular: '3001234567' }
+            example: { celular: '3001234567', canal: correo }
       responses:
         '202':
           description: Solicitud recibida. Si el celular está registrado, el código va en camino.
@@ -367,7 +367,7 @@ paths:
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
         '500':
-          description: No se pudo enviar el código por ningún canal (SMS ni correo); el código queda invalidado.
+          description: No se pudo enviar el código por el canal elegido; el código queda invalidado.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -3013,12 +3013,18 @@ components:
           type: string
           description: Celular registrado para el cliente en esa sede (10 dígitos; acepta +57, espacios y guiones).
           example: '3001234567'
+        canal:
+          type: string
+          enum: [sms, correo]
+          default: sms
+          description: Por dónde quiere recibir el código. Con `correo` y sin correo registrado, sale por SMS.
 
     SolicitudOtpRespuesta:
       type: object
-      required: [enviado, celular, expiraEn]
+      required: [enviado, canal, celular, expiraEn]
       properties:
         enviado: { type: boolean, const: true }
+        canal: { type: string, enum: [sms, correo], description: El canal que pidió el cliente. }
         celular: { type: string, description: Celular enmascarado al que se envió., example: '300****567' }
         expiraEn: { type: string, format: date-time }
 

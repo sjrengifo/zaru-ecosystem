@@ -1,7 +1,7 @@
 // RF-F5-11 / RF-F5-12 — Acceso del cliente final con un código de un solo uso por SMS.
 //
-// 1. El cliente escribe su celular. Si está registrado en la sede, le llega un código de 6 dígitos por
-//    SMS y, si tiene correo registrado, también por correo.
+// 1. El cliente escribe su celular y elige cómo recibir el código de 6 dígitos: por SMS o por correo.
+//    Si eligió correo y no tiene uno registrado, el código sale por SMS para que igual pueda entrar.
 //    La respuesta es la misma exista o no el celular (RF-F5-11): no se revela quién es cliente.
 // 2. Con el código correcto recibe el pase de 30 días (shared/paseCliente.js).
 //
@@ -76,13 +76,17 @@ async function contexto(slug, celular, db) {
   return { sede, tenant, cliente };
 }
 
+export const CANALES_CODIGO = ['sms', 'correo'];
+
 /**
- * RF-F5-11: envía el código al celular registrado. `celular` llega normalizado (10 dígitos).
- * @returns {Promise<{ enviado: true, celular: string, expiraEn: string }>} igual para cualquier celular
+ * RF-F5-11: envía el código por el canal elegido. `celular` llega normalizado (10 dígitos).
+ * @param {{ celular: string, canal?: 'sms'|'correo' }} entrada
+ * @returns {Promise<{ enviado: true, canal: string, celular: string, expiraEn: string }>} igual para
+ *   cualquier celular y aunque el cliente no tenga correo: la respuesta no revela qué datos tiene.
  */
 export async function solicitarCodigoAcceso(
   slug,
-  { celular },
+  { celular, canal = 'sms' },
   { db = supabase, ahora = new Date(), proveedor, proveedorEmail, generar = generarCodigo } = {},
 ) {
   const { sede, tenant, cliente } = await contexto(slug, celular, db);
@@ -96,7 +100,7 @@ export async function solicitarCodigoAcceso(
   limiteSolicitudes.registrarFallo(claveLimite);
 
   const expiraEn = new Date(ahora.getTime() + VIGENCIA_OTP_MIN * 60_000);
-  const respuesta = { enviado: true, celular: enmascararCelular(celular), expiraEn: expiraEn.toISOString() };
+  const respuesta = { enviado: true, canal, celular: enmascararCelular(celular), expiraEn: expiraEn.toISOString() };
   if (!cliente) return respuesta;
 
   const { count, error } = await tenant
@@ -113,29 +117,26 @@ export async function solicitarCodigoAcceso(
     expira_at: expiraEn.toISOString(),
   }, 'id');
 
-  // El código sale por SMS y, si el cliente tiene correo registrado, también por correo (gratis y sin
-  // cuenta de pago de SMS). Basta con que llegue por uno de los dos.
-  const correo = correoPlano(cliente.correo);
-  const envios = [
-    conTiempoMaximo((proveedor ?? proveedorSms()).enviar({ para: celular, texto: textoCodigoAcceso(codigo, sede) })),
-    ...(correo
-      ? [conTiempoMaximo((proveedorEmail ?? proveedorCorreo()).enviar({
+  // Por correo solo si lo eligió y tiene uno registrado; si no, por SMS (así el cliente sin correo
+  // igual recibe su código y la respuesta no revela si tiene correo).
+  const correo = canal === 'correo' ? correoPlano(cliente.correo) : '';
+  try {
+    if (correo) {
+      await conTiempoMaximo((proveedorEmail ?? proveedorCorreo()).enviar({
         para: correo,
         ...plantillaCodigoAcceso({ establecimiento: sede, cliente, codigo, minutos: VIGENCIA_OTP_MIN }),
-      }))]
-      : []),
-  ];
-  const resultados = await Promise.allSettled(envios);
-  resultados.forEach((r, i) => {
-    if (r.status === 'rejected') {
-      console.error(`[RF-F5-11] No se pudo enviar el código de acceso por ${i === 0 ? 'SMS' : 'correo'}:`, r.reason?.message ?? r.reason);
+      }));
+    } else {
+      await conTiempoMaximo((proveedor ?? proveedorSms()).enviar({ para: celular, texto: textoCodigoAcceso(codigo, sede) }));
     }
-  });
-
-  if (!resultados.some((r) => r.status === 'fulfilled')) {
-    // Un código que no salió por ningún canal no debe quedar vigente.
+  } catch (err) {
+    console.error(`[RF-F5-11] No se pudo enviar el código de acceso por ${correo ? 'correo' : 'SMS'}:`, err?.message ?? err);
+    // Un código que no salió no debe quedar vigente.
     await tenant.actualizar('otp_codigos', fila.id, { usado_at: ahora.toISOString() }, 'id', 'Código').catch(() => {});
-    throw new AppError('ERROR_INTERNO', 'No pudimos enviarte el código. Inténtalo de nuevo en unos minutos');
+    throw new AppError(
+      'ERROR_INTERNO',
+      `No pudimos enviarte el código por ${correo ? 'correo' : 'SMS'}. Inténtalo de nuevo o elige el otro medio`,
+    );
   }
   return respuesta;
 }

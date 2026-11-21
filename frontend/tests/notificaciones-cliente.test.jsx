@@ -117,7 +117,8 @@ describe('HU-38 · pantalla del centro de notificaciones', () => {
 
     expect(await screen.findByText('300****567')).toBeInTheDocument();
     const solicitud = api.mock.calls.find(([url]) => url.endsWith('/otp'));
-    expect(JSON.parse(solicitud[1].body)).toEqual({ celular: '3001234567' });
+    // Por defecto el código se pide por SMS.
+    expect(JSON.parse(solicitud[1].body)).toEqual({ celular: '3001234567', canal: 'sms' });
 
     // Un código equivocado muestra el error y deja intentar de nuevo.
     fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '000000' } });
@@ -190,6 +191,19 @@ describe('HU-38 · pantalla del centro de notificaciones', () => {
     abrir();
 
     expect(await screen.findByText('No tienes notificaciones de los últimos 90 días.')).toBeInTheDocument();
+  });
+
+  it('RF-F5-11: el cliente puede pedir el código por correo', async () => {
+    const api = simularApi();
+    abrir();
+
+    fireEvent.change(await screen.findByLabelText('Número de celular'), { target: { value: '3001234567' } });
+    fireEvent.click(screen.getByRole('radio', { name: /Correo/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Enviarme el código por correo/ }));
+
+    expect(await screen.findByText(/al correo que diste en el car wash/)).toBeInTheDocument();
+    const solicitud = api.mock.calls.find(([url]) => url.endsWith('/otp'));
+    expect(JSON.parse(solicitud[1].body)).toEqual({ celular: '3001234567', canal: 'correo' });
   });
 
   it('con la sesión vencida vuelve a pedir el celular', async () => {

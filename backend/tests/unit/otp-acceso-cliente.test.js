@@ -96,7 +96,7 @@ describe('RF-F5-11 · solicitar el código', () => {
     const db = nuevaDb();
     const { respuesta, proveedor } = await pedir(db);
 
-    expect(respuesta).toEqual({ enviado: true, celular: expect.stringContaining('***'), expiraEn: '2026-11-21T15:05:00.000Z' });
+    expect(respuesta).toEqual({ enviado: true, canal: 'sms', celular: expect.stringContaining('***'), expiraEn: '2026-11-21T15:05:00.000Z' });
     expect(proveedor.enviar).toHaveBeenCalledWith({ para: '3001234567', texto: expect.stringContaining('123456') });
     const [fila] = db.datos.otp_codigos;
     expect(fila).toMatchObject({ cliente_id: CLIENTE.id, establecimiento_id: SEDE.id, codigo_hash: hashCodigo(CLIENTE.id, '123456') });
@@ -124,21 +124,22 @@ describe('RF-F5-11 · solicitar el código', () => {
     await expect(pedir(db, { celular: '3109998877' })).rejects.toMatchObject({ codigo: 'LIMITE_EXCEDIDO' });
   });
 
-  describe('también por correo (sin pagar SMS)', () => {
+  describe('el cliente elige cómo recibir el código', () => {
     const conCorreo = () =>
       crearDbFalsa({ establecimientos: [SEDE], clientes: [{ ...CLIENTE, correo: cifrar('yeli@correo.com') }], otp_codigos: [] });
     const correoFalso = () => ({ enviar: vi.fn(async () => ({ idProveedor: 'correo-1' })) });
-    const pedirConCorreo = (db, extra = {}) =>
-      solicitarCodigoAcceso(SEDE.slug, { celular: CLIENTE.telefono }, {
+    const pedirPor = (db, canal, extra = {}) =>
+      solicitarCodigoAcceso(SEDE.slug, { celular: CLIENTE.telefono, canal }, {
         db, ahora: AHORA, generar: () => '123456', proveedor: proveedorFalso(), ...extra,
       });
 
-    it('si el cliente tiene correo, el código sale por SMS y por correo, con la marca de la sede', async () => {
+    it('por correo: solo envía el correo, con la marca de la sede, y no el SMS', async () => {
       const email = correoFalso();
       const sms = proveedorFalso();
-      await pedirConCorreo(conCorreo(), { proveedor: sms, proveedorEmail: email });
+      const respuesta = await pedirPor(conCorreo(), 'correo', { proveedor: sms, proveedorEmail: email });
 
-      expect(sms.enviar).toHaveBeenCalledTimes(1);
+      expect(respuesta.canal).toBe('correo');
+      expect(sms.enviar).not.toHaveBeenCalled();
       expect(email.enviar).toHaveBeenCalledWith(expect.objectContaining({
         para: 'yeli@correo.com',
         asunto: '123456 es tu código para entrar a Lavadero Norte',
@@ -147,28 +148,34 @@ describe('RF-F5-11 · solicitar el código', () => {
       }));
     });
 
-    it('sin correo registrado no intenta enviar correo', async () => {
+    it('por SMS (o sin indicar canal): solo envía el SMS aunque tenga correo', async () => {
       const email = correoFalso();
-      await pedirConCorreo(nuevaDb(), { proveedorEmail: email });
+      const sms = proveedorFalso();
+      await pedirPor(conCorreo(), undefined, { proveedor: sms, proveedorEmail: email });
+
+      expect(sms.enviar).toHaveBeenCalledTimes(1);
       expect(email.enviar).not.toHaveBeenCalled();
     });
 
-    it('si el SMS falla pero el correo llega, el código sigue vigente y sirve para entrar', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-      const db = conCorreo();
-      const sms = { enviar: vi.fn(async () => { throw new Error('Twilio trial'); }) };
-      await expect(pedirConCorreo(db, { proveedor: sms, proveedorEmail: correoFalso() })).resolves.toHaveProperty('enviado', true);
+    it('si eligió correo pero no tiene uno registrado, le llega por SMS y la respuesta no lo revela', async () => {
+      const email = correoFalso();
+      const sms = proveedorFalso();
+      const sinCorreo = await pedirPor(nuevaDb(), 'correo', { proveedor: sms, proveedorEmail: email });
+      const conCorreoRegistrado = await pedirPor(conCorreo(), 'correo', { proveedorEmail: correoFalso() });
 
-      expect(db.datos.otp_codigos[0].usado_at).toBeNull();
-      await expect(verificarCodigoAcceso(SEDE.slug, { celular: CLIENTE.telefono, codigo: '123456' }, { db, ahora: AHORA }))
-        .resolves.toHaveProperty('pase');
+      expect(sms.enviar).toHaveBeenCalledTimes(1);
+      expect(email.enviar).not.toHaveBeenCalled();
+      expect(sinCorreo).toEqual(conCorreoRegistrado);
     });
 
-    it('si fallan el SMS y el correo, el código queda invalidado', async () => {
+    it('si el correo falla, el código queda invalidado y el mensaje sugiere el otro medio', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
       const db = conCorreo();
-      const falla = () => ({ enviar: vi.fn(async () => { throw new Error('caído'); }) });
-      await expect(pedirConCorreo(db, { proveedor: falla(), proveedorEmail: falla() })).rejects.toMatchObject({ codigo: 'ERROR_INTERNO' });
+      const falla = { enviar: vi.fn(async () => { throw new Error('SMTP caído'); }) };
+      const error = await pedirPor(db, 'correo', { proveedorEmail: falla }).catch((e) => e);
+
+      expect(error).toMatchObject({ codigo: 'ERROR_INTERNO' });
+      expect(error.message).toContain('elige el otro medio');
       expect(db.datos.otp_codigos[0].usado_at).not.toBeNull();
     });
   });
@@ -250,7 +257,9 @@ describe('RF-F5-12 · verificar el código', () => {
 
 describe('validación de entrada del acceso', () => {
   it('normaliza el celular y exige un código de 6 dígitos', () => {
-    expect(solicitudOtp.parse({ celular: '+57 300 123 4567' })).toEqual({ celular: '3001234567' });
+    expect(solicitudOtp.parse({ celular: '+57 300 123 4567' })).toEqual({ celular: '3001234567', canal: 'sms' });
+    expect(solicitudOtp.parse({ celular: '3001234567', canal: 'correo' }).canal).toBe('correo');
+    expect(solicitudOtp.safeParse({ celular: '3001234567', canal: 'fax' }).success).toBe(false);
     expect(verificacionOtp.parse({ celular: '300-123-4567', codigo: ' 123456 ' })).toEqual({ celular: '3001234567', codigo: '123456' });
     expect(solicitudOtp.safeParse({ celular: '12345' }).success).toBe(false);
     expect(verificacionOtp.safeParse({ celular: '3001234567', codigo: '12345' }).success).toBe(false);
