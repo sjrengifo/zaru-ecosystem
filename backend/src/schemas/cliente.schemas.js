@@ -21,6 +21,8 @@ const MENSAJE_CELULAR = 'Escribe el celular de 10 dígitos con el que te registr
 
 export const solicitudOtp = z.object({
   celular: celularNormalizado(MENSAJE_CELULAR),
+  // Cómo quiere recibir el código; sin indicarlo, por SMS.
+  canal: z.enum(['sms', 'correo'], { errorMap: () => ({ message: 'Elige recibir el código por sms o por correo' }) }).default('sms'),
 });
 
 export const verificacionOtp = z.object({
