@@ -14,6 +14,7 @@ const {
 } = await import('../../src/shared/otpCliente.js');
 const { verificarPase, DURACION_PASE_MS } = await import('../../src/shared/paseCliente.js');
 const { solicitudOtp, verificacionOtp } = await import('../../src/schemas/cliente.schemas.js');
+const { cifrar } = await import('../../src/shared/cifrado.js');
 
 const SEDE = { id: 'eeeeeeee-0000-4000-8000-000000000001', slug: 'car-wash-demo', nombre: 'Lavadero Norte', estado: 'activo' };
 const OTRA_SEDE = { id: 'eeeeeeee-0000-4000-8000-000000000009', slug: 'otra-sede', nombre: 'Otra', estado: 'activo' };
@@ -121,6 +122,55 @@ describe('RF-F5-11 · solicitar el código', () => {
     // El límite también aplica a celulares que no existen: no revela quién es cliente.
     for (let i = 0; i < 3; i += 1) await pedir(db, { celular: '3109998877' });
     await expect(pedir(db, { celular: '3109998877' })).rejects.toMatchObject({ codigo: 'LIMITE_EXCEDIDO' });
+  });
+
+  describe('también por correo (sin pagar SMS)', () => {
+    const conCorreo = () =>
+      crearDbFalsa({ establecimientos: [SEDE], clientes: [{ ...CLIENTE, correo: cifrar('yeli@correo.com') }], otp_codigos: [] });
+    const correoFalso = () => ({ enviar: vi.fn(async () => ({ idProveedor: 'correo-1' })) });
+    const pedirConCorreo = (db, extra = {}) =>
+      solicitarCodigoAcceso(SEDE.slug, { celular: CLIENTE.telefono }, {
+        db, ahora: AHORA, generar: () => '123456', proveedor: proveedorFalso(), ...extra,
+      });
+
+    it('si el cliente tiene correo, el código sale por SMS y por correo, con la marca de la sede', async () => {
+      const email = correoFalso();
+      const sms = proveedorFalso();
+      await pedirConCorreo(conCorreo(), { proveedor: sms, proveedorEmail: email });
+
+      expect(sms.enviar).toHaveBeenCalledTimes(1);
+      expect(email.enviar).toHaveBeenCalledWith(expect.objectContaining({
+        para: 'yeli@correo.com',
+        asunto: '123456 es tu código para entrar a Lavadero Norte',
+        html: expect.stringContaining('123456'),
+        texto: expect.stringContaining('Vence en 5 minutos'),
+      }));
+    });
+
+    it('sin correo registrado no intenta enviar correo', async () => {
+      const email = correoFalso();
+      await pedirConCorreo(nuevaDb(), { proveedorEmail: email });
+      expect(email.enviar).not.toHaveBeenCalled();
+    });
+
+    it('si el SMS falla pero el correo llega, el código sigue vigente y sirve para entrar', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const db = conCorreo();
+      const sms = { enviar: vi.fn(async () => { throw new Error('Twilio trial'); }) };
+      await expect(pedirConCorreo(db, { proveedor: sms, proveedorEmail: correoFalso() })).resolves.toHaveProperty('enviado', true);
+
+      expect(db.datos.otp_codigos[0].usado_at).toBeNull();
+      await expect(verificarCodigoAcceso(SEDE.slug, { celular: CLIENTE.telefono, codigo: '123456' }, { db, ahora: AHORA }))
+        .resolves.toHaveProperty('pase');
+    });
+
+    it('si fallan el SMS y el correo, el código queda invalidado', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const db = conCorreo();
+      const falla = () => ({ enviar: vi.fn(async () => { throw new Error('caído'); }) });
+      await expect(pedirConCorreo(db, { proveedor: falla(), proveedorEmail: falla() })).rejects.toMatchObject({ codigo: 'ERROR_INTERNO' });
+      expect(db.datos.otp_codigos[0].usado_at).not.toBeNull();
+    });
   });
 
   it('si el SMS no sale, el código queda invalidado', async () => {

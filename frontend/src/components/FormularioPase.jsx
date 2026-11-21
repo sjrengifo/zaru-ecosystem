@@ -1,5 +1,6 @@
 // RF-F5-11 / RF-F5-12 — Acceso del cliente final con un código de un solo uso por SMS.
-// Paso 1: el cliente escribe su celular y le llega un código de 6 dígitos.
+// Paso 1: el cliente escribe su celular y le llega un código de 6 dígitos por SMS y, si tiene correo
+//         registrado, también por correo.
 // Paso 2: escribe el código y recibe el pase de 30 días con el que la app abre el historial, el centro
 //         de notificaciones y las preferencias.
 import { useEffect, useId, useRef, useState } from 'react';
@@ -15,7 +16,7 @@ export default function FormularioPase({
   slug,
   alEntrar,
   titulo = 'Mi historial de servicios',
-  intro = 'Escribe el celular con el que te registraste en el car wash. Te enviaremos un código por SMS para entrar.',
+  intro = 'Escribe el celular con el que te registraste en el car wash. Te enviaremos un código para entrar.',
 }) {
   const idBase = useId();
   const campoCodigo = useRef(null);
@@ -143,8 +144,8 @@ export default function FormularioPase({
       ) : (
         <>
           <p className="acceso-intro" role="status">
-            Si <strong>{enmascarado}</strong> está registrado en esta sede, te llegó un SMS con un código de 6 dígitos.
-            Vence en 5 minutos.
+            Si <strong>{enmascarado}</strong> está registrado en esta sede, te enviamos un código de 6 dígitos por SMS
+            y a tu correo, si lo tienes registrado. Vence en 5 minutos.
           </p>
           <form onSubmit={validarCodigo} noValidate>
             <label htmlFor={`${idBase}-codigo`} className="acceso-etiqueta">Código de 6 dígitos</label>

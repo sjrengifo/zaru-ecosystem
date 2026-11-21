@@ -154,6 +154,36 @@ export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enla
 }
 
 /**
+ * HU-59 (RF-F5-11): código de un solo uso para entrar a la app del cliente. Lo pide el propio cliente,
+ * así que no lleva enlace de baja: es un mensaje de seguridad, no un aviso del servicio (HU-30).
+ */
+export function plantillaCodigoAcceso({ establecimiento, cliente, codigo, minutos }) {
+  const sede = establecimiento?.nombre ?? 'tu car wash';
+  const color = colorSeguro(establecimiento?.color_primario);
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, usa este código para entrar a tu historial, tus notificaciones y tus preferencias en ${escaparHtml(sede)}:</p>
+<p style="margin:0 0 16px;text-align:center"><span style="display:inline-block;padding:12px 20px;border:2px solid ${color};border-radius:10px;font-size:32px;font-weight:700;letter-spacing:8px;font-family:Consolas,Menlo,monospace">${escaparHtml(codigo)}</span></p>
+<p style="margin:0 0 8px">Vence en ${minutos} minutos y solo sirve una vez.</p>
+<p style="margin:0;color:#6b7280">Si no lo pediste, ignora este correo. Nunca compartas este código con nadie.</p>`;
+
+  return {
+    asunto: `${codigo} es tu código para entrar a ${sede}`,
+    html: marco({
+      establecimiento,
+      titulo: 'Tu código de acceso',
+      cuerpoHtml,
+      motivo: `pediste entrar a la app de ${escaparHtml(sede)} con tu celular`,
+    }),
+    texto: [
+      `Hola ${primerNombre(cliente?.nombre)}, tu código para entrar a ${sede} es: ${codigo}`,
+      `Vence en ${minutos} minutos y solo sirve una vez.`,
+      '',
+      'Si no lo pediste, ignora este correo. Nunca compartas este código con nadie.',
+    ].join('\n'),
+  };
+}
+
+/**
  * HU-31: avisos de los estados intermedios y de la entrega. Comparten el mismo marco que los
  * correos de ingreso y listo, e incluyen el enlace de seguimiento mientras la orden siga vigente.
  */
