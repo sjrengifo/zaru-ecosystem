@@ -20,11 +20,29 @@ export const formatoPesos = (valor) =>
 export const formatoFechaHora = (valor) =>
   new Intl.DateTimeFormat('es-CO', { timeZone: ZONA, dateStyle: 'long', timeStyle: 'short' }).format(new Date(valor ?? Date.now()));
 
+/**
+ * Fecha sin hora (AAAA-MM-DD) en hora de Colombia. Se arma en UTC para que el día no se corra:
+ * las fechas de vigencia de una promoción son días completos, no instantes.
+ */
+export const formatoFecha = (valor) => {
+  const [anio, mes, dia] = String(valor ?? '').slice(0, 10).split('-').map(Number);
+  if (!anio || !mes || !dia) return '';
+  return new Intl.DateTimeFormat('es-CO', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })
+    .format(new Date(Date.UTC(anio, mes - 1, dia)));
+};
+
 const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
 const colorSeguro = (color) => (COLOR_HEX.test(color ?? '') ? color : '#2563EB');
 const primerNombre = (nombre) => String(nombre ?? '').trim().split(/\s+/)[0] || 'cliente';
 
-function marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja = null, textoEnlaceBaja = 'Dejar de recibir estos avisos', notaPie = null }) {
+function marco({
+  establecimiento,
+  titulo,
+  cuerpoHtml,
+  enlaceBaja = null,
+  textoBaja = 'Dejar de recibir estos avisos',
+  motivo = null,
+}) {
   const color = colorSeguro(establecimiento?.color_primario);
   const nombreSede = escaparHtml(establecimiento?.nombre ?? 'Zaru');
   const encabezado = establecimiento?.logo_url
@@ -41,7 +59,7 @@ function marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja = null, textoEn
 ${cuerpoHtml}
 </td></tr>
 <tr><td style="padding:16px 24px;background:#f9fafb;color:#6b7280;font-size:12px">
-${notaPie ?? `Recibes este correo porque dejaste tu vehículo en ${nombreSede}.`} Es un mensaje automático: por favor no respondas.${enlaceBaja ? `<br><a href="${escaparHtml(enlaceBaja)}" style="color:#6b7280">${escaparHtml(textoEnlaceBaja)}</a>` : ''}
+Recibes este correo porque ${motivo ?? `dejaste tu vehículo en ${nombreSede}`}. Es un mensaje automático: por favor no respondas.${enlaceBaja ? `<br><a href="${escaparHtml(enlaceBaja)}" style="color:#6b7280">${escaparHtml(textoBaja)}</a>` : ''}
 </td></tr>
 </table>
 </td></tr></table>
@@ -63,6 +81,20 @@ function botonSeguimiento(enlace, color) {
 }
 
 /** HU-30 CA3: versión en texto plano del enlace "dejar de recibir". */
+/** HU-28 CA1: hora en que cambió el estado. Sin hora no se agrega la línea. */
+const horaHtml = (horaCambio) =>
+  horaCambio
+    ? `<p style="margin:0 0 16px;color:#6b7280;font-size:14px">Hora del cambio: <strong style="color:#111827">${escaparHtml(formatoFechaHora(horaCambio))}</strong></p>`
+    : '';
+const horaTexto = (horaCambio) => (horaCambio ? [`Hora del cambio: ${formatoFechaHora(horaCambio)}`] : []);
+
+/** HU-28 CA2: dirección de la sede, si el administrador la registró en Branding. */
+const direccionHtml = (establecimiento) =>
+  establecimiento?.direccion
+    ? `<p style="margin:0 0 16px">Recógelo en: <strong>${escaparHtml(establecimiento.direccion)}</strong></p>`
+    : '';
+const direccionTexto = (establecimiento) => (establecimiento?.direccion ? [`Recógelo en: ${establecimiento.direccion}`] : []);
+
 const pieTexto = (enlaceBaja) => (enlaceBaja ? ['', `¿No quieres recibir más estos avisos? ${enlaceBaja}`] : []);
 
 function placaHtml(placa) {
@@ -115,10 +147,11 @@ ${botonSeguimiento(enlace, colorSeguro(establecimiento?.color_primario))}`;
 }
 
 /** CA2: aviso de que el vehículo está listo para recoger. */
-export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enlaceBaja = null }) {
+export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enlaceBaja = null, horaCambio = null }) {
   const sede = establecimiento?.nombre ?? 'el car wash';
   const cuerpoHtml = `
 <p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, tu vehículo ${placaHtml(vehiculo?.placa)} está <strong>listo para recoger</strong> en ${escaparHtml(sede)}.</p>
+${direccionHtml(establecimiento)}${horaHtml(horaCambio)}
 <p style="margin:0 0 16px">Valor a pagar en el punto: <strong>${formatoPesos(orden?.total)}</strong></p>
 <p style="margin:0">¡Gracias por confiar en nosotros!</p>`;
 
@@ -127,6 +160,8 @@ export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enla
     html: marco({ establecimiento, titulo: '¡Tu vehículo está listo!', cuerpoHtml, enlaceBaja }),
     texto: [
       `Hola ${primerNombre(cliente?.nombre)}, tu vehículo ${vehiculo?.placa} está listo para recoger en ${sede}.`,
+      ...direccionTexto(establecimiento),
+      ...horaTexto(horaCambio),
       `Valor a pagar en el punto: ${formatoPesos(orden?.total)}`,
       '',
       '¡Gracias por confiar en nosotros!',
@@ -186,8 +221,8 @@ export function plantillaRecordatorio({ establecimiento, cliente, vehiculo, reco
       titulo: 'Tu próximo lavado se acerca',
       cuerpoHtml,
       enlaceBaja: enlaceRecordatorio,
-      textoEnlaceBaja: 'No volver a recordarme',
-      notaPie: `Recibes este recordatorio porque lavaste tu vehículo en ${sede}.`,
+      textoBaja: 'No volver a recordarme',
+      motivo: `lavaste tu vehículo en ${escaparHtml(sede)}`,
     }),
     texto: [
       `Hola ${primerNombre(cliente?.nombre)}, por el ritmo de tus lavados estimamos que tu vehículo ${vehiculo?.placa} estará listo para un nuevo lavado el ${dia}.`,
@@ -197,9 +232,209 @@ export function plantillaRecordatorio({ establecimiento, cliente, vehiculo, reco
   };
 }
 
+/**
+ * HU-59 (RF-F5-11): código de un solo uso para entrar a la app del cliente. Lo pide el propio cliente,
+ * así que no lleva enlace de baja: es un mensaje de seguridad, no un aviso del servicio (HU-30).
+ */
+export function plantillaCodigoAcceso({ establecimiento, cliente, codigo, minutos }) {
+  const sede = establecimiento?.nombre ?? 'tu car wash';
+  const color = colorSeguro(establecimiento?.color_primario);
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, usa este código para entrar a tu historial, tus notificaciones y tus preferencias en ${escaparHtml(sede)}:</p>
+<p style="margin:0 0 16px;text-align:center"><span style="display:inline-block;padding:12px 20px;border:2px solid ${color};border-radius:10px;font-size:32px;font-weight:700;letter-spacing:8px;font-family:Consolas,Menlo,monospace">${escaparHtml(codigo)}</span></p>
+<p style="margin:0 0 8px">Vence en ${minutos} minutos y solo sirve una vez.</p>
+<p style="margin:0;color:#6b7280">Si no lo pediste, ignora este correo. Nunca compartas este código con nadie.</p>`;
+
+  return {
+    asunto: `${codigo} es tu código para entrar a ${sede}`,
+    html: marco({
+      establecimiento,
+      titulo: 'Tu código de acceso',
+      cuerpoHtml,
+      motivo: `pediste entrar a la app de ${escaparHtml(sede)} con tu celular`,
+    }),
+    texto: [
+      `Hola ${primerNombre(cliente?.nombre)}, tu código para entrar a ${sede} es: ${codigo}`,
+      `Vence en ${minutos} minutos y solo sirve una vez.`,
+      '',
+      'Si no lo pediste, ignora este correo. Nunca compartas este código con nadie.',
+    ].join('\n'),
+  };
+}
+
+/**
+ * HU-31: avisos de los estados intermedios y de la entrega. Comparten el mismo marco que los
+ * correos de ingreso y listo, e incluyen el enlace de seguimiento mientras la orden siga vigente.
+ */
+function plantillaCambioEstado(
+  { establecimiento, cliente, orden, vehiculo, enlaceBaja = null, horaCambio = null },
+  { titulo, asunto, fraseHtml, fraseTexto, cierreHtml, cierreTexto, conSeguimiento = true },
+) {
+  const enlace = conSeguimiento ? enlaceSeguimiento(orden?.codigo_seguimiento) : null;
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, ${fraseHtml}</p>
+${horaHtml(horaCambio)}
+<p style="margin:0 0 16px">${cierreHtml}</p>
+${botonSeguimiento(enlace, colorSeguro(establecimiento?.color_primario))}`;
+
+  return {
+    asunto: `${asunto} ${vehiculo?.placa ?? ''}`.replace(/\s+/g, ' ').trim(),
+    html: marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja }),
+    texto: [
+      `Hola ${primerNombre(cliente?.nombre)}, ${fraseTexto}`,
+      ...horaTexto(horaCambio),
+      cierreTexto,
+      ...(enlace ? ['', `Sigue el estado de tu lavado en tiempo real: ${enlace}`] : []),
+      ...pieTexto(enlaceBaja),
+    ].join('\n'),
+  };
+}
+
+/** HU-31: el vehículo empezó el lavado. */
+export function plantillaEnLavado(datos) {
+  const sede = datos.establecimiento?.nombre ?? 'el car wash';
+  return plantillaCambioEstado(datos, {
+    titulo: 'Tu vehículo ya está en lavado',
+    asunto: 'Tu vehículo ya inició el lavado:',
+    fraseHtml: `tu vehículo ${placaHtml(datos.vehiculo?.placa)} ya inició el lavado en ${escaparHtml(sede)}.`,
+    fraseTexto: `tu vehículo ${datos.vehiculo?.placa} ya inició el lavado en ${sede}.`,
+    cierreHtml: 'Te avisaremos cuando pase a secado.',
+    cierreTexto: 'Te avisaremos cuando pase a secado.',
+  });
+}
+
+/** HU-31: el vehículo está en secado. */
+export function plantillaSecado(datos) {
+  const sede = datos.establecimiento?.nombre ?? 'el car wash';
+  return plantillaCambioEstado(datos, {
+    titulo: 'Estamos secando tu vehículo',
+    asunto: 'Tu vehículo está en secado:',
+    fraseHtml: `estamos secando y dando los últimos detalles a tu vehículo ${placaHtml(datos.vehiculo?.placa)} en ${escaparHtml(sede)}.`,
+    fraseTexto: `estamos secando y dando los últimos detalles a tu vehículo ${datos.vehiculo?.placa} en ${sede}.`,
+    cierreHtml: 'Muy pronto estará listo para recoger.',
+    cierreTexto: 'Muy pronto estará listo para recoger.',
+  });
+}
+
+/** HU-31: el vehículo se entregó al cliente. */
+export function plantillaEntregada(datos) {
+  const sede = datos.establecimiento?.nombre ?? 'el car wash';
+  return plantillaCambioEstado(datos, {
+    titulo: 'Entregamos tu vehículo',
+    asunto: 'Entregamos tu vehículo:',
+    fraseHtml: `entregamos tu vehículo ${placaHtml(datos.vehiculo?.placa)} en ${escaparHtml(sede)}.`,
+    fraseTexto: `entregamos tu vehículo ${datos.vehiculo?.placa} en ${sede}.`,
+    cierreHtml: '¡Gracias por confiar en nosotros!',
+    cierreTexto: '¡Gracias por confiar en nosotros!',
+    conSeguimiento: false,
+  });
+}
+
+/**
+ * HU-35 (RF-F7-10) — correo de una promoción segmentada.
+ * La promoción llega como foto guardada al confirmar la campaña (`promocion_snapshot`), no se
+ * consulta de nuevo al enviar: así el mensaje dice lo mismo que vio el administrador.
+ * @param {{ establecimiento, cliente, promocion: object, enlaceBaja?: string }} datos
+ */
+export function plantillaPromocion({ establecimiento, cliente, promocion = {}, enlaceBaja = null }) {
+  const sede = establecimiento?.nombre ?? 'tu car wash';
+  const titulo = promocion.nombre ?? 'Una promoción para ti';
+  const descuento = Number(promocion.descuentoPct ?? 0);
+  const servicios = (Array.isArray(promocion.servicios) ? promocion.servicios : []).filter(Boolean);
+  const descripcion = promocion.descripcion ? String(promocion.descripcion) : '';
+  const condiciones = promocion.condiciones ? String(promocion.condiciones) : '';
+  const vigencia = promocion.fechaFin
+    ? `Válida hasta el ${formatoFecha(promocion.fechaFin)}`
+    : '';
+
+  const descuentoHtml = descuento > 0
+    ? `<p style="margin:0 0 16px;font-size:28px;font-weight:700;color:${colorSeguro(establecimiento?.color_primario)}">${descuento}% de descuento</p>`
+    : '';
+  const serviciosHtml = servicios.length
+    ? `<p style="margin:16px 0 4px;font-weight:600">Aplica en</p>
+<ul style="margin:0 0 16px;padding-left:20px">${servicios.map((s) => `<li>${escaparHtml(s)}</li>`).join('')}</ul>`
+    : '';
+  const condicionesHtml = condiciones
+    ? `<p style="margin:0 0 16px;color:#4b5563;font-size:14px"><strong>Condiciones:</strong> ${escaparHtml(condiciones)}</p>`
+    : '';
+
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, en ${escaparHtml(sede)} preparamos algo para tu vehículo.</p>
+<h2 style="margin:0 0 8px;font-size:22px">${escaparHtml(titulo)}</h2>
+${descuentoHtml}
+${descripcion ? `<p style="margin:0 0 16px">${escaparHtml(descripcion)}</p>` : ''}
+${serviciosHtml}
+${condicionesHtml}
+${vigencia ? `<p style="margin:0;font-weight:600">${escaparHtml(vigencia)}</p>` : ''}`;
+
+  const lineas = [
+    `Hola ${primerNombre(cliente?.nombre)}, en ${sede} preparamos algo para tu vehículo.`,
+    '',
+    titulo,
+    ...(descuento > 0 ? [`${descuento}% de descuento`] : []),
+    ...(descripcion ? ['', descripcion] : []),
+    ...(servicios.length ? ['', 'Aplica en:', ...servicios.map((s) => `- ${s}`)] : []),
+    ...(condiciones ? ['', `Condiciones: ${condiciones}`] : []),
+    ...(vigencia ? ['', vigencia] : []),
+    '',
+    ...pieTexto(enlaceBaja),
+  ];
+
+  return {
+    asunto: `${titulo} · ${sede}`.replace(/\s+/g, ' ').trim(),
+    html: marco({
+      establecimiento,
+      titulo,
+      cuerpoHtml,
+      enlaceBaja,
+      textoBaja: 'Dejar de recibir promociones',
+      motivo: `autorizaste recibir promociones y ofertas de ${escaparHtml(sede)}`,
+    }),
+    texto: lineas.join('\n'),
+  };
+}
+
+/** Nombre legible del estado de la orden para los avisos. */
+export const NOMBRE_ESTADO = {
+  recibido: 'Recibido',
+  en_lavado: 'En lavado',
+  secado: 'Secado',
+  listo: 'Listo para recoger',
+  entregado: 'Entregado',
+};
+
+/**
+ * HU-28 CA3: el operario revirtió un estado que ya se le había avisado al cliente. El aviso guarda
+ * en `contenido` el estado avisado por error; el estado actual sale de la orden.
+ */
+export function plantillaCorreccion({ establecimiento, cliente, orden, vehiculo, contenido = {}, enlaceBaja = null }) {
+  const actual = NOMBRE_ESTADO[orden?.estado] ?? orden?.estado ?? '';
+  const erroneo = NOMBRE_ESTADO[contenido.estadoRevertido] ?? contenido.estadoRevertido ?? 'otro estado';
+  const enlace = enlaceSeguimiento(orden?.codigo_seguimiento);
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, te avisamos por error que tu vehículo ${placaHtml(vehiculo?.placa)} pasó a <strong>${escaparHtml(erroneo)}</strong>.</p>
+<p style="margin:0 0 16px">Tu vehículo sigue en estado <strong>${escaparHtml(actual)}</strong>. Disculpa la confusión; te avisaremos cuando avance.</p>
+${botonSeguimiento(enlace, colorSeguro(establecimiento?.color_primario))}`;
+
+  return {
+    asunto: `Corrección: tu vehículo ${vehiculo?.placa ?? ''} sigue en ${actual}`.replace(/\s+/g, ' ').trim(),
+    html: marco({ establecimiento, titulo: 'Corrección del aviso anterior', cuerpoHtml, enlaceBaja }),
+    texto: [
+      `Hola ${primerNombre(cliente?.nombre)}, te avisamos por error que tu vehículo ${vehiculo?.placa} pasó a ${erroneo}.`,
+      `Tu vehículo sigue en estado ${actual}. Disculpa la confusión; te avisaremos cuando avance.`,
+      ...(enlace ? ['', `Sigue el estado de tu lavado en tiempo real: ${enlace}`] : []),
+      ...pieTexto(enlaceBaja),
+    ].join('\n'),
+  };
+}
+
 export const PLANTILLAS = {
   'orden.recibida': plantillaIngreso,
+  'orden.en_lavado': plantillaEnLavado,
+  'orden.secado': plantillaSecado,
   'orden.lista': plantillaListo,
   'orden.novedad': plantillaNovedad,
   'recordatorio.proximo_lavado': plantillaRecordatorio,
+  'orden.entregada': plantillaEntregada,
+  'orden.correccion': plantillaCorreccion,
 };

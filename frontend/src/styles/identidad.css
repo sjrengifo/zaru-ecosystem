@@ -768,3 +768,26 @@ input[type='search'], .buscador input, input[placeholder^='Buscar'] {
   .tarjeta-vehiculo:hover { transform: none; }
   .boton, .boton-grande svg, .tarjeta-vehiculo-accion::after { transition: none; }
 }
+
+/* HU-10: deshacer el último avance durante unos segundos. Discreto, para no competir con "Avanzar". */
+.tarjeta-vehiculo-deshacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 36px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  font-size: 13px;
+  animation: tarjeta-entrar 180ms ease-out;
+}
+.tarjeta-vehiculo-deshacer-segundos {
+  min-width: 34px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-advertencia-fondo);
+  color: var(--color-advertencia);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}

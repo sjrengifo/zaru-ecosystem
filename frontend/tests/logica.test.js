@@ -36,10 +36,11 @@ describe('HU-59 · menú y permisos por rol', () => {
     expect(menuPara(operario).map((m) => m.texto)).toEqual(['Dashboard', 'Clientes', 'Vehículos']);
     expect(puedeVer(operario, 'promociones')).toBe(false);
     expect(puedeVer(operario, 'branding')).toBe(false);
+    expect(puedeVer(operario, 'notificaciones')).toBe(false);
   });
 
   it('CA2: el administrador ve todos los módulos', () => {
-    expect(menuPara(admin).map((m) => m.texto)).toEqual(['Dashboard', 'Clientes', 'Vehículos', 'Servicios', 'Promociones', 'Usuarios', 'Branding', 'Reportes', 'Notificaciones']);
+    expect(menuPara(admin).map((m) => m.texto)).toEqual(['Dashboard', 'Clientes', 'Vehículos', 'Servicios', 'Promociones', 'Usuarios', 'Branding', 'Reportes', 'Notificaciones', 'Config. notificaciones', 'Plantillas']);
   });
 
   it('usa los permisos que envía la API antes que la copia local', () => {

@@ -26,7 +26,14 @@ const esquema = z
     // HU-34: worker de la cola y canal alterno por SMS.
     NOTIFICACIONES_WORKER: z.enum(['on', 'off']).default('on'),
     NOTIFICACIONES_ESPERAS_MS: z.string().optional(),
-    SMS_PROVEEDOR: z.enum(['consola', 'twilio', 'deshabilitado']).default('consola'),
+    SMS_PROVEEDOR: z.enum(['consola', 'twilio', 'deshabilitado', 'mixto']).default('consola'),
+    // Con mixto: celulares separados por coma que además reciben el SMS real por Twilio.
+    SMS_NUMEROS_REALES: z.string().optional(),
+    // HU-40: Web Push. Con webpush hacen falta las tres variables VAPID (la privada es secreta).
+    PUSH_PROVEEDOR: z.enum(['no_configurado', 'webpush']).optional(),
+    VAPID_PUBLIC_KEY: z.string().optional(),
+    VAPID_PRIVATE_KEY: z.string().optional(),
+    VAPID_SUBJECT: z.string().regex(/^(https:\/\/|mailto:)/, 'debe empezar por https:// o mailto:').optional(),
     TWILIO_ACCOUNT_SID: z.string().optional(),
     TWILIO_AUTH_TOKEN: z.string().optional(),
     TWILIO_FROM: z.string().optional(),
@@ -41,10 +48,17 @@ const esquema = z
     if (env.CORREO_PROVEEDOR === 'resend' && !env.RESEND_API_KEY) {
       ctx.addIssue({ code: 'custom', path: ['RESEND_API_KEY'], message: 'es obligatoria con CORREO_PROVEEDOR=resend' });
     }
+    if (env.PUSH_PROVEEDOR === 'webpush' && !(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['PUSH_PROVEEDOR'],
+        message: 'Web Push requiere VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY y VAPID_SUBJECT',
+      });
+    }
     if (env.CORREO_PROVEEDOR === 'smtp' && !env.SMTP_HOST) {
       ctx.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'es obligatorio con CORREO_PROVEEDOR=smtp' });
     }
-    if (env.SMS_PROVEEDOR === 'twilio' && !(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_FROM)) {
+    if (['twilio', 'mixto'].includes(env.SMS_PROVEEDOR) && !(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_FROM)) {
       ctx.addIssue({
         code: 'custom',
         path: ['SMS_PROVEEDOR'],

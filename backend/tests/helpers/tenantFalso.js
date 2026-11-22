@@ -35,6 +35,7 @@ export function crearTenantFalso(respuestasPorTabla = {}) {
     actualizar: vi.fn(async (tabla, id, cambios) => ({ id, ...cambios })),
     crearDetalle: vi.fn(async () => []),
     eliminar: vi.fn(async () => {}),
+    rpc: vi.fn(async () => null),
   };
 }
 
@@ -44,6 +45,7 @@ export function respuestaFalsa() {
     statusCode: 200,
     status: vi.fn(function status(codigo) { this.statusCode = codigo; return this; }),
     json: vi.fn(function json(cuerpo) { this.body = cuerpo; return this; }),
+    set: vi.fn(function set() { return this; }),
   };
 }
 

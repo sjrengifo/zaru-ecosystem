@@ -1,0 +1,143 @@
+/* HU-32 — Plantillas de notificación (panel del administrador).
+   Se apoya en global.css e identidad.css: .tarjeta, .campo, .campo-control, .grupo-opciones,
+   .opcion, .boton, .insignia, .aviso, .mensaje-error y las variables de color, radio y sombra.
+   Aquí solo va lo propio de la pantalla. */
+
+.plantillas-formulario { display: flex; flex-direction: column; gap: 4px; }
+.plantillas-selectores { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 16px; align-items: start; }
+
+/* El selector de estado con el mismo aspecto que los demás campos y que las tarjetas de Canal (.opcion):
+   alto de 44px, borde de 1px con --color-borde y --radio. Mismos valores que .superadmin-form select. */
+.plantillas-selectores select {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background-color: var(--color-superficie);
+  color: var(--color-texto);
+  font: inherit;
+  cursor: pointer;
+}
+.plantillas-selectores select:hover { border-color: color-mix(in srgb, var(--color-texto-suave) 45%, var(--color-borde)); }
+
+/* La leyenda "Canal" con el mismo peso y color que la etiqueta "Estado del vehículo" (label de identidad.css). */
+.plantillas-selectores legend { font-weight: 600; color: var(--color-texto); }
+.plantillas-selectores .opciones { flex-wrap: wrap; }
+.plantillas-selectores .opcion { min-width: 120px; }
+.plantillas-selectores .opcion .insignia { margin-left: auto; }
+
+.plantilla-origen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+
+.plantilla-variables { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; }
+.plantilla-variables .campo-ayuda { margin: 0; }
+.plantilla-variable { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* El campo va encima de una copia del texto donde se resaltan las variables inválidas (CA4).
+   El borde, el radio, el foco y el hover son los de los demás campos (identidad.css); aquí solo se
+   alinean la copia y el campo para que el resaltado caiga justo detrás de cada letra. */
+.plantilla-editor textarea,
+.plantilla-editor input,
+.plantilla-resaltado {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border-width: 1px;
+  border-style: solid;
+  font: inherit;
+  line-height: 1.5;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.plantilla-editor textarea,
+.plantilla-editor input {
+  position: relative;
+  z-index: 1;
+  background-color: transparent;
+}
+/* Error: el borde rojo lo pone el campo; el fondo rojo claro de global.css va en la copia de atrás para
+   que no tape el resaltado. */
+.plantilla-editor input[aria-invalid='true'] { background-color: transparent; }
+.plantilla-editor textarea[aria-invalid='true'] { border-color: var(--color-error); }
+.plantilla-resaltado {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-color: transparent;
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: transparent;
+  pointer-events: none;
+}
+.plantilla-editor:has([aria-invalid='true']) .plantilla-resaltado { background: var(--color-error-fondo); }
+.plantilla-editor-linea .plantilla-resaltado { white-space: pre; }
+.plantilla-resaltado mark {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-error) 22%, transparent);
+  box-shadow: 0 2px 0 var(--color-error);
+  color: transparent;
+}
+
+.plantilla-errores { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.plantilla-errores li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.plantilla-errores .mensaje-error { margin: 0; }
+
+.plantilla-contador { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.plantilla-contador p { margin: 0; }
+.plantilla-contador-numeros { font-size: 14px; font-variant-numeric: tabular-nums; }
+.plantilla-contador-exceso strong { color: var(--color-advertencia); }
+
+.plantillas-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.plantillas-bloqueo { display: flex; justify-content: flex-end; margin-top: 6px; }
+.plantillas-bloqueo .mensaje-error { margin: 0; }
+
+/* CA3 · Vista previa */
+.plantillas-previa { margin-top: var(--espacio); }
+.plantillas-previa h3 { margin-top: 0; }
+.previa { --previa-color: var(--color-primario); }
+.previa-datos { margin: 0 0 12px; }
+.previa-canales { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; align-items: start; }
+.previa-canal { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.previa-canal-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 14px; }
+
+.previa-push {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-grande);
+  background: var(--color-fondo);
+  box-shadow: var(--sombra-1);
+}
+.previa-push p { margin: 0; }
+.previa-push-logo { flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px; object-fit: contain; background: var(--color-superficie); }
+.previa-push-inicial { display: grid; place-items: center; background: var(--previa-color); color: #fff; font-weight: 700; }
+.previa-push-app { font-size: 12px; color: var(--color-texto-suave); }
+.previa-push-titulo { font-weight: 700; }
+.previa-push-texto { font-size: 14px; overflow-wrap: anywhere; }
+
+.previa-sms {
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radio-grande) var(--radio-grande) var(--radio-grande) 4px;
+  background: var(--color-encabezado-tabla);
+  border: 1px solid var(--color-borde);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.previa-sms-conteo { margin: 0; font-size: 13px; color: var(--color-texto-suave); font-variant-numeric: tabular-nums; }
+.previa-aviso { margin: 0; font-size: 13px; }
+
+.previa-correo-asunto { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.previa-correo { width: 100%; height: 420px; border: 1px solid var(--color-borde); border-radius: var(--radio); background: var(--color-fondo); }
+
+@media (max-width: 720px) {
+  .plantillas-selectores { grid-template-columns: 1fr; }
+  .plantillas-acciones .boton { flex: 1 1 auto; }
+}

@@ -38,11 +38,18 @@ function proveedorConsola() {
 function proveedorResend(env, fetchImpl = globalThis.fetch) {
   return {
     nombre: 'resend',
-    async enviar({ para, asunto, html, texto }) {
+    async enviar({ para, asunto, html, texto, referencia }) {
+      const headers = { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' };
+      // HU-33 CA4: con la misma clave, Resend no envía dos veces el mismo correo (24 h) aunque un
+      // reintento salga porque la respuesta anterior se perdió. La etiqueta permite reconocer la
+      // notificación cuando el webhook confirme la entrega.
+      if (referencia) headers['Idempotency-Key'] = `zaru-${referencia}`;
+      const correo = { from: env.CORREO_REMITENTE, to: [para], subject: asunto, html, text: texto };
+      if (referencia) correo.tags = [{ name: 'notificacion', value: String(referencia) }];
       const respuesta = await fetchImpl('https://api.resend.com/emails', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: env.CORREO_REMITENTE, to: [para], subject: asunto, html, text: texto }),
+        headers,
+        body: JSON.stringify(correo),
       });
       const cuerpo = await respuesta.json().catch(() => ({}));
       if (!respuesta.ok) throw new Error(`Resend respondió ${respuesta.status}: ${cuerpo.message ?? 'error desconocido'}`);
@@ -55,7 +62,7 @@ function proveedorSmtp(env) {
   let transporte;
   return {
     nombre: 'smtp',
-    async enviar({ para, asunto, html, texto }) {
+    async enviar({ para, asunto, html, texto, referencia }) {
       if (!transporte) {
         const { default: nodemailer } = await import('nodemailer');
         const puerto = Number(env.SMTP_PORT ?? 587);
@@ -66,7 +73,8 @@ function proveedorSmtp(env) {
           auth: env.SMTP_USUARIO ? { user: env.SMTP_USUARIO, pass: env.SMTP_CLAVE } : undefined,
         });
       }
-      const info = await transporte.sendMail({ from: env.CORREO_REMITENTE, to: para, subject: asunto, html, text: texto });
+      const headers = referencia ? { 'X-Zaru-Notificacion': String(referencia) } : undefined;
+      const info = await transporte.sendMail({ from: env.CORREO_REMITENTE, to: para, subject: asunto, html, text: texto, headers });
       return { idProveedor: info.messageId ?? null };
     },
   };

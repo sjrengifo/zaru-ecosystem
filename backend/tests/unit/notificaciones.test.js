@@ -6,7 +6,7 @@ beforeAll(() => {
   process.env.ZARU_CLAVE_CIFRADO = Buffer.alloc(32, 7).toString('base64');
 });
 
-const { prepararCorreo, enviarCorreo, EVENTOS, MAX_INTENTOS } = await import('../../src/shared/notificaciones.js');
+const { prepararCorreo, enviarCorreo, EVENTOS, ESTADO_DE_EVENTO, eventoDeEstado, MAX_INTENTOS } = await import('../../src/shared/notificaciones.js');
 const { cifrar, descifrar, estaCifrado } = await import('../../src/shared/cifrado.js');
 const { AppError } = await import('../../src/shared/errores.js');
 
@@ -26,8 +26,10 @@ function orden(correo) {
   };
 }
 
-function tenantCon({ correo = cifrar('luis@correo.com'), revocado = false } = {}) {
+function tenantCon({ correo = cifrar('luis@correo.com'), revocado = false, config = null } = {}) {
   const tenant = crearTenantFalso({
+    // HU-31: la configuración del estado se consulta antes de armar el correo.
+    config_notificaciones: [{ data: config, error: null }],
     ordenes: [{ data: orden(correo), error: null }],
     // HU-30: autorización vigente de los avisos del servicio (vista autorizaciones_vigentes).
     autorizaciones_vigentes: [{ data: [{ tipo: 'notificaciones_servicio', otorgado: !revocado, canal: 'panel', created_at: '2026-11-01T10:00:00Z' }], error: null }],
@@ -116,7 +118,46 @@ describe('HU-46 · preparar el correo', () => {
   it('solo consulta datos del establecimiento de la sesión (usa req.tenant)', async () => {
     const tenant = tenantCon();
     await prepararCorreo(tenant, { evento: EVENTOS.RECIBIDA, ordenId: ORDEN_ID });
-    expect(tenant.consultas.map((c) => c.tabla)).toEqual(['ordenes', 'autorizaciones_vigentes', 'establecimientos']);
+    expect(tenant.consultas.map((c) => c.tabla)).toEqual(['config_notificaciones', 'ordenes', 'autorizaciones_vigentes', 'establecimientos']);
+  });
+
+  it('HU-31: cada estado del flujo tiene su evento de correo', () => {
+    expect(ESTADO_DE_EVENTO).toEqual({
+      'orden.recibida': 'recibido',
+      'orden.en_lavado': 'en_lavado',
+      'orden.secado': 'secado',
+      'orden.lista': 'listo',
+      'orden.entregada': 'entregado',
+    });
+    expect(eventoDeEstado('secado')).toBe(EVENTOS.SECADO);
+    expect(eventoDeEstado('desconocido')).toBeNull();
+  });
+
+  it('HU-31 CA3: con el estado desactivado no crea la fila ni envía el correo', async () => {
+    const tenant = tenantCon({ config: { estado: 'secado', activo: false } });
+    const { resumen, enviar } = await prepararCorreo(tenant, { evento: EVENTOS.SECADO, ordenId: ORDEN_ID });
+
+    expect(resumen).toEqual({ canal: 'correo', estado: 'omitida', motivo: 'desactivado' });
+    expect(tenant.crear).not.toHaveBeenCalled();
+    expect(tenant.consultas.map((c) => c.tabla)).toEqual(['config_notificaciones']);
+    await expect(enviar()).resolves.toBeNull();
+  });
+
+  it('HU-31: consulta el interruptor del estado que se está notificando', async () => {
+    const tenant = tenantCon({ config: { estado: 'listo', activo: true } });
+    await prepararCorreo(tenant, { evento: EVENTOS.LISTA, ordenId: ORDEN_ID });
+
+    const consulta = tenant.consultas[0];
+    expect(consulta.tabla).toBe('config_notificaciones');
+    expect(consulta.filtros).toContainEqual(['eq', 'estado', 'listo']);
+  });
+
+  it('HU-31: un estado sin fila guardada se considera activo', async () => {
+    const tenant = tenantCon({ config: null });
+    const { resumen } = await prepararCorreo(tenant, { evento: EVENTOS.EN_LAVADO, ordenId: ORDEN_ID });
+
+    expect(resumen).toMatchObject({ estado: 'pendiente' });
+    expect(tenant.crear.mock.calls[0][1]).toMatchObject({ evento: 'orden.en_lavado' });
   });
 });
 

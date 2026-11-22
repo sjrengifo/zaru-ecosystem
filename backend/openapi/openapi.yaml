@@ -62,12 +62,18 @@ tags:
     description: HU-57
   - name: Reportes
     description: HU-16
+  - name: Notificaciones
+    description: HU-31 (estados que generan aviso al cliente)
   - name: Seguimiento
     description: HU-18 (cliente final, sin sesión)
   - name: Acceso del cliente
     description: HU-17 (cliente final, sin sesión ni contraseña)
   - name: Notificaciones del cliente
     description: HU-38 (centro de notificaciones de la app, con el pase del historial)
+  - name: Plantillas de notificación
+    description: HU-32 (texto, variables y vista previa de push, SMS y correo con la marca de la sede; solo administrador)
+  - name: Webhooks
+    description: HU-33 CA4 (confirmación de entrega de los proveedores, protegida con su firma)
 security:
   - bearerPanel: []
 
@@ -190,6 +196,59 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SedePublica' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /publico/sedes/{slug}/promociones:
+    get:
+      tags: [Acceso del cliente]
+      operationId: listarPromocionesPublicas
+      summary: Promociones vigentes de la sede, con su marca
+      description: |
+        Explorador de promociones del cliente final (HU-26, RF-F5-09). Sin sesión.
+        Solo devuelve las promociones vigentes hoy (activas y con la fecha de Bogotá entre su inicio y su fin,
+        vista `promociones_vigentes` de HU-12) de la sede del slug; nunca las de otra sede (ESC-F5-07). Incluye
+        la marca de la sede (HU-22). Las condiciones de cada promoción son parte del detalle (HU-27).
+        Orden: primero las que vencen antes. Sin promociones vigentes responde `200` con una lista vacía.
+        Una sede inexistente o suspendida responde `404`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugSede'
+      responses:
+        '200':
+          description: Sede y sus promociones vigentes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromocionesSede' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /publico/sedes/{slug}/promociones/{id}:
+    get:
+      tags: [Acceso del cliente]
+      operationId: obtenerPromocionPublica
+      summary: Detalle y condiciones de una promoción vigente de la sede
+      description: |
+        Vista ampliada de una promoción para el cliente final (HU-27, RF-F5-10). Sin sesión.
+        Devuelve la marca de la sede (HU-22) y la promoción con su descripción completa, sus condiciones de uso,
+        el descuento, los servicios incluidos y la vigencia. `descripcion` y `condiciones` son `null` si el
+        establecimiento no las configuró.
+        Solo responde si la promoción está vigente hoy (vista `promociones_vigentes`) y es de la sede del slug.
+        Una promoción vencida, programada, desactivada, de otra sede, inexistente o con un `id` que no es UUID
+        responde el mismo `404` "Promoción no encontrada", sin revelar el motivo. Una sede inexistente o
+        suspendida responde `404`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugSede'
+        - name: id
+          in: path
+          required: true
+          description: Identificador de la promoción.
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sede y detalle de la promoción.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromocionDetalleSede' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /publico/sedes/{slug}/buscar:
@@ -323,20 +382,18 @@ paths:
                       desactivadoAt: { type: [string, 'null'], format: date-time }
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
-  /publico/sedes/{slug}/historial/acceso:
+  /publico/sedes/{slug}/otp:
     post:
       tags: [Historial del cliente]
-      operationId: accederHistorialCliente
-      summary: Verificar placa y celular para abrir el historial de servicios
+      operationId: solicitarCodigoAccesoCliente
+      summary: Pedir el código de acceso por SMS
       description: |
-        HU-23. El cliente final confirma que es dueño del vehículo con la **placa + el celular** registrados en
-        esa sede. Si ambos coinciden, recibe un `pase` firmado de vida corta (30 minutos) que debe enviar como
-        `Authorization: Bearer <pase>` en las rutas del historial.
+        RF-F5-11. El cliente final escribe su celular, elige el `canal` (`sms` por defecto o `correo`) y, si
+        está registrado en esa sede, le llega un código de 6 dígitos que vence a los 5 minutos. Si eligió
+        `correo` y no tiene uno registrado, el código sale por SMS (la respuesta es la misma en ambos casos). La respuesta es la misma (`202`) exista o no el celular:
+        no revela quién es cliente de la sede. Solo se guarda el hash del código.
 
-        El pase identifica al establecimiento y al cliente dentro de la firma: no se puede alterar ni usar para
-        otra sede. Si la placa o el celular no coinciden, la respuesta es el mismo `404` exista o no la placa
-        (no revela quién es cliente de la sede). Tras 5 intentos fallidos en 10 minutos desde el mismo origen
-        responde `429`.
+        Límite (RNF-F5-02): 3 solicitudes por celular cada 15 minutos; al exceder responde `429`.
       security: []
       parameters:
         - $ref: '#/components/parameters/SlugSede'
@@ -344,22 +401,61 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/AccesoHistorial' }
-            example: { placa: ABC123, celular: '3001234567' }
+            schema: { $ref: '#/components/schemas/SolicitudOtp' }
+            example: { celular: '3001234567', canal: correo }
+      responses:
+        '202':
+          description: Solicitud recibida. Si el celular está registrado, el código va en camino.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SolicitudOtpRespuesta' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+        '500':
+          description: No se pudo enviar el código por el canal elegido; el código queda invalidado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /publico/sedes/{slug}/otp/verificar:
+    post:
+      tags: [Historial del cliente]
+      operationId: verificarCodigoAccesoCliente
+      summary: Validar el código y abrir la sesión del cliente
+      description: |
+        RF-F5-12. Con el código correcto el cliente recibe un `pase` firmado de **30 días** que debe enviar como
+        `Authorization: Bearer <pase>` en las rutas `/publico/cliente/*` (historial, notificaciones, preferencias).
+        El pase identifica al establecimiento y al cliente dentro de la firma: no se puede alterar ni usar para
+        otra sede.
+
+        El código es de un solo uso y solo vale el último pedido. Con 5 intentos incorrectos queda invalidado.
+        Cualquier fallo (código incorrecto, vencido, usado o celular que no es cliente) responde el mismo `401`.
+        Tras 10 códigos incorrectos en 10 minutos desde el mismo origen responde `429`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugSede'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerificacionOtp' }
+            example: { celular: '3001234567', codigo: '123456' }
       responses:
         '200':
-          description: Pase emitido para consultar el historial de ese cliente en esa sede.
+          description: Pase emitido para ese cliente en esa sede.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AccesoHistorialRespuesta' }
         '400': { $ref: '#/components/responses/Validacion' }
-        '404':
-          description: La placa y el celular no coinciden con un vehículo de la sede (o la sede no existe).
+        '401':
+          description: El código no es válido, venció o ya se usó.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example:
-                error: { codigo: NO_ENCONTRADO, mensaje: No encontramos un vehículo con esa placa y celular en esta sede, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+                error: { codigo: NO_AUTENTICADO, mensaje: El código no es válido o ya venció. Revísalo o pide uno nuevo, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
 
   /publico/cliente/vehiculos:
@@ -493,6 +589,223 @@ paths:
         '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /publico/cliente/preferencias:
+    get:
+      tags: [Notificaciones del cliente]
+      operationId: obtenerPreferenciasCanal
+      summary: Canales de notificación del cliente con su estado actual
+      description: |
+        HU-29 CA1. Devuelve los canales `push`, `sms` y `correo` con su estado (`activo`). Un cliente que nunca
+        eligió recibe solo por correo. Los destinos viajan enmascarados. `push` aparece con
+        `disponible: false` hasta que se registre el dispositivo (HU-40).
+      security:
+        - paseCliente: []
+      responses:
+        '200':
+          description: Canales y su estado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenciasCanal' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    put:
+      tags: [Notificaciones del cliente]
+      operationId: guardarPreferenciasCanal
+      summary: Guardar los canales por los que el cliente quiere recibir avisos
+      description: |
+        HU-29 CA2, CA3 y CA4. Las siguientes notificaciones salen únicamente por los canales activos.
+
+        - CA2: activar `sms` exige un celular validado. El registrado ya lo está (el pase solo se emite con el
+          código enviado a ese número, HU-59) y se guarda como validado al activar el canal. Otro número se valida
+          con el código de 6 dígitos; si no hay ninguno válido responde `400` con `detalles[0].requiere = verificar_celular`.
+        - CA3: si los tres canales quedan inactivos responde `409` con `detalles[0].requiereConfirmacion = true`;
+          se repite la petición con `confirmarSinCanales: true` para confirmar la decisión.
+        - No se puede activar `correo` si el cliente no tiene correo registrado, ni `push` mientras no esté disponible.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [push, sms, correo]
+              properties:
+                push: { type: boolean }
+                sms: { type: boolean }
+                correo: { type: boolean }
+                confirmarSinCanales:
+                  type: boolean
+                  description: Confirma que el cliente entiende que no recibirá avisos (CA3).
+            example: { push: false, sms: true, correo: true }
+      responses:
+        '200':
+          description: Preferencias guardadas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenciasCanal' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /publico/cliente/celular/codigo:
+    post:
+      tags: [Notificaciones del cliente]
+      operationId: solicitarCodigoCelular
+      summary: Enviar por sms el código de 6 dígitos para validar el celular
+      description: |
+        HU-29 CA2. Envía un código de 6 dígitos al celular indicado o, si no se indica, al celular con el que el
+        cliente está registrado. El código vence a los 10 minutos y nunca se devuelve en la respuesta. Límites:
+        una solicitud por minuto y 3 por hora (`429`).
+      security:
+        - paseCliente: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                celular: { type: string, description: 'Celular de 10 dígitos (acepta +57). Opcional.', example: '3001234567' }
+      responses:
+        '200':
+          description: Código enviado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enviado, celular, expiraEn, reenvioEn]
+                properties:
+                  enviado: { type: boolean, const: true }
+                  celular: { type: string, description: Celular enmascarado., example: '300****567' }
+                  expiraEn: { type: string, format: date-time }
+                  reenvioEn: { type: string, format: date-time, description: Desde cuándo se puede pedir otro código. }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
+  /publico/cliente/celular/verificar:
+    post:
+      tags: [Notificaciones del cliente]
+      operationId: verificarCodigoCelular
+      summary: Validar el código de 6 dígitos y dejar el celular verificado
+      description: |
+        HU-29 CA2. Con el código correcto el celular queda verificado y el canal `sms` ya se puede activar al
+        guardar las preferencias. Un código incorrecto responde `400` con los intentos que quedan; tras 5 intentos
+        fallidos responde `429` y hay que pedir un código nuevo.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [codigo]
+              properties:
+                codigo: { type: string, pattern: '^[0-9]{6}$', example: '123456' }
+      responses:
+        '200':
+          description: Celular verificado; devuelve las preferencias actualizadas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenciasCanal' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
+  /publico/push/clave:
+    get:
+      tags: [Historial del cliente]
+      operationId: clavePublicaPush
+      summary: Llave pública para suscribir el navegador a las notificaciones push
+      description: >-
+        HU-40. Devuelve la llave pública VAPID con la que el navegador crea su suscripción Web Push. No es
+        secreta. Si el ambiente no tiene Web Push configurado responde `503` y la app no ofrece push.
+      security: []
+      responses:
+        '200':
+          description: Llave pública VAPID (base64url).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [clavePublica]
+                properties:
+                  clavePublica: { type: string }
+        '503':
+          description: Web Push no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /publico/cliente/push:
+    post:
+      tags: [Historial del cliente]
+      operationId: registrarDispositivoPush
+      summary: Registrar el dispositivo del cliente para recibir push
+      description: >-
+        HU-40 CA1. La web móvil envía la suscripción Web Push del navegador (`PushSubscription.toJSON()`) después de
+        que el cliente acepta el permiso. Queda asociada al cliente del pase. Si el mismo navegador ya estaba
+        registrado, se actualiza.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SuscripcionPush' }
+      responses:
+        '201':
+          description: Dispositivo registrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [registrado]
+                properties:
+                  registrado: { type: boolean, const: true }
+                  dispositivo: { type: string, example: Chrome en Android }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409':
+          description: Este navegador ya recibe avisos de otra sede.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: Web Push no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Historial del cliente]
+      operationId: eliminarDispositivoPush
+      summary: Dejar de recibir push en este dispositivo
+      description: HU-40. Borra la suscripción de este navegador. Si no existía, responde igual.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: { type: string, format: uri }
+      responses:
+        '200':
+          description: El dispositivo ya no recibe push.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registrado: { type: boolean, const: false }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
 
   /me:
     get:
@@ -1171,6 +1484,93 @@ paths:
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /campanas:
+    get:
+      tags: [Promociones]
+      operationId: listarCampanas
+      summary: Historial de campañas de promociones (solo administrador)
+      description: >-
+        HU-35 (RF-F7-06). Campañas de la sede, de la más reciente a la más antigua. Cada una conserva la foto de la
+        promoción al confirmar, el segmento, la hora solicitada y la hora ajustada al horario de Bogotá (CA4), el
+        total de destinatarios, las exclusiones de la estimación y los omitidos al materializar.
+      parameters:
+        - name: pagina
+          in: query
+          description: Página solicitada (empieza en 1).
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: porPagina
+          in: query
+          description: Campañas por página.
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        '200':
+          description: Campañas de la sede y datos de paginación.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampanasHistorial' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+    post:
+      tags: [Promociones]
+      operationId: crearCampana
+      summary: Crear una campaña de promoción segmentada (solo administrador)
+      description: >-
+        HU-35 CA1 y CA4 (RF-F7-06, RF-F7-09, RF-F7-10). Vuelve a estimar al confirmar y guarda la foto de la promoción.
+        Una hora entre las 8:00 p. m. y las 7:00 a. m. de Bogotá se reprograma a las 7:00 a. m. del día siguiente; la
+        respuesta trae `programadaPara`, `programadaSolicitada` y `ajustada`. El encabezado `Idempotency-Key` evita
+        campañas duplicadas si se reintenta la petición. Los mensajes se encolan como `comercial` con prioridad menor
+        que los operativos (RNF-F7-02) y cada uno lleva el enlace de baja de promociones (RF-F7-10).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CampanaNueva' }
+            example:
+              promocionId: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10
+              segmento:
+                diasSinVisita: 60
+                servicioIds: []
+                tiposVehiculo: [automovil]
+              programadaPara: '2026-11-20T15:00:00-05:00'
+      responses:
+        '201':
+          description: Campaña creada, con la hora ya ajustada al horario permitido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Campana' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /campanas/estimar:
+    post:
+      tags: [Promociones]
+      operationId: estimarCampana
+      summary: Estimar los destinatarios de una campaña (solo administrador)
+      description: >-
+        HU-35 CA2 y CA3 (RF-F7-07, RF-F7-08). No crea nada: devuelve el total de destinatarios y el detalle de
+        exclusiones. Se excluye a quien no autorizó comunicaciones comerciales (HU-30), a quien ya recibió 2 mensajes
+        comerciales de la sede en los últimos 7 días y a quien no tiene correo. La promoción debe estar vigente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CampanaSegmento' }
+      responses:
+        '200':
+          description: Total de destinatarios, exclusiones y la promoción sobre la que se enviará.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EstimacionCampana' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
   /reportes/servicios:
     get:
       tags: [Reportes]
@@ -1322,6 +1722,298 @@ paths:
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /notificaciones/fallidas:
+    get:
+      tags: [Notificaciones]
+      operationId: listarAvisosFallidos
+      summary: Avisos de "vehículo listo" que fallaron en todos los canales (solo administrador)
+      description: |
+        HU-33 CA3. Alertas abiertas del dashboard: avisos de "listo" que agotaron sus reintentos (1, 2 y 4
+        minutos) y todos los canales alternos del cliente. Incluye la placa y el **celular completo** para que
+        el administrador contacte directamente al cliente. Solo aparecen las alertas de la sede de la sesión
+        que nadie ha marcado como atendidas; se cierran solas si el proveedor confirma la entrega después.
+      responses:
+        '200':
+          description: Alertas abiertas, de la más reciente a la más antigua (máximo 50).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [alertas]
+                properties:
+                  alertas:
+                    type: array
+                    items: { $ref: '#/components/schemas/AlertaNotificacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /notificaciones/fallidas/{id}/atendida:
+    patch:
+      tags: [Notificaciones]
+      operationId: atenderAvisoFallido
+      summary: Marcar que ya se contactó al cliente de un aviso fallido (solo administrador)
+      description: HU-33 CA3. La alerta deja de aparecer en el dashboard. Repetirlo no cambia la fecha registrada.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Alerta atendida.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, atendidaAt]
+                properties:
+                  id: { type: string, format: uuid }
+                  atendidaAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /plantillas:
+    get:
+      tags: [Plantillas de notificación]
+      operationId: listarPlantillas
+      summary: Plantillas de notificación de la sede (solo administrador)
+      description: |
+        HU-32 (RF-F7-01, RF-F7-05). Las 15 plantillas (5 estados de la orden × push, SMS y correo). Donde la sede no
+        personalizó, se entrega la de la plataforma (`personalizada: false`). Cada plantilla trae también el texto de la
+        plataforma para restaurarlo. Incluye la lista de variables permitidas, los estados y los límites por canal.
+        Las de SMS traen su conteo de caracteres y partes (`sms`).
+      responses:
+        '200':
+          description: Plantillas de la sede.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlantillasSede' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /plantillas/{estado}/{canal}:
+    parameters:
+      - $ref: '#/components/parameters/EstadoPlantilla'
+      - $ref: '#/components/parameters/CanalPlantilla'
+    put:
+      tags: [Plantillas de notificación]
+      operationId: guardarPlantilla
+      summary: Guardar la plantilla de un estado y canal (solo administrador)
+      description: |
+        HU-32 CA1, CA2 y CA4 (RF-F7-01, 02, 04). Crea o reemplaza la plantilla de la sede.
+        Variables permitidas: `{nombre_cliente}`, `{placa}`, `{estado}`, `{sede}`, `{hora}`. Una variable inexistente o
+        mal escrita (o una llave sin cerrar) responde `400` y no guarda nada; cada detalle indica la variable, su posición
+        (desde 0), línea, columna y una sugerencia (ESC-F7-01). En SMS se ignora el asunto y la respuesta incluye
+        `caracteres`, `segmentos`, `codificacion` y `advertencias`: con más de una parte se advierte el mayor costo, y con
+        caracteres fuera de GSM-7 (como á, í, ó, ú) se explica que el límite por parte baja de 160 a 70 (ESC-F7-02).
+        Límites del texto: push 240, SMS 640, correo 2 000 caracteres; asunto 120.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TextoPlantilla' }
+            examples:
+              sms: { value: { cuerpo: '{sede}: tu carro {placa} ya puede ser recogido.' } }
+              correo: { value: { asunto: 'Tu vehículo {placa} está listo', cuerpo: "Hola {nombre_cliente},\n\ntu vehículo está listo." } }
+      responses:
+        '200':
+          description: Plantilla guardada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlantillaGuardada' }
+        '400':
+          description: Variable inválida, texto vacío o demasiado largo. No se guardó nada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  codigo: VALIDACION
+                  mensaje: La plantilla tiene variables que no existen o están mal escritas
+                  detalles:
+                    - { campo: cuerpo, variable: '{nombre_clente}', posicion: 5, longitud: 15, linea: 1, columna: 6, sugerencia: '{nombre_cliente}', mensaje: 'La variable {nombre_clente} no existe. ¿Quisiste decir {nombre_cliente}?' }
+                  requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+    delete:
+      tags: [Plantillas de notificación]
+      operationId: restaurarPlantilla
+      summary: Volver al texto de la plataforma (solo administrador)
+      description: HU-32 (RF-F7-05). Borra la plantilla personalizada de la sede; desde ahí se usa la de la plataforma. Repetirlo no falla.
+      responses:
+        '200':
+          description: Plantilla vigente (la de la plataforma).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Plantilla' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /plantillas/vista-previa:
+    post:
+      tags: [Plantillas de notificación]
+      operationId: vistaPreviaPlantilla
+      summary: Vista previa en push, SMS y correo con la marca de la sede (solo administrador)
+      description: |
+        HU-32 CA3 (RF-F7-03 · ESC-F7-03). Arma el mensaje con datos de ejemplo (Laura, placa ABC123, 3:45 p. m.) y el logo
+        y los colores de la sede. El canal que se está editando usa el texto recibido, aún sin guardar; los otros dos usan
+        la plantilla guardada del mismo estado (o la de la plataforma). No guarda nada. Variables inválidas → `400` como
+        en el guardado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/TextoPlantilla'
+                - type: object
+                  required: [estado, canal]
+                  properties:
+                    estado: { $ref: '#/components/schemas/EstadoPlantilla' }
+                    canal: { $ref: '#/components/schemas/CanalPlantilla' }
+      responses:
+        '200':
+          description: Mensaje renderizado por canal.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VistaPreviaPlantilla' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /configuracion/notificaciones:
+    get:
+      tags: [Notificaciones]
+      operationId: obtenerConfiguracionNotificaciones
+      summary: Estados del flujo que generan notificación en la sede (solo administrador)
+      description: >-
+        HU-31 CA1. Devuelve siempre los cinco estados del flujo, en el orden en que los vive el cliente,
+        con su interruptor. Un estado sin fila guardada se considera activo. `obligatorio` marca el
+        aviso de "listo para entrega", que no se puede apagar (CA2). La configuración es de la sede de
+        la sesión (CA3).
+      responses:
+        '200':
+          description: Configuración de la sede, con los cinco estados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EstadoNotificacion' }
+              example:
+                - { estado: recibido, titulo: En cola, activo: true, obligatorio: false }
+                - { estado: en_lavado, titulo: Lavado iniciado, activo: true, obligatorio: false }
+                - { estado: secado, titulo: Secado, activo: true, obligatorio: false }
+                - { estado: listo, titulo: Listo para recoger, activo: true, obligatorio: true }
+                - { estado: entregado, titulo: Entregado, activo: true, obligatorio: false }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+    put:
+      tags: [Notificaciones]
+      operationId: actualizarConfiguracionNotificaciones
+      summary: Guardar los estados que generan notificación (solo administrador)
+      description: >-
+        HU-31 CA2 y CA3. Guarda los interruptores de la sede de la sesión en una sola operación; los
+        estados omitidos conservan su valor. Apagar "listo" responde 400 porque ese aviso es
+        obligatorio. El cambio aplica al siguiente cambio de estado de una orden, sin reiniciar el
+        servicio, y nunca afecta a otra sede.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfiguracionNotificacionesEntrada' }
+            example:
+              - { estado: recibido, activo: true }
+              - { estado: en_lavado, activo: true }
+              - { estado: secado, activo: false }
+              - { estado: listo, activo: true }
+              - { estado: entregado, activo: true }
+      responses:
+        '200':
+          description: Configuración guardada, con los cinco estados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EstadoNotificacion' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /webhooks/resend:
+    post:
+      tags: [Webhooks]
+      operationId: confirmarEntregaResend
+      summary: Confirmación de entrega de un correo (Resend)
+      description: |
+        HU-33 CA4. Resend avisa con `email.delivered` que el correo llegó. La notificación (etiqueta
+        `notificacion` del correo) queda `entregada`, se cancelan los reintentos y alternos pendientes de la
+        misma cadena y, si había alerta en el dashboard, se cierra. Solo se acepta con la firma Svix válida
+        (encabezados `svix-id`, `svix-timestamp`, `svix-signature`) calculada con `RESEND_WEBHOOK_SECRET`.
+        Otros tipos de evento se reciben y se ignoran.
+      security: []
+      parameters:
+        - { name: svix-id, in: header, required: true, schema: { type: string } }
+        - { name: svix-timestamp, in: header, required: true, schema: { type: string } }
+        - { name: svix-signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type: { type: string, example: email.delivered }
+                data:
+                  type: object
+                  properties:
+                    email_id: { type: string }
+                    tags: { description: Etiquetas del correo; incluye notificacion. }
+      responses:
+        '200':
+          description: Evento recibido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfirmacionEntrega' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '503':
+          description: El secreto del webhook no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/twilio:
+    post:
+      tags: [Webhooks]
+      operationId: confirmarEntregaTwilio
+      summary: Confirmación de entrega de un SMS (Twilio StatusCallback)
+      description: |
+        HU-33 CA4. Twilio llama esta dirección (con `?n=` el id de la notificación) cuando cambia el estado del
+        SMS; con `MessageStatus=delivered` la notificación queda `entregada` y se cancela lo pendiente de la
+        misma cadena. Solo se acepta con la firma `X-Twilio-Signature` válida (Auth Token y `API_URL_PUBLICA`).
+      security: []
+      parameters:
+        - { name: n, in: query, required: false, description: Id de la notificación., schema: { type: string, format: uuid } }
+        - { name: X-Twilio-Signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                MessageSid: { type: string }
+                MessageStatus: { type: string, example: delivered }
+      responses:
+        '200':
+          description: Evento recibido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfirmacionEntrega' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '503':
+          description: El webhook no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /usuarios:
     get:
       tags: [Usuarios]
@@ -1431,6 +2123,33 @@ paths:
       responses:
         '200':
           description: Establecimiento con los colores guardados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Establecimiento' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /establecimiento/direccion:
+    put:
+      tags: [Establecimiento]
+      operationId: actualizarDireccionSede
+      summary: Guardar la dirección de la sede (solo administrador)
+      description: >-
+        HU-28 CA2. La dirección se muestra en el aviso de "listo para recoger" (correo y SMS). Hasta 160
+        caracteres; un texto vacío la borra.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [direccion]
+              properties:
+                direccion: { type: string, maxLength: 160, example: 'Cra 10 # 5-20, barrio Centro' }
+      responses:
+        '200':
+          description: Establecimiento con la dirección guardada.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Establecimiento' }
@@ -1605,8 +2324,8 @@ components:
       scheme: bearer
       bearerFormat: pase
       description: >-
-        Pase firmado (HMAC) de 30 minutos emitido por POST /publico/sedes/{slug}/historial/acceso (HU-23).
-        Identifica la sede y el cliente verificados con placa + celular. No es un JWT de Supabase; el panel
+        Pase firmado (HMAC) de 30 días emitido por POST /publico/sedes/{slug}/otp/verificar (RF-F5-12).
+        Identifica la sede y el cliente verificados con el código enviado por SMS a su celular. No es un JWT de Supabase; el panel
         no lo usa.
 
   headers:
@@ -1615,6 +2334,17 @@ components:
       schema: { type: string }
 
   parameters:
+    EstadoPlantilla:
+      name: estado
+      in: path
+      required: true
+      description: Estado de la orden al que corresponde la plantilla (HU-32).
+      schema: { $ref: '#/components/schemas/EstadoPlantilla' }
+    CanalPlantilla:
+      name: canal
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/CanalPlantilla' }
     SlugSede:
       name: slug
       in: path
@@ -1636,6 +2366,15 @@ components:
       description: Identificador UUID del recurso.
       schema: { type: string, format: uuid }
       example: 6b1c0f9e-3a43-4c1f-9d55-2e7d0c1a9b10
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Clave única de la operación (HU-35). Si se repite la petición con la misma clave, la API devuelve la campaña
+        ya creada en lugar de duplicarla.
+      schema: { type: string, minLength: 1, maxLength: 200 }
+      example: campana-2026-11-20-motor-60
 
   responses:
     LimiteExcedido:
@@ -1705,6 +2444,43 @@ components:
         logoUrl: { type: [string, 'null'], format: uri }
         colorPrimario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
         colorSecundario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
+    PromocionPublica:
+      type: object
+      description: Promoción vigente tal como la ve el cliente final en la lista (HU-26). Sin columnas internas.
+      required: [id, nombre, descuentoPct, fechaFin, servicios]
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string, example: Martes de motor }
+        descripcion: { type: [string, 'null'], example: 20 % en el lavado de motor todos los martes }
+        descuentoPct: { type: number, minimum: 0, maximum: 100, example: 20 }
+        fechaFin: { type: string, format: date, description: Último día en que la promoción es válida (incluido)., example: '2026-11-30' }
+        servicios:
+          type: array
+          items: { type: string }
+          example: [Lavado de motor]
+    PromocionesSede:
+      type: object
+      required: [sede, promociones]
+      properties:
+        sede: { $ref: '#/components/schemas/SedePublica' }
+        promociones:
+          type: array
+          items: { $ref: '#/components/schemas/PromocionPublica' }
+    PromocionDetallePublica:
+      description: Promoción vigente con sus condiciones, tal como la ve el cliente final en el detalle (HU-27).
+      allOf:
+        - $ref: '#/components/schemas/PromocionPublica'
+        - type: object
+          required: [condiciones, fechaInicio]
+          properties:
+            condiciones: { type: [string, 'null'], description: Condiciones de uso configuradas por el establecimiento., example: Válida solo los martes. No acumulable con otras promociones. }
+            fechaInicio: { type: string, format: date, description: Primer día en que la promoción es válida., example: '2026-11-01' }
+    PromocionDetalleSede:
+      type: object
+      required: [sede, promocion]
+      properties:
+        sede: { $ref: '#/components/schemas/SedePublica' }
+        promocion: { $ref: '#/components/schemas/PromocionDetallePublica' }
     BusquedaPublica:
       type: object
       description: Placa O celular (exactamente uno). Se ignoran espacios, guiones y el prefijo +57.
@@ -1787,6 +2563,118 @@ components:
             colorSecundario: { type: string }
         version: { type: integer, description: Aumenta con cada cambio de estado o de la entrega estimada. }
 
+    EstadoPlantilla:
+      type: string
+      enum: [recibido, en_lavado, secado, listo, entregado]
+    CanalPlantilla:
+      type: string
+      enum: [push, sms, correo]
+    TextoPlantilla:
+      type: object
+      required: [cuerpo]
+      properties:
+        asunto: { type: [string, 'null'], maxLength: 120, description: Asunto del correo o título del push. Se ignora en SMS. }
+        cuerpo: { type: string, description: 'Texto con variables: {nombre_cliente}, {placa}, {estado}, {sede}, {hora}.' }
+    ConteoSms:
+      type: object
+      description: HU-32 CA2. Caracteres y partes del SMS como los cobra el operador.
+      required: [caracteres, segmentos, codificacion, limitePorParte, advertencias]
+      properties:
+        caracteres: { type: integer, example: 200 }
+        segmentos: { type: integer, description: 'Partes en que se envía. GSM-7: 160 en una parte, 153 por parte. UCS-2 (con tildes u otros caracteres especiales): 70 y 67.', example: 2 }
+        codificacion: { type: string, enum: [GSM-7, UCS-2] }
+        limitePorParte: { type: integer, example: 153 }
+        caracteresEspeciales: { type: array, items: { type: string }, description: Caracteres que obligan a usar UCS-2. }
+        advertencias:
+          type: array
+          items: { type: string }
+          example: ['El mensaje se enviará en 2 partes y tendrá mayor costo: cada parte se cobra como un SMS.']
+    Plantilla:
+      type: object
+      required: [estado, canal, cuerpo, personalizada, plataforma]
+      properties:
+        estado: { $ref: '#/components/schemas/EstadoPlantilla' }
+        canal: { $ref: '#/components/schemas/CanalPlantilla' }
+        asunto: { type: [string, 'null'] }
+        cuerpo: { type: string }
+        personalizada: { type: boolean, description: false = se usa el texto de la plataforma (RF-F7-05). }
+        actualizadaEn: { type: [string, 'null'], format: date-time }
+        plataforma:
+          type: object
+          properties:
+            asunto: { type: [string, 'null'] }
+            cuerpo: { type: string }
+        sms: { $ref: '#/components/schemas/ConteoSms' }
+    PlantillaGuardada:
+      allOf:
+        - $ref: '#/components/schemas/Plantilla'
+        - type: object
+          required: [advertencias]
+          properties:
+            caracteres: { type: integer }
+            segmentos: { type: integer }
+            codificacion: { type: string, enum: [GSM-7, UCS-2] }
+            advertencias: { type: array, items: { type: string } }
+    PlantillasSede:
+      type: object
+      required: [variables, estados, canales, limites, plantillas]
+      properties:
+        variables:
+          type: array
+          items:
+            type: object
+            properties:
+              nombre: { type: string, example: placa }
+              descripcion: { type: string }
+        estados:
+          type: array
+          items:
+            type: object
+            properties:
+              valor: { $ref: '#/components/schemas/EstadoPlantilla' }
+              etiqueta: { type: string, example: En lavado }
+        canales: { type: array, items: { $ref: '#/components/schemas/CanalPlantilla' } }
+        limites:
+          type: object
+          properties:
+            push: { type: integer, example: 240 }
+            sms: { type: integer, example: 640 }
+            correo: { type: integer, example: 2000 }
+            asunto: { type: integer, example: 120 }
+        plantillas: { type: array, items: { $ref: '#/components/schemas/Plantilla' } }
+    VistaPreviaPlantilla:
+      type: object
+      required: [estado, canalEditado, sede, datosEjemplo, push, sms, correo]
+      properties:
+        estado: { $ref: '#/components/schemas/EstadoPlantilla' }
+        canalEditado: { $ref: '#/components/schemas/CanalPlantilla' }
+        sede:
+          type: object
+          properties:
+            nombre: { type: string }
+            logoUrl: { type: [string, 'null'] }
+            colorPrimario: { type: [string, 'null'], example: '#B91C1C' }
+            colorSecundario: { type: [string, 'null'] }
+        datosEjemplo:
+          type: object
+          example: { nombre_cliente: Laura, placa: ABC123, estado: listo para recoger, sede: Lavadero Norte, hora: '3:45 p. m.' }
+        push:
+          type: object
+          properties:
+            titulo: { type: string }
+            texto: { type: string }
+        sms:
+          allOf:
+            - $ref: '#/components/schemas/ConteoSms'
+            - type: object
+              properties:
+                texto: { type: string }
+        correo:
+          type: object
+          properties:
+            asunto: { type: string }
+            html: { type: string, description: Correo completo con el logo y el color primario de la sede. Los datos van escapados. }
+            texto: { type: string }
     Error:
       type: object
       required: [error]
@@ -1797,11 +2685,11 @@ components:
           properties:
             codigo:
               type: string
-              enum: [VALIDACION, NO_AUTENTICADO, SIN_PERMISO, NO_ENCONTRADO, CONFLICTO, CARGA_DEMASIADO_GRANDE, HTTPS_REQUERIDO, IDEMPOTENCIA_CONFLICTO, LIMITE_EXCEDIDO, ERROR_INTERNO, NO_IMPLEMENTADO]
+              enum: [VALIDACION, NO_AUTENTICADO, SIN_PERMISO, NO_ENCONTRADO, CONFLICTO, CARGA_DEMASIADO_GRANDE, HTTPS_REQUERIDO, IDEMPOTENCIA_CONFLICTO, LIMITE_EXCEDIDO, ERROR_INTERNO, NO_IMPLEMENTADO, SERVICIO_NO_DISPONIBLE]
               description: |
                 Código estable para el frontend. Estado HTTP: VALIDACION 400, NO_AUTENTICADO 401, SIN_PERMISO 403,
                 NO_ENCONTRADO 404, CONFLICTO 409, CARGA_DEMASIADO_GRANDE 413, HTTPS_REQUERIDO 426, IDEMPOTENCIA_CONFLICTO 422,
-                LIMITE_EXCEDIDO 429, ERROR_INTERNO 500, NO_IMPLEMENTADO 501.
+                LIMITE_EXCEDIDO 429, ERROR_INTERNO 500, NO_IMPLEMENTADO 501, SERVICIO_NO_DISPONIBLE 503.
             mensaje: { type: string, description: Mensaje para el usuario. Nunca contiene detalles internos. }
             detalles:
               type: array
@@ -2260,6 +3148,120 @@ components:
           items: { type: string, format: uuid }
         activa: { type: boolean }
 
+    SegmentoCampana:
+      type: object
+      description: >-
+        HU-35 (RF-F7-06): filtros del segmento. Una lista vacía no restringe. Los días sin visita se cuentan desde la
+        última orden entregada del cliente en la sede.
+      required: [diasSinVisita]
+      additionalProperties: false
+      properties:
+        diasSinVisita:
+          type: integer
+          enum: [30, 60, 90]
+          description: Clientes cuya última visita fue hace al menos estos días.
+        servicioIds:
+          type: array
+          description: Servicios usados por el cliente. Vacío = cualquiera.
+          maxItems: 50
+          items: { type: string, format: uuid }
+        tiposVehiculo:
+          type: array
+          description: Tipos de vehículo del cliente, sin distinguir mayúsculas. Vacío = cualquiera.
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 40 }
+
+    CampanaSegmento:
+      type: object
+      required: [promocionId, segmento]
+      additionalProperties: false
+      properties:
+        promocionId: { type: string, format: uuid }
+        segmento: { $ref: '#/components/schemas/SegmentoCampana' }
+
+    CampanaNueva:
+      type: object
+      required: [promocionId, segmento]
+      additionalProperties: false
+      properties:
+        promocionId: { type: string, format: uuid }
+        segmento: { $ref: '#/components/schemas/SegmentoCampana' }
+        programadaPara:
+          type: string
+          format: date-time
+          description: >-
+            Hora deseada en formato ISO 8601. Si cae entre las 8:00 p. m. y las 7:00 a. m. de Bogotá, la API la mueve
+            a las 7:00 a. m. del día siguiente. Sin este campo se envía de inmediato (con el mismo ajuste).
+
+    PromocionCampana:
+      type: object
+      description: Foto de la promoción guardada al confirmar la campaña (no cambia si luego se edita la promoción).
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        descripcion: { type: [string, 'null'] }
+        condiciones: { type: [string, 'null'] }
+        descuentoPct: { type: number, minimum: 0, maximum: 100 }
+        fechaInicio: { type: string, format: date }
+        fechaFin: { type: string, format: date }
+        servicios:
+          type: array
+          items: { type: string }
+
+    ExclusionesCampana:
+      type: object
+      description: Conteo de clientes del segmento que no reciben la campaña, por motivo.
+      properties:
+        sinAutorizacion: { type: integer, minimum: 0, description: No autorizó comunicaciones comerciales (HU-30). }
+        limiteSemanal: { type: integer, minimum: 0, description: Ya recibió 2 mensajes comerciales en 7 días. }
+        sinCanal: { type: integer, minimum: 0, description: No tiene correo registrado. }
+
+    Campana:
+      type: object
+      required: [id, promocionId, promocion, segmento, estado, programadaPara, programadaSolicitada, ajustada, totalDestinatarios, exclusiones, omitidos, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        promocionId: { type: string, format: uuid }
+        promocion: { $ref: '#/components/schemas/PromocionCampana' }
+        segmento: { $ref: '#/components/schemas/SegmentoCampana' }
+        estado: { type: string, enum: [programada, enviando, enviada, cancelada] }
+        programadaPara: { type: string, format: date-time, description: 'Hora efectiva, ya ajustada al horario de Bogotá.' }
+        programadaSolicitada: { type: string, format: date-time, description: Hora pedida por el administrador. }
+        ajustada: { type: boolean, description: true si la hora se movió por la franja nocturna. }
+        totalDestinatarios: { type: integer, minimum: 0, description: Mensajes realmente encolados al materializar. }
+        exclusiones: { $ref: '#/components/schemas/ExclusionesCampana' }
+        omitidos:
+          type: object
+          description: Exclusiones detectadas al materializar, incluidos duplicados y correos que ya no existen.
+          additionalProperties: { type: integer, minimum: 0 }
+        materializadaAt: { type: [string, 'null'], format: date-time }
+        error: { type: [string, 'null'], description: Motivo si la campaña se canceló al materializar. }
+        createdAt: { type: string, format: date-time }
+
+    EstimacionCampana:
+      type: object
+      required: [total, exclusiones, promocion]
+      properties:
+        total: { type: integer, minimum: 0 }
+        exclusiones: { $ref: '#/components/schemas/ExclusionesCampana' }
+        promocion: { $ref: '#/components/schemas/PromocionCampana' }
+
+    CampanasHistorial:
+      type: object
+      required: [campanas, paginacion]
+      properties:
+        campanas:
+          type: array
+          items: { $ref: '#/components/schemas/Campana' }
+        paginacion:
+          type: object
+          required: [pagina, porPagina, total, totalPaginas]
+          properties:
+            pagina: { type: integer, minimum: 1 }
+            porPagina: { type: integer, minimum: 1 }
+            total: { type: integer, minimum: 0 }
+            totalPaginas: { type: integer, minimum: 0 }
+
     Usuario:
       type: object
       description: Operario del establecimiento. El correo vive en Supabase Auth, no en `perfiles`.
@@ -2307,6 +3309,33 @@ components:
               format: uri
               description: Enlace seguro de respaldo; solo aparece cuando `enviada` es false.
 
+    EstadoNotificacion:
+      type: object
+      description: >-
+        Un estado del flujo con su interruptor de avisos (HU-31 CA1). `obligatorio` es true solo para
+        "listo para entrega", que siempre permanece activo (CA2).
+      required: [estado, titulo, activo, obligatorio]
+      properties:
+        estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
+        titulo: { type: string, example: Lavado iniciado }
+        activo: { type: boolean, description: Si el estado genera un correo al cliente. }
+        obligatorio: { type: boolean, description: Indica que no se puede desactivar (solo "listo"). }
+
+    ConfiguracionNotificacionesEntrada:
+      type: array
+      minItems: 1
+      maxItems: 5
+      description: >-
+        Interruptores a guardar (HU-31). Los estados omitidos conservan su valor. "listo" debe venir
+        activo; enviarlo en false responde 400.
+      items:
+        type: object
+        required: [estado, activo]
+        additionalProperties: false
+        properties:
+          estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
+          activo: { type: boolean }
+
     Establecimiento:
       type: object
       description: >-
@@ -2318,6 +3347,7 @@ components:
         logo_url: { type: [string, 'null'], format: uri }
         color_primario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$', example: '#2563EB' }
         color_secundario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$', example: '#0EA5E9' }
+        direccion: { type: [string, 'null'], maxLength: 160, description: 'HU-28 CA2: dirección que llevan los avisos de listo.' }
 
     BrandingEntrada:
       type: object
@@ -2435,18 +3465,48 @@ components:
               franja: { type: string }
               vehiculos: { type: integer, minimum: 0 }
 
-    AccesoHistorial:
+    SolicitudOtp:
       type: object
-      required: [placa, celular]
+      required: [celular]
       properties:
-        placa:
-          type: string
-          description: Placa del vehículo; se normaliza a mayúsculas y sin espacios.
-          example: ABC123
         celular:
           type: string
           description: Celular registrado para el cliente en esa sede (10 dígitos; acepta +57, espacios y guiones).
           example: '3001234567'
+        canal:
+          type: string
+          enum: [sms, correo]
+          default: sms
+          description: Por dónde quiere recibir el código. Con `correo` y sin correo registrado, sale por SMS.
+
+    SolicitudOtpRespuesta:
+      type: object
+      required: [enviado, canal, celular, expiraEn]
+      properties:
+        enviado: { type: boolean, const: true }
+        canal: { type: string, enum: [sms, correo], description: El canal que pidió el cliente. }
+        celular: { type: string, description: Celular enmascarado al que se envió., example: '300****567' }
+        expiraEn: { type: string, format: date-time }
+
+    SuscripcionPush:
+      type: object
+      required: [endpoint, keys]
+      description: Suscripción Web Push del navegador (`PushSubscription.toJSON()`).
+      properties:
+        endpoint: { type: string, format: uri, maxLength: 1000, example: 'https://fcm.googleapis.com/fcm/send/abc123' }
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh: { type: string, minLength: 20, maxLength: 200 }
+            auth: { type: string, minLength: 10, maxLength: 100 }
+
+    VerificacionOtp:
+      type: object
+      required: [celular, codigo]
+      properties:
+        celular: { type: string, example: '3001234567' }
+        codigo: { type: string, pattern: '^[0-9]{6}$', example: '123456' }
 
     AccesoHistorialRespuesta:
       type: object
@@ -2587,6 +3647,39 @@ components:
           items: { $ref: '#/components/schemas/NotificacionCliente' }
         noLeidas: { type: integer, minimum: 0, description: HU-38 CA2. Avisos de la lista sin leer. }
 
+    PreferenciasCanal:
+      type: object
+      required: [canales, sinCanales]
+      description: HU-29. Canales de notificación del cliente y su estado.
+      properties:
+        canales:
+          type: object
+          required: [push, sms, correo]
+          properties:
+            push:
+              type: object
+              required: [activo, disponible]
+              properties:
+                activo: { type: boolean }
+                disponible: { type: boolean, description: Falso hasta que el cliente registre su dispositivo (HU-40). }
+            sms:
+              type: object
+              required: [activo, disponible, verificado]
+              properties:
+                activo: { type: boolean }
+                disponible: { type: boolean, description: Falso si el ambiente no envía sms. }
+                verificado: { type: boolean, description: 'Hay un celular validado para el sms: el registrado (validado al entrar, HU-59) u otro validado con el código de 6 dígitos (CA2).' }
+                celular: { type: [string, 'null'], description: 'Celular al que llegaría el sms, enmascarado.', example: '300****567' }
+                celularRegistrado: { type: [string, 'null'], description: 'Celular con el que se registró el cliente, enmascarado.', example: '300****567' }
+            correo:
+              type: object
+              required: [activo, disponible]
+              properties:
+                activo: { type: boolean }
+                disponible: { type: boolean, description: El cliente tiene un correo registrado. }
+                destino: { type: [string, 'null'], description: Correo enmascarado., example: 'yel****@gmail.com' }
+        sinCanales: { type: boolean, description: Los tres canales están inactivos (el cliente no recibe avisos). }
+
     Notificacion:
       type: object
       required: [id, fecha, tipo, canal, estado, aceptadaPorProveedor, entregada, totalIntentos]
@@ -2628,6 +3721,32 @@ components:
         error: { type: [string, 'null'] }
         fecha: { type: string, format: date-time }
 
+    AlertaNotificacion:
+      type: object
+      description: HU-33 CA3. Aviso de "listo" que falló en todos los canales.
+      required: [id, ordenId, placa, cliente, celular, canales, falloAt]
+      properties:
+        id: { type: string, format: uuid }
+        ordenId: { type: string, format: uuid }
+        codigoSeguimiento: { type: [string, 'null'] }
+        placa: { type: [string, 'null'], example: ABC123 }
+        cliente: { type: [string, 'null'], example: Laura Gómez }
+        celular: { type: [string, 'null'], description: 'Completo, para llamar al cliente.', example: '3001234567' }
+        total: { type: [number, 'null'] }
+        canales:
+          type: array
+          description: Canales que se intentaron, en orden.
+          items: { type: string, enum: [push, sms, correo] }
+        motivo: { type: [string, 'null'], description: Último error del proveedor. }
+        falloAt: { type: string, format: date-time }
+    ConfirmacionEntrega:
+      type: object
+      required: [recibido]
+      properties:
+        recibido: { type: boolean }
+        resultado: { type: string, enum: [confirmada, ya_confirmada, desconocida] }
+        cancelados: { type: integer, description: Reintentos o alternos pendientes que se cancelaron. }
+        ignorado: { type: [string, 'null'], description: Tipo de evento que no confirma una entrega. }
     NotificacionDetalle:
       allOf:
         - $ref: '#/components/schemas/Notificacion'

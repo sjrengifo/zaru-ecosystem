@@ -21,7 +21,9 @@ establecimientos ◀── perfiles (auth.users)
    │      ├── orden_servicios ── servicios
    │      └── historial_estados ── perfiles
    │
-   └── notificaciones ── clientes, ordenes
+   ├── notificaciones ── clientes, ordenes, campanas
+   ├── campanas ── promociones (segmento de clientes)
+   └── config_notificaciones (un interruptor por estado del flujo)
 ```
 
 | Entidad | Tabla | Pertenencia al establecimiento |
@@ -34,6 +36,8 @@ establecimientos ◀── perfiles (auth.users)
 | Promociones | `promociones`, `promocion_servicios` | `establecimiento_id`; servicios del mismo establecimiento |
 | Órdenes de servicio | `ordenes`, `orden_servicios`, `historial_estados` | `establecimiento_id`; vehículo, servicios y usuarios del mismo establecimiento |
 | Notificaciones | `notificaciones` | `establecimiento_id`; cliente y orden del mismo establecimiento |
+| Campañas de promociones | `campanas` | `establecimiento_id`; promoción del mismo establecimiento; cada campaña se materializa como notificaciones comerciales (`notificaciones.campana_id`) |
+| Configuración de notificaciones | `config_notificaciones` | `establecimiento_id`; una fila por estado del flujo, con `listo` siempre activo |
 | Política de datos y autorizaciones | `politicas_datos` (versiones inmutables), `consentimientos` (solo inserción) | `consentimientos.establecimiento_id` + cliente del mismo establecimiento; la política es global |
 | Auditoría | `auditoria` (solo inserción) | `establecimiento_id` sin llave foránea, para conservar el registro aunque se elimine el establecimiento |
 
@@ -47,6 +51,10 @@ Además de las llaves foráneas simples, la base impide relacionar datos de esta
 - **RLS** habilitado en todas las tablas (ver HU-41).
 
 La tabla `notificaciones` sigue el patrón *outbox* (ADR-03). La lógica de envío, reintentos y canal alterno se implementa en HU-46.
+
+La tabla `config_notificaciones` guarda un interruptor por cada estado del flujo (`recibido`, `en_lavado`, `secado`, `listo`, `entregado`) y por establecimiento (HU-31). Un trigger siembra los cinco estados activos al crear una sede y una restricción `check` impide desactivar `listo`. La función `guardar_config_notificaciones` guarda varios interruptores en una sola transacción y vuelve a validar el estado obligatorio.
+
+La tabla `campanas` (HU-35) guarda la promoción elegida (con una copia `promocion_snapshot` para que el mensaje no cambie si la promoción se edita), el `segmento` (días sin visita, servicios usados y tipos de vehículo), la hora pedida (`programada_solicitada`) y la ya ajustada al horario de Bogotá (`programada_para`), además de los conteos de destinatarios y exclusiones. La función `segmento_campana` calcula el segmento y devuelve un `motivo` por cliente (`sin_autorizacion`, `limite_semanal`, `sin_correo` o nulo); el backend solo envía a los de motivo nulo. Al materializar, cada destinatario entra en `notificaciones` con `tipo = 'comercial'`, `prioridad = 2` y `campana_id`, y la función `reclamar_comercial` vuelve a validar autorización y límite semanal antes de cada envío.
 
 ## 2. Migraciones versionadas (CA2)
 
@@ -65,6 +73,18 @@ La tabla `notificaciones` sigue el patrón *outbox* (ADR-03). La lógica de env�
 | `20261030230000` | `hu52_eliminar_cliente` | Permite órdenes sin vehículo y agrega `eliminar_cliente`: borra al titular y sus vehículos, y conserva las órdenes entregadas sin datos personales |
 | `20261101190000` | `hu13_branding_logos` | Colores de la sede en formato `#RRGGBB` y bucket público `logos` (PNG/JPG, 2 MB) con escritura limitada a la carpeta de cada sede |
 | `20261101220000` | `hu12_promociones` | Descripción, condiciones y `activa` en promociones; estado por fecha de Bogotá, vistas `promociones_con_estado` y `promociones_vigentes`, y funciones `guardar_promocion` y `mejor_promocion` |
+| `20261102120000` | `hu08_crear_orden` | Función `crear_orden`: registra la orden, sus servicios y el historial en una transacción |
+| `20261103090000` | `hu10_estado_secado` | Agrega `secado` al enum `estado_orden` |
+| `20261103090100` | `hu10_cambiar_estado` | Función `cambiar_estado`: avance y reversión con historial y evento de dominio |
+| `20261103100000` | `hu57_rol_superadmin` | Rol de plataforma `superadmin` |
+| `20261103100100` | `hu57_establecimientos_y_pruebas` | Registro de establecimientos, periodo de prueba e invitaciones |
+| `20261104031936` | `hu08_corrige_tilde_mensaje` | Corrige el mensaje de una orden ya activa |
+| `20261110124608` | `hu17_enlace_publico_sede` | Enlace público por `slug` para el acceso del cliente final |
+| `20261110124759` | `hu17_slug_security_definer` | Genera el `slug` con una función `security definer` |
+| `20261110230550` | `hu30_autorizacion_notificaciones` | Autorizaciones de avisos y promociones, revocación y enlaces de baja |
+| `20261110231500` | `hu31_configuracion_notificaciones` | Tabla `config_notificaciones`, valores por defecto, RLS y función `guardar_config_notificaciones` |
+| `20261117120000` | `hu32_plantillas_notificacion` | Tabla `plantillas_notificacion` por sede, estado de la orden y canal (push, SMS, correo) con RLS de lectura por sede; 15 plantillas de la plataforma (`establecimiento_id` nulo) y funciones `plantillas_notificacion_de` y `guardar_plantilla_notificacion` |
+| `20261118090000` | `hu35_campanas` | Tabla `campanas` con RLS; `notificaciones.prioridad` y `campana_id`; segmentador `segmento_campana` (privado y público) y revalidación atómica `reclamar_comercial` |
 
 **Reglas:**
 
@@ -143,6 +163,9 @@ psql -d zaru_prueba -f database/pruebas/06_busqueda_clientes.sql        # HU-04:
 psql -d zaru_prueba -f database/pruebas/07_eliminar_cliente.sql         # HU-52: eliminar los datos de un cliente
 psql -d zaru_prueba -f database/pruebas/08_branding.sql                # HU-13: colores #RRGGBB y bucket de logos
 psql -d zaru_prueba -f database/pruebas/09_promociones.sql             # HU-12: vigencia, guardado y mejor promoción
+psql -d zaru_prueba -f database/pruebas/10_ordenes.sql                 # HU-08: crear orden con servicios e historial
+psql -d zaru_prueba -f database/pruebas/11_estado_orden.sql            # HU-10: avanzar, revertir y cerrar una orden
+psql -d zaru_prueba -f database/pruebas/12_configuracion_notificaciones.sql  # HU-31: interruptores, "listo" obligatorio y aislamiento
 ```
 
 Los scripts 02 y 03 son solo para bases locales o de pruebas. Nunca se ejecutan contra producción.

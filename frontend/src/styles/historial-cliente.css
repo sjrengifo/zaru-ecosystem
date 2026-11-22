@@ -4,8 +4,10 @@
 
 .historial-etiqueta-celular { margin-top: 14px; }
 
-.historial-panel { padding: 18px; }
+.historial-panel { padding: 20px; }
 .historial-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+/* Con acciones (volver y cerrar sesión) se arma una barra arriba y el título queda con todo el ancho. */
+.historial-cabecera:has(.historial-acciones) { flex-direction: column-reverse; align-items: stretch; gap: 14px; }
 .historial-saludo { margin: 0; font-size: 13px; font-weight: 600; color: var(--color-primario); }
 .historial-titulo {
   margin: 2px 0 4px;
@@ -29,6 +31,10 @@
   text-decoration: none;
 }
 .historial-volver:hover { color: var(--color-primario); border-color: var(--color-primario); }
+/* RF-F5-12: la sesión dura 30 días, así que el cliente puede cerrarla en un celular compartido. */
+.historial-acciones { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.historial-salir { background: none; font-family: inherit; cursor: pointer; }
+.historial-salir:hover { color: var(--color-error); border-color: color-mix(in srgb, var(--color-error) 45%, var(--color-borde)); }
 
 .historial-filtro { margin: 16px 0 4px; }
 .historial-filtro label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--color-texto-suave); }
@@ -102,3 +108,30 @@
   .historial-tarjeta { transition: none; }
   .historial-tarjeta:active { transform: none; }
 }
+
+/* ---------- HU-40: invitación a activar las notificaciones push ---------- */
+.aviso-push { position: relative; margin: 14px 0 0; }
+.aviso-push-invitacion {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-primario) 30%, var(--color-borde));
+  border-radius: 14px;
+  background: var(--color-primario-suave);
+}
+.aviso-push-icono {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--color-primario);
+  color: #fff;
+}
+.aviso-push-texto p { margin: 0; font-size: 14px; color: var(--color-texto-suave); }
+.aviso-push-texto .aviso-push-titulo { margin-bottom: 2px; font-weight: 700; color: var(--color-texto); }
+.aviso-push-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.aviso-push.aviso { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.aviso-push.aviso p { margin: 0; }
+.aviso-push-cerrar { flex: none; padding: 2px; border: 0; background: none; color: inherit; cursor: pointer; }

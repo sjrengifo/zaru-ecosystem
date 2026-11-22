@@ -15,6 +15,8 @@ test('CA2: el administrador ve todo el menú, incluida la configuración', () =>
     '/usuarios',
     '/reportes',
     '/notificaciones',
+    '/configuracion-notificaciones',
+    '/plantillas',
     '/branding',
   ]);
 });

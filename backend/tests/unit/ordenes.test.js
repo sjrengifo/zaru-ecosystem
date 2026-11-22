@@ -7,10 +7,12 @@ process.env.ZARU_CLAVE_CIFRADO ||= Buffer.alloc(32).toString('base64');
 vi.mock('../../src/shared/notificaciones.js', () => ({
   programarNotificacion: vi.fn(async () => ({ estado: 'omitida' })),
   programarNotificacionNovedad: vi.fn(async () => ({ estado: 'pendiente', canal: 'correo' })),
+  alRevertirEstado: vi.fn(async () => ({ canceladas: 1, correcciones: 0 })),
 }));
 
 import { cambioEstadoOrden, novedadNueva, ordenNueva } from '../../src/schemas/ordenes.schemas.js';
 import { cambiarEstado, crear, registrarNovedad } from '../../src/controllers/ordenes.controller.js';
+import { alRevertirEstado, programarNotificacion } from '../../src/shared/notificaciones.js';
 import { AppError, noEncontrado } from '../../src/shared/errores.js';
 import { descifrar } from '../../src/shared/cifrado.js';
 
@@ -242,7 +244,7 @@ describe('PATCH /ordenes/:id/estado', () => {
     expect(error).toBeUndefined();
     expect(res.status).not.toHaveBeenCalled();
     expect(datos).toMatchObject({ id: ORDEN.id, estado: 'recibido', codigoSeguimiento: ORDEN.codigo_seguimiento });
-    expect(tenant.obtener).toHaveBeenNthCalledWith(1, 'ordenes', ORDEN.id, 'id', 'Orden');
+    expect(tenant.obtener).toHaveBeenNthCalledWith(1, 'ordenes', ORDEN.id, 'id, estado', 'Orden');
     expect(tenant.rpc).toHaveBeenCalledWith('cambiar_estado_orden', {
       p_orden_id: ORDEN.id,
       p_nuevo_estado: 'en_lavado',
@@ -262,6 +264,30 @@ describe('PATCH /ordenes/:id/estado', () => {
       p_usuario_id: 'p1',
       p_revertir: true,
     });
+  });
+
+  it('HU-28 CA3: al revertir cancela o corrige el aviso del estado deshecho y no programa uno nuevo', async () => {
+    alRevertirEstado.mockClear();
+    programarNotificacion.mockClear();
+    const tenant = tenantCon();
+    const { datos, error } = await ejecutarCambio(peticionCambio({ revertir: true }, tenant));
+
+    expect(error).toBeUndefined();
+    // El estado que se deshace es el que tenía la orden antes de revertir.
+    expect(alRevertirEstado).toHaveBeenCalledWith(tenant, ORDEN.id, ORDEN.estado);
+    expect(programarNotificacion).not.toHaveBeenCalled();
+    expect(datos.correccion).toEqual({ canceladas: 1, correcciones: 0 });
+  });
+
+  it('HU-28 CA3: si falla la corrección, la reversión igual responde bien', async () => {
+    alRevertirEstado.mockRejectedValueOnce(new Error('base caída'));
+    const espia = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { datos, error } = await ejecutarCambio(peticionCambio({ revertir: true }, tenantCon()));
+
+    expect(error).toBeUndefined();
+    expect(datos).toMatchObject({ id: ORDEN.id });
+    expect(datos.correccion).toBeUndefined();
+    espia.mockRestore();
   });
 
   it('RF-F3-05: una transición inválida responde 409', async () => {

@@ -5,7 +5,7 @@
 
 
 
-\restrict SGLsftCSCAsdyADqIb2TL1U8UVAcSJXMSsNpYYyGbvrfLi7b32M8gP5XBFq0smq
+\restrict NW43L4oxMQJ4yzY7lyuHZpJ3mx3deR1fJc9vs2wkAwhcE4VPj1hLSGKE04wuM1f
 
 -- Name: privado; Type: SCHEMA; Schema: -; Owner: -
 
@@ -168,6 +168,98 @@ CREATE FUNCTION privado.politica_vigente() RETURNS text
   select version from public.politicas_datos where vigente_desde <= now() order by vigente_desde desc limit 1
 $$;
 
+-- Name: segmento_campana(uuid, integer, uuid[], text[], timestamp with time zone); Type: FUNCTION; Schema: privado; Owner: -
+
+CREATE FUNCTION privado.segmento_campana(p_establecimiento_id uuid, p_dias_sin_visita integer, p_servicio_ids uuid[] DEFAULT NULL::uuid[], p_tipos_vehiculo text[] DEFAULT NULL::text[], p_ahora timestamp with time zone DEFAULT now()) RETURNS TABLE(cliente_id uuid, motivo text, ultima_visita timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with parametros as (
+    select
+      coalesce(p_ahora, now()) as ahora,
+      coalesce(p_dias_sin_visita, 30) as dias,
+      coalesce((
+        select array_agg(distinct s) from unnest(p_servicio_ids) as s where s is not null
+      ), '{}'::uuid[]) as servicios,
+      coalesce((
+        select array_agg(distinct lower(btrim(t)))
+        from unnest(p_tipos_vehiculo) as t
+        where t is not null and btrim(t) <> ''
+      ), '{}'::text[]) as tipos
+  ),
+  visitas as (
+    select o.vehiculo_id, max(o.entregada_at) as ultima
+    from ordenes o
+    where o.establecimiento_id = p_establecimiento_id
+      and o.estado = 'entregado'
+      and o.entregada_at is not null
+    group by o.vehiculo_id
+  ),
+  ultima_por_cliente as (
+    select v.cliente_id, max(vi.ultima) as ultima_visita
+    from vehiculos v
+    join visitas vi on vi.vehiculo_id = v.id
+    where v.establecimiento_id = p_establecimiento_id
+    group by v.cliente_id
+  ),
+  base as (
+    select c.id as cliente_id, u.ultima_visita
+    from clientes c
+    join ultima_por_cliente u on u.cliente_id = c.id
+    cross join parametros p
+    where c.establecimiento_id = p_establecimiento_id
+      and u.ultima_visita <= p.ahora - make_interval(days => p.dias)
+      and (
+        cardinality(p.servicios) = 0
+        or exists (
+          select 1
+          from ordenes o
+          join orden_servicios os on os.orden_id = o.id
+          join vehiculos v on v.id = o.vehiculo_id
+          where o.establecimiento_id = p_establecimiento_id
+            and o.estado = 'entregado'
+            and v.cliente_id = c.id
+            and os.servicio_id = any (p.servicios)
+        )
+      )
+      and (
+        cardinality(p.tipos) = 0
+        or exists (
+          select 1
+          from vehiculos v
+          where v.establecimiento_id = p_establecimiento_id
+            and v.cliente_id = c.id
+            and lower(btrim(v.tipo)) = any (p.tipos)
+        )
+      )
+  )
+  select
+    b.cliente_id,
+    case
+      when coalesce((
+        select a.otorgado
+        from autorizaciones_vigentes a
+        where a.cliente_id = b.cliente_id and a.tipo = 'comerciales'
+      ), false) is not true then 'sin_autorizacion'
+      when coalesce(c.correo, '') = '' then 'sin_correo'
+      when (
+        select count(*)
+        from notificaciones n
+        cross join parametros p
+        where n.establecimiento_id = p_establecimiento_id
+          and n.cliente_id = b.cliente_id
+          and n.tipo = 'comercial'
+          and n.estado in ('enviada', 'entregada')
+          and coalesce(n.programada_para, n.created_at) >= p.ahora - interval '7 days'
+          and coalesce(n.programada_para, n.created_at) <= p.ahora
+      ) >= 2 then 'limite_semanal'
+      else null
+    end as motivo,
+    b.ultima_visita
+  from base b
+  join clientes c on c.id = b.cliente_id and c.establecimiento_id = p_establecimiento_id
+$$;
+
 -- Name: sin_tildes(text); Type: FUNCTION; Schema: privado; Owner: -
 
 CREATE FUNCTION privado.sin_tildes(texto text) RETURNS text
@@ -270,6 +362,49 @@ begin
   end if;
   return new;
 end $$;
+
+-- Name: campanas; Type: TABLE; Schema: public; Owner: -
+
+CREATE TABLE public.campanas (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    establecimiento_id uuid NOT NULL,
+    promocion_id uuid NOT NULL,
+    promocion_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
+    segmento jsonb DEFAULT '{}'::jsonb NOT NULL,
+    estado text DEFAULT 'programada'::text NOT NULL,
+    programada_para timestamp with time zone NOT NULL,
+    programada_solicitada timestamp with time zone NOT NULL,
+    total_destinatarios integer DEFAULT 0 NOT NULL,
+    exclusiones jsonb DEFAULT '{}'::jsonb NOT NULL,
+    omitidos jsonb DEFAULT '{}'::jsonb NOT NULL,
+    clave_idempotencia text NOT NULL,
+    creada_por uuid,
+    materializada_at timestamp with time zone,
+    error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT campanas_destinatarios_check CHECK ((total_destinatarios >= 0)),
+    CONSTRAINT campanas_estado_check CHECK ((estado = ANY (ARRAY['programada'::text, 'enviando'::text, 'enviada'::text, 'cancelada'::text])))
+);
+
+-- Name: TABLE campanas; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON TABLE public.campanas IS 'HU-35: campaña de una promoción vigente sobre un segmento de clientes. Se materializa en notificaciones comerciales.';
+
+-- Name: COLUMN campanas.promocion_snapshot; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON COLUMN public.campanas.promocion_snapshot IS 'HU-35: copia de la promoción al confirmar: nombre, descripción, condiciones, descuento, vigencia y servicios.';
+
+-- Name: COLUMN campanas.programada_solicitada; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON COLUMN public.campanas.programada_solicitada IS 'HU-35: hora pedida por el administrador, antes del ajuste de horario de Bogotá (RF-F7-09).';
+
+-- Name: COLUMN campanas.omitidos; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON COLUMN public.campanas.omitidos IS 'HU-35: conteo de exclusiones al materializar (autorización, límite semanal o sin correo).';
+
+-- Name: COLUMN campanas.error; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON COLUMN public.campanas.error IS 'HU-35: motivo por el que la campaña se canceló al materializar (por ejemplo, la promoción dejó de estar vigente).';
 
 -- Name: clientes; Type: TABLE; Schema: public; Owner: -
 
@@ -772,6 +907,139 @@ CREATE FUNCTION public.mejor_promocion(p_establecimiento_id uuid, p_servicio_id 
   limit 1
 $$;
 
+-- Name: plantillas_notificacion; Type: TABLE; Schema: public; Owner: -
+
+CREATE TABLE public.plantillas_notificacion (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    establecimiento_id uuid,
+    estado public.estado_orden NOT NULL,
+    canal text NOT NULL,
+    asunto text,
+    cuerpo text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by uuid,
+    CONSTRAINT plantillas_notificacion_asunto_check CHECK ((((canal = 'sms'::text) AND (asunto IS NULL)) OR ((canal <> 'sms'::text) AND ((asunto IS NULL) OR (length(asunto) <= 120))))),
+    CONSTRAINT plantillas_notificacion_canal_check CHECK ((canal = ANY (ARRAY['push'::text, 'sms'::text, 'correo'::text]))),
+    CONSTRAINT plantillas_notificacion_cuerpo_check CHECK (((length(btrim(cuerpo)) > 0) AND (length(cuerpo) <= CASE canal WHEN 'push'::text THEN 240 WHEN 'sms'::text THEN 640 ELSE 2000 END)))
+);
+
+-- Name: TABLE plantillas_notificacion; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON TABLE public.plantillas_notificacion IS 'HU-32: texto de cada estado y canal. establecimiento_id null = plantilla de la plataforma (RF-F7-05).';
+
+-- Name: guardar_plantilla_notificacion(uuid, public.estado_orden, text, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+
+CREATE FUNCTION public.guardar_plantilla_notificacion(p_establecimiento_id uuid, p_estado public.estado_orden, p_canal text, p_asunto text, p_cuerpo text, p_usuario_id uuid) RETURNS public.plantillas_notificacion
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_fila plantillas_notificacion;
+begin
+  if p_establecimiento_id is null then
+    raise exception 'La plantilla debe pertenecer a un establecimiento' using errcode = '23514';
+  end if;
+  insert into plantillas_notificacion (establecimiento_id, estado, canal, asunto, cuerpo, updated_by)
+  values (p_establecimiento_id, p_estado, p_canal, case when p_canal = 'sms' then null else p_asunto end, p_cuerpo, p_usuario_id)
+  on conflict on constraint plantillas_notificacion_unica do update
+    set asunto = excluded.asunto, cuerpo = excluded.cuerpo, updated_at = now(), updated_by = excluded.updated_by
+  returning * into v_fila;
+  return v_fila;
+end $$;
+
+-- Name: plantillas_notificacion_de(uuid); Type: FUNCTION; Schema: public; Owner: -
+
+CREATE FUNCTION public.plantillas_notificacion_de(p_establecimiento_id uuid) RETURNS TABLE(estado public.estado_orden, canal text, asunto text, cuerpo text, personalizada boolean, updated_at timestamp with time zone, asunto_plataforma text, cuerpo_plataforma text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select pl.estado,
+         pl.canal,
+         coalesce(se.asunto, case when se.id is null then pl.asunto end),
+         coalesce(se.cuerpo, pl.cuerpo),
+         se.id is not null,
+         coalesce(se.updated_at, pl.updated_at),
+         pl.asunto,
+         pl.cuerpo
+  from plantillas_notificacion pl
+  left join plantillas_notificacion se
+    on se.establecimiento_id = p_establecimiento_id
+   and se.estado = pl.estado
+   and se.canal = pl.canal
+  where pl.establecimiento_id is null
+  order by pl.estado, array_position(array['push', 'sms', 'correo'], pl.canal)
+$$;
+
+-- Name: reclamar_comercial(uuid, uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+
+CREATE FUNCTION public.reclamar_comercial(p_establecimiento_id uuid, p_notificacion_id uuid, p_ahora timestamp with time zone DEFAULT now()) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_fila       notificaciones;
+  v_autorizado boolean;
+  v_enviadas   integer;
+  v_ahora      timestamptz := coalesce(p_ahora, now());
+begin
+  select * into v_fila
+  from notificaciones n
+  where n.id = p_notificacion_id
+    and n.establecimiento_id = p_establecimiento_id
+  for update;
+
+  if not found then
+    return 'no_existe';
+  end if;
+  if v_fila.tipo <> 'comercial' then
+    return 'no_comercial';
+  end if;
+  if v_fila.estado in ('enviada', 'entregada', 'cancelada') then
+    return 'ya_procesada';
+  end if;
+
+  select a.otorgado into v_autorizado
+  from autorizaciones_vigentes a
+  where a.cliente_id = v_fila.cliente_id
+    and a.tipo = 'comerciales';
+
+  if coalesce(v_autorizado, false) is not true then
+    return 'sin_autorizacion';
+  end if;
+
+  -- Se cuentan los ya enviados y los que otro worker está enviando en este momento (arriendo de
+  -- 10 minutos que el worker renueva al reclamar). Así dos workers no superan juntos el límite.
+  select count(*) into v_enviadas
+  from notificaciones n
+  where n.establecimiento_id = p_establecimiento_id
+    and n.cliente_id = v_fila.cliente_id
+    and n.tipo = 'comercial'
+    and n.id <> v_fila.id
+    and (
+      n.estado in ('enviada', 'entregada')
+      or (n.estado = 'enviando' and n.proximo_intento_at > v_ahora)
+    )
+    and coalesce(n.programada_para, n.created_at) >= v_ahora - interval '7 days'
+    and coalesce(n.programada_para, n.created_at) <= v_ahora;
+
+  if v_enviadas >= 2 then
+    return 'limite_semanal';
+  end if;
+
+  return 'ok';
+end $$;
+
+-- Name: segmento_campana(uuid, integer, uuid[], text[], timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+
+CREATE FUNCTION public.segmento_campana(p_establecimiento_id uuid, p_dias_sin_visita integer, p_servicio_ids uuid[] DEFAULT NULL::uuid[], p_tipos_vehiculo text[] DEFAULT NULL::text[], p_ahora timestamp with time zone DEFAULT now()) RETURNS TABLE(cliente_id uuid, motivo text, ultima_visita timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select * from privado.segmento_campana(
+    p_establecimiento_id, p_dias_sin_visita, p_servicio_ids, p_tipos_vehiculo, p_ahora
+  );
+$$;
+
 -- Name: auditoria; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.auditoria (
@@ -913,6 +1181,37 @@ ALTER TABLE public.historial_estados ALTER COLUMN id ADD GENERATED ALWAYS AS IDE
     CACHE 1
 );
 
+-- Name: notificacion_intentos; Type: TABLE; Schema: public; Owner: -
+
+CREATE TABLE public.notificacion_intentos (
+    id bigint NOT NULL,
+    notificacion_id uuid NOT NULL,
+    establecimiento_id uuid NOT NULL,
+    intento smallint NOT NULL,
+    canal text NOT NULL,
+    resultado text NOT NULL,
+    proveedor text,
+    id_proveedor text,
+    entregado boolean DEFAULT false NOT NULL,
+    recuperable boolean,
+    error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT notificacion_intentos_canal_check CHECK ((canal = ANY (ARRAY['push'::text, 'sms'::text, 'correo'::text]))),
+    CONSTRAINT notificacion_intentos_intento_check CHECK ((intento >= 1)),
+    CONSTRAINT notificacion_intentos_resultado_check CHECK ((resultado = ANY (ARRAY['enviado'::text, 'fallido'::text])))
+);
+
+-- Name: notificacion_intentos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+
+ALTER TABLE public.notificacion_intentos ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.notificacion_intentos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
 -- Name: notificaciones; Type: TABLE; Schema: public; Owner: -
 
 CREATE TABLE public.notificaciones (
@@ -934,11 +1233,34 @@ CREATE TABLE public.notificaciones (
     notificacion_origen_id uuid,
     leida_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    fallo_definitivo_at timestamp with time zone,
+    alerta_atendida_at timestamp with time zone,
+    alerta_atendida_por uuid,
+    prioridad smallint DEFAULT 1 NOT NULL,
+    campana_id uuid,
+    CONSTRAINT notificaciones_alerta_coherente CHECK (((alerta_atendida_at IS NULL) OR (fallo_definitivo_at IS NOT NULL))),
     CONSTRAINT notificaciones_canal_check CHECK ((canal = ANY (ARRAY['push'::text, 'sms'::text, 'correo'::text]))),
     CONSTRAINT notificaciones_estado_check CHECK ((estado = ANY (ARRAY['programada'::text, 'pendiente'::text, 'enviando'::text, 'enviada'::text, 'entregada'::text, 'fallida'::text, 'cancelada'::text]))),
     CONSTRAINT notificaciones_intentos_check CHECK ((intentos >= 0)),
+    CONSTRAINT notificaciones_prioridad_check CHECK (((prioridad >= 0) AND (prioridad <= 2))),
     CONSTRAINT notificaciones_tipo_check CHECK ((tipo = ANY (ARRAY['operativa'::text, 'comercial'::text, 'recordatorio'::text, 'novedad'::text, 'correccion'::text, 'sistema'::text])))
 );
+
+-- Name: COLUMN notificaciones.prioridad; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON COLUMN public.notificaciones.prioridad IS 'RNF-F7-02: 0 = novedad, 1 = operativa, 2 = comercial. El worker atiende primero la prioridad menor.';
+
+-- Name: COLUMN notificaciones.campana_id; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON COLUMN public.notificaciones.campana_id IS 'HU-35: campaña que originó el mensaje comercial.';
+
+-- Name: COLUMN notificaciones.fallo_definitivo_at; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON COLUMN public.notificaciones.fallo_definitivo_at IS 'HU-33 CA3: el aviso falló en todos los canales disponibles; aparece como alerta en el dashboard.';
+
+-- Name: COLUMN notificaciones.alerta_atendida_at; Type: COMMENT; Schema: public; Owner: -
+
+COMMENT ON COLUMN public.notificaciones.alerta_atendida_at IS 'HU-33 CA3: el administrador contactó al cliente (o el proveedor confirmó la entrega después).';
 
 -- Name: orden_servicios; Type: TABLE; Schema: public; Owner: -
 
@@ -1093,6 +1415,21 @@ CREATE TABLE public.vehiculos (
 ALTER TABLE ONLY public.auditoria
     ADD CONSTRAINT auditoria_pkey PRIMARY KEY (id);
 
+-- Name: campanas campanas_id_establecimiento_unica; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.campanas
+    ADD CONSTRAINT campanas_id_establecimiento_unica UNIQUE (id, establecimiento_id);
+
+-- Name: campanas campanas_idempotencia_unica; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.campanas
+    ADD CONSTRAINT campanas_idempotencia_unica UNIQUE (establecimiento_id, clave_idempotencia);
+
+-- Name: campanas campanas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.campanas
+    ADD CONSTRAINT campanas_pkey PRIMARY KEY (id);
+
 -- Name: clientes clientes_establecimiento_id_telefono_key; Type: CONSTRAINT; Schema: public; Owner: -
 
 ALTER TABLE ONLY public.clientes
@@ -1128,10 +1465,25 @@ ALTER TABLE ONLY public.eventos
 ALTER TABLE ONLY public.historial_estados
     ADD CONSTRAINT historial_estados_pkey PRIMARY KEY (id);
 
+-- Name: notificacion_intentos notificacion_intentos_notificacion_id_canal_intento_key; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificacion_intentos
+    ADD CONSTRAINT notificacion_intentos_notificacion_id_canal_intento_key UNIQUE (notificacion_id, canal, intento);
+
+-- Name: notificacion_intentos notificacion_intentos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificacion_intentos
+    ADD CONSTRAINT notificacion_intentos_pkey PRIMARY KEY (id);
+
 -- Name: notificaciones notificaciones_clave_dedupe_key; Type: CONSTRAINT; Schema: public; Owner: -
 
 ALTER TABLE ONLY public.notificaciones
     ADD CONSTRAINT notificaciones_clave_dedupe_key UNIQUE (clave_dedupe);
+
+-- Name: notificaciones notificaciones_id_establecimiento_key; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificaciones
+    ADD CONSTRAINT notificaciones_id_establecimiento_key UNIQUE (id, establecimiento_id);
 
 -- Name: notificaciones notificaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 
@@ -1162,6 +1514,16 @@ ALTER TABLE ONLY public.perfiles
 
 ALTER TABLE ONLY public.perfiles
     ADD CONSTRAINT perfiles_pkey PRIMARY KEY (id);
+
+-- Name: plantillas_notificacion plantillas_notificacion_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.plantillas_notificacion
+    ADD CONSTRAINT plantillas_notificacion_pkey PRIMARY KEY (id);
+
+-- Name: plantillas_notificacion plantillas_notificacion_unica; Type: CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.plantillas_notificacion
+    ADD CONSTRAINT plantillas_notificacion_unica UNIQUE NULLS NOT DISTINCT (establecimiento_id, estado, canal);
 
 -- Name: politicas_datos politicas_datos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 
@@ -1216,6 +1578,14 @@ CREATE INDEX auditoria_establecimiento_fecha_idx ON public.auditoria USING btree
 
 CREATE INDEX auditoria_usuario_fecha_idx ON public.auditoria USING btree (usuario_id, created_at DESC);
 
+-- Name: campanas_establecimiento_fecha_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX campanas_establecimiento_fecha_idx ON public.campanas USING btree (establecimiento_id, created_at DESC);
+
+-- Name: campanas_pendientes_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX campanas_pendientes_idx ON public.campanas USING btree (programada_para) WHERE (estado = 'programada'::text);
+
 -- Name: clientes_establecimiento_id_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX clientes_establecimiento_id_idx ON public.clientes USING btree (establecimiento_id);
@@ -1264,6 +1634,26 @@ CREATE INDEX historial_estados_ultimo_idx ON public.historial_estados USING btre
 
 CREATE INDEX historial_estados_usuario_id_idx ON public.historial_estados USING btree (usuario_id);
 
+-- Name: notificacion_intentos_establecimiento_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX notificacion_intentos_establecimiento_idx ON public.notificacion_intentos USING btree (establecimiento_id, created_at DESC);
+
+-- Name: notificacion_intentos_notificacion_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX notificacion_intentos_notificacion_idx ON public.notificacion_intentos USING btree (notificacion_id, created_at);
+
+-- Name: notificaciones_alertas_abiertas_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX notificaciones_alertas_abiertas_idx ON public.notificaciones USING btree (establecimiento_id, fallo_definitivo_at DESC) WHERE ((fallo_definitivo_at IS NOT NULL) AND (alerta_atendida_at IS NULL));
+
+-- Name: notificaciones_bitacora_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX notificaciones_bitacora_idx ON public.notificaciones USING btree (establecimiento_id, estado, canal, created_at DESC);
+
+-- Name: notificaciones_campana_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX notificaciones_campana_idx ON public.notificaciones USING btree (campana_id) WHERE (campana_id IS NOT NULL);
+
 -- Name: notificaciones_cliente_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX notificaciones_cliente_idx ON public.notificaciones USING btree (cliente_id, establecimiento_id);
@@ -1271,6 +1661,10 @@ CREATE INDEX notificaciones_cliente_idx ON public.notificaciones USING btree (cl
 -- Name: notificaciones_cola_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX notificaciones_cola_idx ON public.notificaciones USING btree (proximo_intento_at NULLS FIRST, programada_para) WHERE (estado = ANY (ARRAY['pendiente'::text, 'programada'::text]));
+
+-- Name: notificaciones_comerciales_limite_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX notificaciones_comerciales_limite_idx ON public.notificaciones USING btree (establecimiento_id, cliente_id, programada_para) WHERE ((tipo = 'comercial'::text) AND (estado = ANY (ARRAY['enviada'::text, 'entregada'::text])));
 
 -- Name: notificaciones_establecimiento_fecha_idx; Type: INDEX; Schema: public; Owner: -
 
@@ -1291,6 +1685,10 @@ CREATE INDEX orden_servicios_servicio_id_idx ON public.orden_servicios USING btr
 -- Name: ordenes_activas_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX ordenes_activas_idx ON public.ordenes USING btree (establecimiento_id, estado, estado_desde) WHERE (estado <> 'entregado'::public.estado_orden);
+
+-- Name: ordenes_cliente_entrega_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX ordenes_cliente_entrega_idx ON public.ordenes USING btree (vehiculo_id, entregada_at DESC) WHERE (estado = 'entregado'::public.estado_orden);
 
 -- Name: ordenes_codigo_seguimiento_idx; Type: INDEX; Schema: public; Owner: -
 
@@ -1320,6 +1718,10 @@ CREATE INDEX ordenes_vehiculo_fecha_idx ON public.ordenes USING btree (vehiculo_
 
 CREATE INDEX perfiles_establecimiento_id_idx ON public.perfiles USING btree (establecimiento_id);
 
+-- Name: plantillas_notificacion_establecimiento_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX plantillas_notificacion_establecimiento_idx ON public.plantillas_notificacion USING btree (establecimiento_id) WHERE (establecimiento_id IS NOT NULL);
+
 -- Name: promocion_servicios_servicio_id_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX promocion_servicios_servicio_id_idx ON public.promocion_servicios USING btree (servicio_id);
@@ -1335,6 +1737,10 @@ CREATE INDEX servicios_establecimiento_id_idx ON public.servicios USING btree (e
 -- Name: vehiculos_cliente_id_idx; Type: INDEX; Schema: public; Owner: -
 
 CREATE INDEX vehiculos_cliente_id_idx ON public.vehiculos USING btree (cliente_id);
+
+-- Name: vehiculos_cliente_placa_idx; Type: INDEX; Schema: public; Owner: -
+
+CREATE INDEX vehiculos_cliente_placa_idx ON public.vehiculos USING btree (cliente_id, placa);
 
 -- Name: vehiculos_establecimiento_id_cliente_id_idx; Type: INDEX; Schema: public; Owner: -
 
@@ -1376,6 +1782,21 @@ CREATE TRIGGER politicas_datos_inmutables BEFORE DELETE OR UPDATE ON public.poli
 
 CREATE TRIGGER promocion_servicios_mismo_establecimiento BEFORE INSERT OR UPDATE ON public.promocion_servicios FOR EACH ROW EXECUTE FUNCTION privado.validar_promocion_servicio();
 
+-- Name: campanas campanas_creada_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.campanas
+    ADD CONSTRAINT campanas_creada_por_fkey FOREIGN KEY (creada_por) REFERENCES public.perfiles(id) ON DELETE SET NULL;
+
+-- Name: campanas campanas_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.campanas
+    ADD CONSTRAINT campanas_establecimiento_id_fkey FOREIGN KEY (establecimiento_id) REFERENCES public.establecimientos(id) ON DELETE CASCADE;
+
+-- Name: campanas campanas_promocion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.campanas
+    ADD CONSTRAINT campanas_promocion_id_fkey FOREIGN KEY (promocion_id) REFERENCES public.promociones(id);
+
 -- Name: clientes clientes_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 
 ALTER TABLE ONLY public.clientes
@@ -1410,6 +1831,26 @@ ALTER TABLE ONLY public.historial_estados
 
 ALTER TABLE ONLY public.historial_estados
     ADD CONSTRAINT historial_estados_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.perfiles(id);
+
+-- Name: notificacion_intentos notificacion_intentos_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificacion_intentos
+    ADD CONSTRAINT notificacion_intentos_establecimiento_id_fkey FOREIGN KEY (establecimiento_id) REFERENCES public.establecimientos(id) ON DELETE CASCADE;
+
+-- Name: notificacion_intentos notificacion_intentos_notificacion_id_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificacion_intentos
+    ADD CONSTRAINT notificacion_intentos_notificacion_id_establecimiento_id_fkey FOREIGN KEY (notificacion_id, establecimiento_id) REFERENCES public.notificaciones(id, establecimiento_id) ON DELETE CASCADE;
+
+-- Name: notificaciones notificaciones_alerta_atendida_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificaciones
+    ADD CONSTRAINT notificaciones_alerta_atendida_por_fkey FOREIGN KEY (alerta_atendida_por) REFERENCES public.perfiles(id) ON DELETE SET NULL;
+
+-- Name: notificaciones notificaciones_campana_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.notificaciones
+    ADD CONSTRAINT notificaciones_campana_id_fkey FOREIGN KEY (campana_id) REFERENCES public.campanas(id) ON DELETE SET NULL;
 
 -- Name: notificaciones notificaciones_cliente_id_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 
@@ -1476,6 +1917,16 @@ ALTER TABLE ONLY public.perfiles
 ALTER TABLE ONLY public.perfiles
     ADD CONSTRAINT perfiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
+-- Name: plantillas_notificacion plantillas_notificacion_establecimiento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.plantillas_notificacion
+    ADD CONSTRAINT plantillas_notificacion_establecimiento_id_fkey FOREIGN KEY (establecimiento_id) REFERENCES public.establecimientos(id) ON DELETE CASCADE;
+
+-- Name: plantillas_notificacion plantillas_notificacion_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+ALTER TABLE ONLY public.plantillas_notificacion
+    ADD CONSTRAINT plantillas_notificacion_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.perfiles(id) ON DELETE SET NULL;
+
 -- Name: promocion_servicios promocion_servicios_promocion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 
 ALTER TABLE ONLY public.promocion_servicios
@@ -1514,6 +1965,10 @@ CREATE POLICY "admin ve auditoria de su establecimiento" ON public.auditoria FOR
 
 ALTER TABLE public.auditoria ENABLE ROW LEVEL SECURITY;
 
+-- Name: campanas; Type: ROW SECURITY; Schema: public; Owner: -
+
+ALTER TABLE public.campanas ENABLE ROW LEVEL SECURITY;
+
 -- Name: clientes; Type: ROW SECURITY; Schema: public; Owner: -
 
 ALTER TABLE public.clientes ENABLE ROW LEVEL SECURITY;
@@ -1533,6 +1988,10 @@ ALTER TABLE public.eventos ENABLE ROW LEVEL SECURITY;
 -- Name: historial_estados; Type: ROW SECURITY; Schema: public; Owner: -
 
 ALTER TABLE public.historial_estados ENABLE ROW LEVEL SECURITY;
+
+-- Name: notificacion_intentos; Type: ROW SECURITY; Schema: public; Owner: -
+
+ALTER TABLE public.notificacion_intentos ENABLE ROW LEVEL SECURITY;
 
 -- Name: notificaciones; Type: ROW SECURITY; Schema: public; Owner: -
 
@@ -1554,6 +2013,10 @@ ALTER TABLE public.perfiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "politicas visibles para todos" ON public.politicas_datos FOR SELECT USING (true);
 
+-- Name: plantillas_notificacion; Type: ROW SECURITY; Schema: public; Owner: -
+
+ALTER TABLE public.plantillas_notificacion ENABLE ROW LEVEL SECURITY;
+
 -- Name: politicas_datos; Type: ROW SECURITY; Schema: public; Owner: -
 
 ALTER TABLE public.politicas_datos ENABLE ROW LEVEL SECURITY;
@@ -1574,6 +2037,10 @@ ALTER TABLE public.servicios ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.vehiculos ENABLE ROW LEVEL SECURITY;
 
+-- Name: campanas ver campanas; Type: POLICY; Schema: public; Owner: -
+
+CREATE POLICY "ver campanas" ON public.campanas FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
+
 -- Name: clientes ver clientes; Type: POLICY; Schema: public; Owner: -
 
 CREATE POLICY "ver clientes" ON public.clientes FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
@@ -1587,6 +2054,10 @@ CREATE POLICY "ver consentimientos" ON public.consentimientos FOR SELECT USING (
 CREATE POLICY "ver historial" ON public.historial_estados FOR SELECT USING ((EXISTS ( SELECT 1
    FROM public.ordenes o
   WHERE ((o.id = historial_estados.orden_id) AND (o.establecimiento_id = privado.mi_establecimiento())))));
+
+-- Name: notificacion_intentos ver intentos de notificacion; Type: POLICY; Schema: public; Owner: -
+
+CREATE POLICY "ver intentos de notificacion" ON public.notificacion_intentos FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
 
 -- Name: establecimientos ver mi establecimiento; Type: POLICY; Schema: public; Owner: -
 
@@ -1616,6 +2087,10 @@ CREATE POLICY "ver promo-servicios" ON public.promocion_servicios FOR SELECT USI
    FROM public.promociones p
   WHERE ((p.id = promocion_servicios.promocion_id) AND (p.establecimiento_id = privado.mi_establecimiento())))));
 
+-- Name: plantillas_notificacion ver plantillas de notificacion; Type: POLICY; Schema: public; Owner: -
+
+CREATE POLICY "ver plantillas de notificacion" ON public.plantillas_notificacion FOR SELECT USING (((establecimiento_id IS NULL) OR (establecimiento_id = privado.mi_establecimiento())));
+
 -- Name: promociones ver promociones; Type: POLICY; Schema: public; Owner: -
 
 CREATE POLICY "ver promociones" ON public.promociones FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
@@ -1628,4 +2103,4 @@ CREATE POLICY "ver servicios" ON public.servicios FOR SELECT USING ((establecimi
 
 CREATE POLICY "ver vehiculos" ON public.vehiculos FOR SELECT USING ((establecimiento_id = privado.mi_establecimiento()));
 
-\unrestrict SGLsftCSCAsdyADqIb2TL1U8UVAcSJXMSsNpYYyGbvrfLi7b32M8gP5XBFq0smq
+\unrestrict NW43L4oxMQJ4yzY7lyuHZpJ3mx3deR1fJc9vs2wkAwhcE4VPj1hLSGKE04wuM1f

@@ -8,3 +8,8 @@ paths = [
   # Clave anon (pública) de Supabase: se publica en el frontend; los datos los protege RLS.
   '''frontend/\.env\.example''',
 ]
+regexes = [
+  # HU-33: secreto de ejemplo publicado en la documentación de Svix (firmas de los webhooks de
+  # Resend). Es un vector de prueba público, no una credencial; solo se permite este valor exacto.
+  '''whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw''',
+]

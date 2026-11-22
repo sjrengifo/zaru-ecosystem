@@ -1,0 +1,99 @@
+/* HU-29 — Preferencias de notificación del cliente final. Usa los tokens globales; el color de la sede
+   llega por --color-primario. */
+
+/* Enlace desde el centro de notificaciones */
+.notif-preferencias {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--color-primario);
+  font-weight: 600;
+  text-decoration: none;
+}
+.notif-preferencias:hover,
+.notif-preferencias:focus-visible { text-decoration: underline; }
+
+.pref-lista { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+.pref-item {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--color-borde);
+  border-radius: 14px;
+  background: var(--color-superficie);
+  transition: border-color var(--transicion), box-shadow var(--transicion);
+}
+.pref-item:has(.pref-interruptor:checked) {
+  border-color: color-mix(in srgb, var(--color-primario) 55%, var(--color-borde));
+  box-shadow: var(--sombra-1);
+}
+.pref-item:has(.pref-interruptor:focus-visible) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primario) 30%, transparent); }
+/* Ícono | texto + estado | interruptor: el estado va bajo el texto para que el nombre tenga todo el ancho. */
+.pref-canal {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icono texto interruptor'
+    'icono estado interruptor';
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 6px;
+  padding: 14px;
+  cursor: pointer;
+}
+.pref-canal .pref-icono { grid-area: icono; align-self: start; }
+.pref-canal .pref-texto { grid-area: texto; }
+.pref-canal .pref-estado { grid-area: estado; justify-self: start; }
+.pref-canal .pref-interruptor { grid-area: interruptor; }
+.pref-canal-inactivo { cursor: not-allowed; opacity: 0.6; }
+.pref-icono { display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 12px; background: var(--color-primario-suave); color: var(--color-primario); }
+.pref-item:has(.pref-interruptor:checked) .pref-icono { background: var(--color-primario); color: #fff; }
+/* Acción secundaria del SMS, dentro de su tarjeta y alineada con el texto. */
+.pref-otro-numero { display: block; margin: -6px 0 0; padding: 0 14px 12px 64px; font-size: 13px; }
+.pref-texto { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.pref-nombre { font-weight: 600; }
+.pref-detalle { color: var(--color-texto-suave, #6b7280); font-size: 0.875rem; }
+.pref-estado { flex: none; padding: 2px 8px; border-radius: 999px; background: var(--color-fondo); color: var(--color-texto-suave, #6b7280); font-size: 0.75rem; font-weight: 600; }
+.pref-estado-activo { background: var(--color-exito-fondo); color: var(--color-exito); }
+
+/* Interruptor accesible: es un checkbox con role="switch". */
+.pref-interruptor {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  border-radius: 999px;
+  background: #cbd5e1;
+  cursor: inherit;
+  transition: background 150ms ease;
+}
+.pref-interruptor::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 150ms ease;
+}
+.pref-interruptor:checked { background: var(--color-primario); }
+.pref-interruptor:checked::after { transform: translateX(18px); }
+.pref-interruptor:disabled { opacity: 0.6; }
+
+.pref-verificacion { margin-top: 14px; padding: 14px; border: 1px solid var(--color-borde); border-radius: 14px; background: var(--color-fondo); }
+.pref-verificacion-titulo { margin: 0 0 6px; font-size: 1rem; }
+.pref-ayuda { margin: 0 0 10px; }
+.pref-opciones { display: grid; gap: 8px; margin-bottom: 10px; }
+.pref-opcion { display: flex; align-items: center; gap: 8px; }
+.pref-codigo { width: 100%; padding: 12px; border: 1px solid var(--color-borde); border-radius: 10px; font-size: 1.5rem; letter-spacing: 0.4em; text-align: center; font-variant-numeric: tabular-nums; }
+.pref-error { margin: 8px 0 0; color: var(--color-error); font-size: 0.875rem; }
+.pref-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pref-confirmacion { margin-top: 14px; justify-content: flex-start; }
+.pref-confirmacion-titulo { font-weight: 700; }
+.pref-pie { display: flex; margin-top: 16px; }
+.pref-pie .boton { width: 100%; }
+.pref-aviso-push { margin: -4px 0 0; padding: 0 14px 12px 64px; font-size: 13px; color: var(--color-texto-suave); }

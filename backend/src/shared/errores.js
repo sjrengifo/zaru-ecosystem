@@ -15,6 +15,7 @@ export const CODIGOS = {
   LIMITE_EXCEDIDO: 429,
   ERROR_INTERNO: 500,
   NO_IMPLEMENTADO: 501,
+  SERVICIO_NO_DISPONIBLE: 503,
 };
 
 export class AppError extends Error {
