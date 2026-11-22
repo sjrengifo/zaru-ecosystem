@@ -29,7 +29,7 @@ Avisar automáticamente al cliente final de cada cambio relevante del estado de 
 | ID | Requisito | Origen |
 |---|---|---|
 | RF-F6-07 | El cliente consulta sus canales (push, SMS, correo) con su estado activo/inactivo. | HU-29 CA1 |
-| RF-F6-08 | Activar SMS exige un celular verificado con código de 6 dígitos. | HU-29 CA2 |
+| RF-F6-08 | Activar SMS exige un celular verificado. El registrado ya lo está porque el cliente entra con el código enviado a ese número (HU-59); otro número se verifica con un código de 6 dígitos. | HU-29 CA2 |
 | RF-F6-09 | Desactivar todos los canales exige confirmación explícita (`confirmarSinCanales: true`); sin ella responde `409` con la advertencia. | HU-29 CA3 |
 | RF-F6-10 | Las notificaciones se envían solo por los canales que el cliente dejó activos. | HU-29 CA4 |
 | RF-F6-11 | El cliente registra su suscripción push del navegador; si rechaza el permiso o el navegador no lo soporta, conserva SMS y correo (manejo en el frontend). | HU-40 CA1, CA2, CA3 |
@@ -100,9 +100,10 @@ Avisar automáticamente al cliente final de cada cambio relevante del estado de 
 - **Entonces** no se crea ninguna notificación.
 
 **ESC-F6-05 — Activar SMS sin verificar** (RF-F6-08 · HU-29 CA2)
-- **Dado** un cliente sin celular verificado
+- **Dado** un cliente que entró con el código de HU-59 a su celular registrado
 - **Cuando** activa SMS
-- **Entonces** recibe `409` con `requiereVerificacion: true`; tras verificar con el código de 6 dígitos, el canal queda activo.
+- **Entonces** el canal queda activo con ese celular, sin un segundo código.
+- **Y dado** que quiere recibirlo en otro número (o no tiene uno registrado), recibe `400` con `requiere: verificar_celular`; tras verificar ese número con el código de 6 dígitos, el canal queda activo.
 
 **ESC-F6-06 — Todos los canales desactivados** (RF-F6-09 · HU-29 CA3)
 - **Dado** un cliente que desactiva todos los canales

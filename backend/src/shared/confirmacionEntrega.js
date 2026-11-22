@@ -3,8 +3,8 @@
 // Un proveedor puede entregar un mensaje después de que el sistema lo dio por fallido (por ejemplo,
 // la respuesta se perdió por tiempo agotado). Cuando el proveedor avisa que sí lo entregó:
 //   1. la notificación queda "entregada";
-//   2. se cancelan los reintentos y los alternos pendientes de la misma cadena, para que el cliente
-//      no reciba el mismo aviso dos veces;
+//   2. se cancelan los alternos pendientes del mismo aviso, para que el cliente no reciba el mismo
+//      aviso dos veces (los canales que el cliente eligió en HU-29 siguen saliendo);
 //   3. si la cadena había quedado como alerta del dashboard (CA3), la alerta se cierra sola.
 //
 // Solo se acepta un aviso con la firma válida del proveedor:
@@ -66,7 +66,7 @@ export function notificacionDeEventoResend(evento) {
  * @returns {Promise<{ resultado: 'confirmada'|'ya_confirmada'|'desconocida', cancelados?: number }>}
  */
 export async function confirmarEntrega(db, { notificacionId, idProveedor = null, proveedor = null, ahora = new Date() }) {
-  let consulta = db.from('notificaciones').select('id, establecimiento_id, estado, contenido, notificacion_origen_id');
+  let consulta = db.from('notificaciones').select('id, establecimiento_id, orden_id, evento, estado, contenido, notificacion_origen_id');
   consulta = notificacionId ? consulta.eq('id', notificacionId) : consulta.eq('contenido->>idProveedor', idProveedor);
   const { data: fila, error } = await consulta.maybeSingle();
   if (error) throw error;
@@ -88,16 +88,19 @@ export async function confirmarEntrega(db, { notificacionId, idProveedor = null,
     },
   }, 'id', 'Notificación');
 
-  // La cadena: el original y sus alternos.
+  // El aviso completo: con HU-29 sale en paralelo por cada canal que el cliente eligió, y cada uno puede
+  // tener alternos (HU-33). Se cancelan solo los alternos pendientes: los canales que el cliente eligió
+  // siguen saliendo, porque así lo pidió.
   const origen = fila.notificacion_origen_id ?? fila.id;
-  const { data: cadena, error: errorCadena } = await tenant
-    .listar('notificaciones', 'id, estado, fallo_definitivo_at, alerta_atendida_at')
-    .or(`id.eq.${origen},notificacion_origen_id.eq.${origen}`);
+  const columnas = 'id, estado, notificacion_origen_id, fallo_definitivo_at, alerta_atendida_at';
+  const { data: cadena, error: errorCadena } = fila.orden_id && fila.evento
+    ? await tenant.listar('notificaciones', columnas).eq('orden_id', fila.orden_id).eq('evento', fila.evento)
+    : await tenant.listar('notificaciones', columnas).or(`id.eq.${origen},notificacion_origen_id.eq.${origen}`);
   if (errorCadena) throw errorCadena;
 
   let cancelados = 0;
   for (const otra of cadena ?? []) {
-    if (otra.id === fila.id) continue;
+    if (otra.id === fila.id || !otra.notificacion_origen_id) continue;
     if (['pendiente', 'programada', 'enviando'].includes(otra.estado)) {
       // Solo cancela si sigue pendiente: si el worker ya la envió, no se pisa su estado.
       const { data: cancelada } = await db

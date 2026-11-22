@@ -12,6 +12,7 @@ import {
   COLUMNAS_TABLERO,
   ESTADOS_ORDEN,
   SIGUIENTE_ESTADO,
+  segundosParaDeshacer,
   agruparPorColumna,
   calcularDemora,
   horaBogota,
@@ -25,6 +26,7 @@ import AlertaDemora from '../components/AlertaDemora.jsx';
 import AvisosFallidos from '../components/AvisosFallidos.jsx';
 import Notificacion from '../components/Notificacion.jsx';
 import Cargando from '../components/Cargando.jsx';
+import FormularioNovedad from '../components/FormularioNovedad.jsx';
 
 export default function Dashboard() {
   const {
@@ -43,13 +45,26 @@ export default function Dashboard() {
 
   const [ingresando, setIngresando] = useState(false);
   const [avanzando, setAvanzando] = useState(null);
+  // HU-10: avances hechos desde este tablero que todavía se pueden deshacer { ordenId: momento en ms }.
+  const [recientes, setRecientes] = useState({});
   const [confirmacion, setConfirmacion] = useState(null);
   const [errorAccion, setErrorAccion] = useState('');
   const [alertaDemoraVisible, setAlertaDemoraVisible] = useState(false);
+  const [novedadOrden, setNovedadOrden] = useState(null);
   const ultimaAlertaRef = useRef(0);
   const ultimaFirmaRef = useRef('');
   const cerrarConfirmacion = useCallback(() => setConfirmacion(null), []);
   const cerrarAlertaDemora = useCallback(() => setAlertaDemoraVisible(false), []);
+  const guardarNovedad = useCallback((novedad) => {
+    setNovedadOrden(null);
+    setConfirmacion({
+      id: Date.now(),
+      titulo: 'Novedad enviada',
+      detalle: novedad.tipo === 'demora' ? 'La entrega estimada se actualizó.' : 'El mensaje quedó guardado en el historial del servicio.',
+      tipo: 'exito',
+    });
+    refrescar();
+  }, [refrescar]);
 
   const grupos = agruparPorColumna(ordenes);
   const atendidos = vehiculosAtendidosHoy(ordenes);
@@ -105,6 +120,7 @@ export default function Dashboard() {
     setErrorAccion('');
     try {
       const actualizada = await api.patch(`/ordenes/${orden.id}/estado`, { estado: siguiente });
+      setRecientes((actuales) => ({ ...actuales, [orden.id]: Date.now() }));
       const aviso = mensajeCorreo(actualizada.notificacion);
       setConfirmacion({
         id: Date.now(),
@@ -122,6 +138,40 @@ export default function Dashboard() {
       setAvanzando(null);
     }
   }
+
+  /** HU-10: deshace el último avance. HU-28 CA3: el backend cancela o corrige el aviso al cliente. */
+  async function deshacerEstado(orden) {
+    if (avanzando) return;
+    setAvanzando(orden.id);
+    setErrorAccion('');
+    try {
+      const actualizada = await api.patch(`/ordenes/${orden.id}/estado`, { revertir: true });
+      const { canceladas = 0, correcciones = 0 } = actualizada.correccion ?? {};
+      const detalleAviso = correcciones > 0
+        ? 'Le enviamos una corrección al cliente'
+        : canceladas > 0 ? 'El aviso al cliente se canceló antes de salir' : null;
+      setConfirmacion({
+        id: Date.now(),
+        titulo: 'Cambio deshecho',
+        detalle: [`${actualizada.vehiculo?.placa ?? 'Vehículo'} · ${ESTADOS_ORDEN[actualizada.estado]}`, detalleAviso].filter(Boolean).join(' · '),
+        tipo: 'exito',
+      });
+      refrescar();
+    } catch (fallo) {
+      setErrorAccion(fallo.message || 'No se pudo deshacer el cambio.');
+      if (fallo.status === 409) refrescar();
+    } finally {
+      // Un cambio se deshace una sola vez: el botón desaparece haya funcionado o vencido.
+      setRecientes(({ [orden.id]: _, ...resto }) => resto);
+      setAvanzando(null);
+    }
+  }
+
+  const segundosDeshacer = Object.fromEntries(
+    Object.entries(recientes)
+      .map(([id, momento]) => [id, segundosParaDeshacer(momento, ahora)])
+      .filter(([, segundos]) => segundos > 0),
+  );
 
   const textoConexion = conectado ? 'En vivo' : cargando ? 'Conectando…' : 'Sin conexión en vivo';
 
@@ -218,6 +268,9 @@ export default function Dashboard() {
                 columna={columna}
                 ordenes={grupos[columna.id]}
                 onAvanzar={avanzarEstado}
+                onDeshacer={deshacerEstado}
+                segundosDeshacer={segundosDeshacer}
+                onNotificarNovedad={setNovedadOrden}
                 avanzando={avanzando}
                 ahora={ahora}
               />
@@ -244,6 +297,13 @@ export default function Dashboard() {
           ordenes={demoradas}
           ahora={ahora}
           onCerrar={cerrarAlertaDemora}
+        />
+      )}
+      {novedadOrden && (
+        <FormularioNovedad
+          orden={novedadOrden}
+          onCerrar={() => setNovedadOrden(null)}
+          onGuardado={guardarNovedad}
         />
       )}
     </section>

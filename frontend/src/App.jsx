@@ -23,11 +23,13 @@ import AceptarInvitacion from './pages/AceptarInvitacion.jsx';
 import Seguimiento from './pages/Seguimiento.jsx';
 import AccesoCliente from './pages/AccesoCliente.jsx';
 import BajaNotificaciones from './pages/BajaNotificaciones.jsx';
+import BajaRecordatorios from './pages/BajaRecordatorios.jsx';
 import PoliticaDatos from './pages/PoliticaDatos.jsx';
 import HistorialCliente from './pages/HistorialCliente.jsx';
 import NotificacionesCliente from './pages/NotificacionesCliente.jsx';
 import PromocionesCliente from './pages/PromocionesCliente.jsx';
 import PromocionDetalleCliente from './pages/PromocionDetalleCliente.jsx';
+import PreferenciasNotificacion from './pages/PreferenciasNotificacion.jsx';
 
 const protegida = (ruta, elemento) => <RutaProtegida roles={rolesDeRuta(ruta)}>{elemento}</RutaProtegida>;
 const conModulo = (modulo, pagina) => <RequiereModulo modulo={modulo}>{pagina}</RequiereModulo>;
@@ -45,6 +47,8 @@ export default function App() {
       <Route path="/s/:slug" element={<AccesoCliente />} />
       {/* HU-30: "dejar de recibir" desde el correo y la política que enlazan las casillas de autorización. */}
       <Route path="/baja/:token" element={<BajaNotificaciones />} />
+      {/* HU-36: baja de los recordatorios de próximo lavado de un vehículo. */}
+      <Route path="/recordatorios/:token/desactivar" element={<BajaRecordatorios />} />
       <Route path="/politica-datos" element={<PoliticaDatos />} />
       {/* HU-23 / HU-24: historial y detalle de servicios del cliente final, con placa + celular. */}
       <Route path="/s/:slug/historial" element={<HistorialCliente />} />
@@ -54,6 +58,8 @@ export default function App() {
       <Route path="/s/:slug/promociones" element={<PromocionesCliente />} />
       {/* HU-27: detalle y condiciones de una promoción vigente, también público. */}
       <Route path="/s/:slug/promociones/:id" element={<PromocionDetalleCliente />} />
+      {/* HU-29: el cliente elige por qué canales (push, sms, correo) recibe sus avisos. */}
+      <Route path="/s/:slug/preferencias" element={<PreferenciasNotificacion />} />
       <Route path="/superadmin" element={protegida('/superadmin', <Superadmin />)} />
 
       <Route element={<RutaProtegida><Layout /></RutaProtegida>}>

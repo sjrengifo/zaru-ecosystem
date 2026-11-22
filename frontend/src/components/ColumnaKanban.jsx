@@ -1,7 +1,7 @@
 // HU-09 CA1 — Una columna del tablero con su estado vacío propio.
 import TarjetaOrden from './TarjetaOrden.jsx';
 
-export default function ColumnaKanban({ columna, ordenes, onAvanzar, avanzando, ahora }) {
+export default function ColumnaKanban({ columna, ordenes, onAvanzar, onDeshacer, onNotificarNovedad, segundosDeshacer = {}, avanzando, ahora }) {
   const tituloId = `columna-${columna.id}`;
 
   return (
@@ -27,6 +27,9 @@ export default function ColumnaKanban({ columna, ordenes, onAvanzar, avanzando, 
               key={orden.id}
               orden={orden}
               onAvanzar={onAvanzar}
+              onDeshacer={onDeshacer}
+              segundosDeshacer={segundosDeshacer[orden.id] ?? 0}
+              onNotificarNovedad={onNotificarNovedad}
               avanzando={avanzando}
               ahora={ahora}
             />

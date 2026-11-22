@@ -57,6 +57,45 @@ export const ordenNueva = z
     }
   });
 
+export const tiposNovedad = ['demora', 'dano_preexistente', 'objeto_encontrado', 'otro'];
+
+export const novedadNueva = z
+  .object({
+    tipo: z.enum(tiposNovedad, {
+      required_error: 'Indica el tipo de novedad',
+      invalid_type_error: 'El tipo de novedad no es válido',
+    }),
+    mensaje: z
+      .string({ invalid_type_error: 'El mensaje de la novedad debe ser texto' })
+      .trim()
+      .max(300, 'El mensaje admite máximo 300 caracteres')
+      .transform((valor) => valor || null)
+      .nullable()
+      .optional(),
+    minutosExtra: z
+      .number({ invalid_type_error: 'Los minutos adicionales deben ser un número' })
+      .int('Los minutos adicionales deben ser un número entero')
+      .min(1, 'Los minutos adicionales deben ser mayores que cero')
+      .nullable()
+      .optional(),
+  })
+  .superRefine(({ tipo, minutosExtra }, ctx) => {
+    if (tipo === 'demora' && minutosExtra == null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['minutosExtra'],
+        message: 'Indica cuántos minutos adicionales dura la demora',
+      });
+    }
+    if (tipo !== 'demora' && minutosExtra != null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['minutosExtra'],
+        message: 'Solo una demora indica minutos adicionales',
+      });
+    }
+  });
+
 /** HU-10: avanzar al siguiente estado o revertir el último cambio (HU-28 CA3). */
 export const cambioEstadoOrden = z
   .object({

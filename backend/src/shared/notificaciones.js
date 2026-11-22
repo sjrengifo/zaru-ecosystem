@@ -24,16 +24,27 @@
 //        entregado; los proveedores reciben una referencia estable para no duplicar un reintento, y
 //        la confirmación tardía de entrega (webhooks) cancela lo pendiente (shared/confirmacionEntrega.js).
 //
+// HU-29:
+//   - Antes de cada despacho se consultan las preferencias de canal del cliente (shared/preferenciasCanal.js):
+//     el aviso sale únicamente por los canales que dejó activos. Sin preferencias guardadas sigue
+//     saliendo por correo, como antes.
+//   - Si el cliente eligió SMS, el aviso de ingreso y el de "listo" se envían por SMS con el mismo outbox.
+//   - El SMS alterno de HU-34 respeta la decisión: no se envía a quien desactivó el canal SMS.
+//
 // Todo acceso a datos pasa por el acceso del tenant (HU-41). El destino se guarda cifrado (HU-50).
 import { cifrar, descifrar, estaCifrado } from './cifrado.js';
 import { proveedorCorreo, conTiempoMaximo, enmascararCorreo } from './correo.js';
-import { proveedorSms, textoAvisoListo } from './proveedorSms.js';
-import { proveedorPush } from './proveedorPush.js';
+import { proveedorSms, smsDisponible, textoAvisoListo, textoAvisoSms, textoCorreccion } from './proveedorSms.js';
+import { proveedorPush, pushConfigurado } from './proveedorPush.js';
+import { canalesActivos } from './preferenciasCanal.js';
+import { enmascararCelular } from './mascaras.js';
 import { clasificarError, esperaExponencial, esperasConfiguradas } from './reintentos.js';
-import { PLANTILLAS, plantillaPromocion } from './plantillasCorreo.js';
+import { NOMBRE_ESTADO, PLANTILLAS, enlaceSeguimiento, plantillaPromocion } from './plantillasCorreo.js';
+import { olvidarSuscripcionVencida, suscripcionComoDestino, suscripcionVigente } from './suscripcionesPush.js';
 import { enlaceBaja, puedeRecibir, TIPOS } from './autorizaciones.js';
 import { crearAccesoTenant } from './tenant.js';
 import { reservarConsumo, confirmarConsumo, liberarConsumo, notificarAlerta80 } from './consumo.js';
+import { enlaceRecordatorio } from './tokenRecordatorio.js';
 
 export const EVENTOS = {
   RECIBIDA: 'orden.recibida',
@@ -41,6 +52,12 @@ export const EVENTOS = {
   SECADO: 'orden.secado',
   LISTA: 'orden.lista',
   ENTREGADA: 'orden.entregada',
+  // HU-28 CA3: aviso de que el estado anterior se notificó por error.
+  CORRECCION: 'orden.correccion',
+  // HU-37: mensaje manual del operario durante el lavado.
+  NOVEDAD: 'orden.novedad',
+  // HU-36: recordatorio del próximo lavado.
+  RECORDATORIO: 'recordatorio.proximo_lavado',
 };
 
 /** HU-31: cada evento corresponde a un estado del flujo y a su interruptor en la sede. */
@@ -66,6 +83,17 @@ const ESPERAS_MS = [2_000, 4_000]; // compatibilidad del envío inmediato (HU-46
 
 const COLUMNAS_ORDEN =
   'id, estado, subtotal, descuento, total, created_at, codigo_seguimiento, vehiculos(placa, clientes(id, nombre, correo, telefono)), orden_servicios(precio, servicios(nombre))';
+
+/** Clave anti-duplicados de un aviso: el mismo evento de la misma orden por el mismo canal sale una vez. */
+export const claveDedupe = (ordenId, evento, canal) => `${ordenId}:${evento}:${canal}`;
+
+/** Orden con su vehículo, cliente y servicios. Lanza si no existe. */
+async function cargarOrden(tenant, ordenId) {
+  const { data: orden, error } = await tenant.listar('ordenes', COLUMNAS_ORDEN).eq('id', ordenId).maybeSingle();
+  if (error) throw error;
+  if (!orden) throw new Error('La orden no existe');
+  return orden;
+}
 
 const dormir = (ms) => new Promise((resolver) => setTimeout(resolver, ms));
 const resumen = (estado, extra = {}) => ({ canal: 'correo', estado, ...extra });
@@ -99,35 +127,53 @@ function destinoPlano(destino) {
 }
 
 /**
+ * HU-31 CA3: ¿la sede apagó el aviso de este estado? Se consulta en cada envío y con el tenant de la
+ * sesión, así un interruptor apagado aplica de inmediato a todos los canales y nunca alcanza a otra sede.
+ */
+async function eventoDesactivado(tenant, evento) {
+  const estado = ESTADO_DE_EVENTO[evento];
+  if (!estado) return false;
+  const { data: config, error } = await tenant
+    .listar('config_notificaciones', 'activo')
+    .eq('estado', estado)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(config && config.activo === false);
+}
+
+/**
  * Prepara el correo de un evento de la orden.
  * @returns {Promise<{ resumen: object, enviar: () => Promise<object> }>}
  *   `resumen` se devuelve al panel; `enviar` se ejecuta en segundo plano después de responder.
  */
-export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {}) {
+export async function prepararCorreo(tenant, { evento, ordenId, novedadId = null }, opciones = {}) {
   const sinEnvio = async () => null;
   try {
     const plantilla = PLANTILLAS[evento];
     if (!plantilla) throw new Error(`Evento de correo desconocido: ${evento}`);
 
-    // HU-31 CA3: la configuración se consulta en cada envío y por el tenant de la sesión.
-    // Así un interruptor apagado aplica de inmediato y nunca alcanza a otra sede.
-    const estado = ESTADO_DE_EVENTO[evento];
-    const { data: config, error: errorConfig } = await tenant
-      .listar('config_notificaciones', 'activo')
-      .eq('estado', estado)
-      .maybeSingle();
-    if (errorConfig) throw errorConfig;
-    if (config && config.activo === false) {
+    // HU-31 CA3: un estado apagado en la sede no genera aviso por ningún canal.
+    if (await eventoDesactivado(tenant, evento)) {
       return { resumen: resumen('omitida', { motivo: 'desactivado' }), enviar: sinEnvio };
     }
 
-    const { data: orden, error } = await tenant.listar('ordenes', COLUMNAS_ORDEN).eq('id', ordenId).maybeSingle();
-    if (error) throw error;
-    if (!orden) throw new Error('La orden no existe');
+    const orden = opciones.orden ?? (await cargarOrden(tenant, ordenId));
 
     const vehiculo = orden.vehiculos ?? {};
     const cliente = vehiculo.clientes ?? null;
     if (!cliente) return { resumen: resumen('omitida', { motivo: 'sin_cliente' }), enviar: sinEnvio };
+
+    let novedad = null;
+    if (evento === EVENTOS.NOVEDAD) {
+      const { data, error: errorNovedad } = await tenant
+        .listar('novedades', 'id, tipo, mensaje, minutos_extra')
+        .eq('id', novedadId)
+        .eq('orden_id', ordenId)
+        .maybeSingle();
+      if (errorNovedad) throw errorNovedad;
+      if (!data) return { resumen: resumen('omitida', { motivo: 'sin_novedad' }), enviar: sinEnvio };
+      novedad = data;
+    }
 
     // CA3: sin correo registrado no se envía nada y la operación sigue normal.
     const correoGuardado = cliente.correo;
@@ -140,7 +186,7 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
     }
 
     const { data: establecimiento } = await tenant
-      .listar('establecimientos', 'nombre, logo_url, color_primario')
+      .listar('establecimientos', 'nombre, logo_url, color_primario, direccion')
       .maybeSingle();
 
     const mensaje = plantilla({
@@ -148,8 +194,10 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
       cliente,
       orden,
       vehiculo,
+      novedad,
       servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
       enlaceBaja: enlaceDeBaja(tenant, cliente.id),
+      horaCambio: opciones.ahora ?? new Date(),
     });
 
     let fila;
@@ -157,15 +205,16 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
       fila = await tenant.crear('notificaciones', {
         cliente_id: cliente.id,
         orden_id: orden.id,
-        tipo: 'operativa',
+        tipo: evento === EVENTOS.NOVEDAD ? 'novedad' : 'operativa',
         evento,
         canal: 'correo',
         destino: estaCifrado(correoGuardado) ? correoGuardado : cifrar(correo),
         // Solo se guarda el asunto y metadatos: el cuerpo se reconstruye con la plantilla al enviar,
         // así no se duplican datos personales en la cola.
-        contenido: { asunto: mensaje.asunto },
+        contenido: { asunto: mensaje.asunto, ...(novedadId ? { novedadId } : {}) },
         estado: 'pendiente',
-        clave_dedupe: `${orden.id}:${evento}:correo`,
+        // HU-37: cada novedad de la misma orden es un aviso distinto.
+        clave_dedupe: claveDedupe(orden.id, evento, novedadId ?? 'correo'),
       }, 'id');
     } catch (err) {
       // RNF-F6-04: el mismo evento de la misma orden nunca genera un segundo correo.
@@ -184,6 +233,136 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
   }
 }
 
+/**
+ * HU-29: prepara el SMS de un evento de la orden para el cliente que eligió ese canal. Solo se llama con
+ * SMS activo y el celular verificado (CA2); el aviso va al celular validado, no a otro.
+ * @returns {Promise<{ resumen: object, enviar: () => Promise<object|null> }>}
+ */
+export async function prepararSms(tenant, { evento, ordenId }, opciones = {}) {
+  const sinEnvio = async () => null;
+  const resumenSms = (estado, extra = {}) => ({ canal: 'sms', estado, ...extra });
+  try {
+    if (!PLANTILLAS[evento]) throw new Error(`Evento de SMS desconocido: ${evento}`);
+    if (!smsDisponible()) return { resumen: resumenSms('omitida', { motivo: 'sms_no_disponible' }), enviar: sinEnvio };
+
+    const orden = opciones.orden ?? (await cargarOrden(tenant, ordenId));
+    const vehiculo = orden.vehiculos ?? {};
+    const cliente = vehiculo.clientes ?? null;
+    if (!cliente) return { resumen: resumenSms('omitida', { motivo: 'sin_cliente' }), enviar: sinEnvio };
+    if (await eventoDesactivado(tenant, evento)) {
+      return { resumen: resumenSms('omitida', { motivo: 'desactivado' }), enviar: sinEnvio };
+    }
+
+    const preferencias = opciones.preferencias ?? (await canalesActivos(tenant, cliente.id));
+    if (!preferencias.sms || !preferencias.telefonoSms) {
+      return { resumen: resumenSms('omitida', { motivo: 'canal_inactivo' }), enviar: sinEnvio };
+    }
+    // HU-30: la misma regla que el correo (autorización vigente de los avisos del servicio).
+    if (!(await puedeRecibir(tenant, cliente.id, TIPOS.servicio))) {
+      return { resumen: resumenSms('omitida', { motivo: 'revocado' }), enviar: sinEnvio };
+    }
+
+    const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre, direccion').maybeSingle();
+    const horaCambio = opciones.ahora ?? new Date();
+    const plantilla = PLANTILLAS[evento]({
+      establecimiento,
+      cliente,
+      orden,
+      vehiculo,
+      servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
+    });
+
+    let fila;
+    try {
+      fila = await tenant.crear('notificaciones', {
+        cliente_id: cliente.id,
+        orden_id: orden.id,
+        tipo: 'operativa',
+        evento,
+        canal: 'sms',
+        destino: cifrar(preferencias.telefonoSms),
+        contenido: {
+          asunto: plantilla.asunto,
+          texto: textoAvisoSms(evento, { establecimiento, placa: vehiculo.placa, total: orden.total, hora: horaCambio }),
+        },
+        estado: 'pendiente',
+        clave_dedupe: claveDedupe(orden.id, evento, 'sms'),
+      }, '*');
+    } catch (err) {
+      // RNF-F6-04: el mismo evento de la misma orden nunca genera un segundo SMS.
+      if (err.codigo === 'CONFLICTO') return { resumen: resumenSms('duplicada'), enviar: sinEnvio };
+      throw err;
+    }
+
+    return {
+      resumen: resumenSms('pendiente', { id: fila.id, destino: enmascararCelular(preferencias.telefonoSms) }),
+      enviar: () => enviarUnIntento(tenant, fila, { proveedorSms: opciones.proveedorSms }),
+    };
+  } catch (err) {
+    console.error(`[HU-29] No se pudo preparar el SMS ${evento} de la orden ${ordenId}:`, err.message);
+    return { resumen: resumenSms('error', { motivo: 'preparacion' }), enviar: sinEnvio };
+  }
+}
+
+/**
+ * HU-40: prepara el aviso push de un evento para el cliente que activó ese canal y registró un
+ * dispositivo. Va al dispositivo registrado más reciente; al tocarlo abre el seguimiento del vehículo.
+ * @returns {Promise<{ resumen: object, enviar: () => Promise<object|null> }>}
+ */
+export async function prepararPush(tenant, { evento, ordenId }, opciones = {}) {
+  const sinEnvio = async () => null;
+  const resumenPush = (estado, extra = {}) => ({ canal: 'push', estado, ...extra });
+  try {
+    if (!PLANTILLAS[evento]) throw new Error(`Evento de push desconocido: ${evento}`);
+    const orden = opciones.orden ?? (await cargarOrden(tenant, ordenId));
+    const vehiculo = orden.vehiculos ?? {};
+    const cliente = vehiculo.clientes ?? null;
+    if (!cliente) return { resumen: resumenPush('omitida', { motivo: 'sin_cliente' }), enviar: sinEnvio };
+    if (await eventoDesactivado(tenant, evento)) {
+      return { resumen: resumenPush('omitida', { motivo: 'desactivado' }), enviar: sinEnvio };
+    }
+    if (!(await puedeRecibir(tenant, cliente.id, TIPOS.servicio))) {
+      return { resumen: resumenPush('omitida', { motivo: 'revocado' }), enviar: sinEnvio };
+    }
+    const suscripcion = await suscripcionVigente(tenant, cliente.id);
+    if (!suscripcion) return { resumen: resumenPush('omitida', { motivo: 'sin_dispositivo' }), enviar: sinEnvio };
+
+    const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre, direccion').maybeSingle();
+    const horaCambio = opciones.ahora ?? new Date();
+    const { asunto } = PLANTILLAS[evento]({ establecimiento, cliente, orden, vehiculo, servicios: [] });
+
+    let fila;
+    try {
+      fila = await tenant.crear('notificaciones', {
+        cliente_id: cliente.id,
+        orden_id: orden.id,
+        tipo: 'operativa',
+        evento,
+        canal: 'push',
+        destino: cifrar(suscripcionComoDestino(suscripcion)),
+        contenido: {
+          asunto,
+          texto: textoAvisoSms(evento, { establecimiento, placa: vehiculo.placa, total: orden.total, hora: horaCambio }),
+          url: orden.estado === 'entregado' ? null : enlaceSeguimiento(orden.codigo_seguimiento),
+        },
+        estado: 'pendiente',
+        clave_dedupe: claveDedupe(orden.id, evento, 'push'),
+      }, '*');
+    } catch (err) {
+      if (err.codigo === 'CONFLICTO') return { resumen: resumenPush('duplicada'), enviar: sinEnvio };
+      throw err;
+    }
+
+    return {
+      resumen: resumenPush('pendiente', { id: fila.id, destino: suscripcion.dispositivo ?? 'tu celular' }),
+      enviar: () => enviarUnIntento(tenant, fila, { proveedorPush: opciones.proveedorPush }),
+    };
+  } catch (err) {
+    console.error(`[HU-40] No se pudo preparar el push ${evento} de la orden ${ordenId}:`, err.message);
+    return { resumen: resumenPush('error', { motivo: 'preparacion' }), enviar: sinEnvio };
+  }
+}
+
 /** Marca la fila sin propagar errores: el seguimiento nunca debe romper el envío. */
 async function marcar(tenant, id, cambios) {
   try {
@@ -191,6 +370,19 @@ async function marcar(tenant, id, cambios) {
   } catch (err) {
     console.error(`[HU-46] No se pudo actualizar la notificación ${id}:`, err.message);
   }
+}
+
+/** HU-36: cancela un correo programado que todavía no salió. */
+export async function cancelarAvisoProgramado(tenant, id, motivo) {
+  const { data: fila, error } = await tenant.listar('notificaciones', 'id, estado').eq('id', id).maybeSingle();
+  if (error) throw error;
+  if (!fila || ['enviada', 'entregada', 'cancelada'].includes(fila.estado)) return null;
+  await tenant.actualizar('notificaciones', id, {
+    estado: 'cancelada',
+    error: `Cancelada: ${String(motivo ?? 'solicitud del cliente').slice(0, 200)}`,
+    proximo_intento_at: null,
+  });
+  return fila;
 }
 
 /**
@@ -299,6 +491,53 @@ export function enSegundoPlano(tarea) {
   });
 }
 
+/** HU-36: el estado del recordatorio sigue al del correo que lo representa. */
+async function marcarRecordatorio(tenant, fila, cambios) {
+  if (fila.evento !== EVENTOS.RECORDATORIO || !fila.contenido?.recordatorioId) return;
+  try {
+    await tenant.actualizar('recordatorios', fila.contenido.recordatorioId, cambios);
+  } catch (err) {
+    console.error(`[HU-36] No se pudo actualizar el recordatorio ${fila.contenido.recordatorioId}:`, err.message);
+  }
+}
+
+async function reconstruirRecordatorio(tenant, fila) {
+  const recordatorioId = fila.contenido?.recordatorioId;
+  if (!recordatorioId) return null;
+  const { data: recordatorio, error } = await tenant
+    .listar('recordatorios', 'id, cliente_id, vehiculo_id, fecha_estimada, estado')
+    .eq('id', recordatorioId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!recordatorio || recordatorio.estado !== 'programado') return null;
+
+  const [{ data: vehiculo, error: errorVehiculo }, { data: cliente, error: errorCliente }, { data: establecimiento, error: errorSede }] =
+    await Promise.all([
+      tenant.listar('vehiculos', 'id, placa, recordatorios_activos').eq('id', recordatorio.vehiculo_id).maybeSingle(),
+      tenant.listar('clientes', 'id, nombre').eq('id', recordatorio.cliente_id).maybeSingle(),
+      tenant.listar('establecimientos', 'nombre, logo_url, color_primario, telefono').maybeSingle(),
+    ]);
+  if (errorVehiculo) throw errorVehiculo;
+  if (errorCliente) throw errorCliente;
+  if (errorSede) throw errorSede;
+  if (!vehiculo?.recordatorios_activos || !cliente) return null;
+  if (!(await puedeRecibir(tenant, recordatorio.cliente_id, TIPOS.comerciales))) return null;
+
+  let enlace = null;
+  try {
+    enlace = enlaceRecordatorio({
+      establecimientoId: tenant.establecimientoId,
+      clienteId: recordatorio.cliente_id,
+      vehiculoId: recordatorio.vehiculo_id,
+    });
+  } catch {
+    // Sin clave configurada el recordatorio sale sin enlace, igual que los avisos de HU-30.
+  }
+
+  const mensaje = PLANTILLAS[EVENTOS.RECORDATORIO]({ establecimiento, cliente, vehiculo, recordatorio, enlaceRecordatorio: enlace });
+  return { mensaje, recordatorio, cliente, vehiculo, establecimiento };
+}
+
 /**
  * Reconstruye el correo de una campaña comercial. El cuerpo sale de la foto de la promoción que
  * se guardó al confirmar; el cliente y la marca se leen de nuevo para incluir el enlace de baja
@@ -334,6 +573,7 @@ async function reconstruirComercial(tenant, fila) {
  * @returns {Promise<{ mensaje: object, orden?: object, cliente: object, vehiculo?: object, establecimiento: object } | null>}
  */
 async function reconstruirMensaje(tenant, fila) {
+  if (fila.evento === EVENTOS.RECORDATORIO) return reconstruirRecordatorio(tenant, fila);
   if (fila.tipo === 'comercial') return reconstruirComercial(tenant, fila);
 
   const plantilla = PLANTILLAS[fila.evento];
@@ -348,15 +588,32 @@ async function reconstruirMensaje(tenant, fila) {
   if (!cliente) return null;
 
   const { data: establecimiento } = await tenant
-    .listar('establecimientos', 'nombre, logo_url, color_primario')
+    .listar('establecimientos', 'nombre, logo_url, color_primario, direccion')
     .maybeSingle();
+
+  let novedad = null;
+  if (fila.evento === EVENTOS.NOVEDAD) {
+    const { data, error: errorNovedad } = await tenant
+      .listar('novedades', 'id, tipo, mensaje, minutos_extra')
+      .eq('id', fila.contenido?.novedadId)
+      .eq('orden_id', fila.orden_id)
+      .maybeSingle();
+    if (errorNovedad) throw errorNovedad;
+    if (!data) return null;
+    novedad = data;
+    if (!(await puedeRecibir(tenant, cliente.id, TIPOS.servicio))) return null;
+  }
 
   const mensaje = plantilla({
     establecimiento,
     cliente,
     orden,
     vehiculo,
+    novedad,
     servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
+    // HU-28 CA1: el aviso se crea en el momento del cambio de estado.
+    horaCambio: fila.created_at,
+    contenido: fila.contenido ?? {},
   });
   return { mensaje, orden, cliente, vehiculo, establecimiento };
 }
@@ -371,8 +628,8 @@ async function reconstruirTextoCorto(tenant, fila) {
     .maybeSingle();
   if (error) throw error;
   if (!orden) return null;
-  const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre').maybeSingle();
-  return textoAvisoListo({ establecimiento, placa: orden.vehiculos?.placa, total: orden.total });
+  const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre, direccion').maybeSingle();
+  return textoAvisoSms(fila.evento, { establecimiento, placa: orden.vehiculos?.placa, total: orden.total, hora: fila.created_at });
 }
 
 /** Estados en los que el proveedor ya tiene el mensaje: no se debe enviar otro de la misma cadena. */
@@ -385,34 +642,53 @@ export const ORDEN_CANALES = ['push', 'sms', 'correo'];
 /** Id del aviso original de una cadena (el original y sus alternos comparten este id). */
 export const origenDe = (fila) => fila.notificacion_origen_id ?? fila.id;
 
-/** El original y todos sus alternos. */
+/**
+ * Todas las notificaciones del mismo aviso: con HU-29 un aviso sale en paralelo por cada canal que el
+ * cliente dejó activo (una fila por canal), y cada una puede tener alternos (HU-33). Por eso el aviso
+ * es el mismo evento de la misma orden, no solo el original y sus alternos: si cualquiera llegó, el
+ * cliente ya tiene el aviso; los canales usados son los de todas; y el fallo es definitivo solo cuando
+ * ninguna sigue en curso.
+ */
 export async function cadenaDe(tenant, fila) {
-  const origen = origenDe(fila);
-  const { data, error } = await tenant
-    .listar('notificaciones', 'id, canal, estado')
-    .or(`id.eq.${origen},notificacion_origen_id.eq.${origen}`);
+  const consulta = fila.orden_id && fila.evento
+    ? tenant.listar('notificaciones', 'id, canal, estado, notificacion_origen_id').eq('orden_id', fila.orden_id).eq('evento', fila.evento)
+    : tenant.listar('notificaciones', 'id, canal, estado, notificacion_origen_id').or(`id.eq.${origenDe(fila)},notificacion_origen_id.eq.${origenDe(fila)}`);
+  const { data, error } = await consulta;
   if (error) throw error;
   return Array.isArray(data) ? data : [];
 }
 
 /**
  * HU-33 CA2: canales por los que se le puede avisar al cliente, en orden de preferencia.
- * - push: lo agrega HU-40 cuando el dispositivo quede registrado; hasta entonces no hay destino.
- * - sms: celular registrado (es obligatorio al crear el cliente) y SMS no deshabilitado.
+ * - push (HU-40): Web Push configurado y un dispositivo registrado del cliente.
+ * - sms: celular registrado (o el verificado en HU-29) y SMS no deshabilitado.
  * - correo: correo registrado.
- * Cuando HU-29 guarde las preferencias del cliente, se filtran aquí.
+ * HU-29 CA4: si el cliente guardó preferencias, solo se usan los canales que dejó activos.
+ * HU-39 CA2: con el SMS sin cupo se omite ese canal, pero el aviso sigue por push o correo.
  */
-function canalesDisponibles(cliente, { pushHabilitado = proveedorPush().configurado, sinSms = false } = {}) {
+async function canalesDisponibles(
+  tenant,
+  cliente,
+  preferencias,
+  { pushHabilitado = pushConfigurado(), sinSms = false } = {},
+) {
+  const filtrar = Boolean(preferencias?.guardadas);
   const canales = [];
-  // HU-39 CA2: push se prefiere cuando el proveedor está configurado y el cliente tiene destino.
-  // Hoy HU-40 no está implementada, así que `proveedorPush().configurado` es false en producción.
-  const push = pushHabilitado ? String(cliente?.push_destino ?? '').trim() : '';
-  if (push) canales.push({ canal: 'push', destino: push });
-  const telefono = String(cliente.telefono ?? '').replace(/\D/g, '');
+  if (pushHabilitado && (!filtrar || preferencias.push)) {
+    try {
+      const suscripcion = await suscripcionVigente(tenant, cliente.id);
+      if (suscripcion) canales.push({ canal: 'push', destino: suscripcionComoDestino(suscripcion) });
+    } catch (err) {
+      console.warn('[HU-33] No se pudo leer el dispositivo push del cliente:', err?.message ?? err);
+    }
+  }
+  const telefono = preferencias?.telefonoSms ?? String(cliente.telefono ?? '').replace(/\D/g, '');
   const smsHabilitado = String(process.env.SMS_PROVEEDOR ?? 'consola').toLowerCase() !== 'deshabilitado';
-  if (telefono && smsHabilitado && !sinSms) canales.push({ canal: 'sms', destino: telefono });
+  if (telefono && smsHabilitado && smsDisponible() && !sinSms && (!filtrar || preferencias.sms)) {
+    canales.push({ canal: 'sms', destino: telefono });
+  }
   const correo = cliente.correo ? destinoPlano(cliente.correo).trim() : '';
-  if (correo) canales.push({ canal: 'correo', destino: correo });
+  if (correo && (!filtrar || preferencias.correo)) canales.push({ canal: 'correo', destino: correo });
   return canales.sort((a, b) => ORDEN_CANALES.indexOf(a.canal) - ORDEN_CANALES.indexOf(b.canal));
 }
 
@@ -438,8 +714,13 @@ export async function crearAlterno(tenant, fila, { ahora = new Date(), motivo = 
   if (cadena.some((f) => f.id !== fila.id && ACEPTADAS.has(f.estado))) return { sinAlterno: 'entregada' };
 
   const usados = new Set([fila.canal, ...cadena.map((f) => f.canal)]);
-  const siguiente = canalesDisponibles(cliente, { pushHabilitado, sinSms: porCupo })
-    .find((c) => !usados.has(c.canal));
+  const disponibles = await canalesDisponibles(
+    tenant,
+    cliente,
+    await canalesActivos(tenant, cliente.id),
+    { pushHabilitado, sinSms: porCupo },
+  );
+  const siguiente = disponibles.find((c) => !usados.has(c.canal));
   if (!siguiente) {
     // Si otro canal de la cadena todavía está en curso, aún no es un fallo definitivo.
     const enCurso = cadena.some((f) => f.id !== fila.id && EN_CURSO.has(f.estado));
@@ -451,9 +732,18 @@ export async function crearAlterno(tenant, fila, { ahora = new Date(), motivo = 
     ? { asunto, alterno: true }
     : {
         asunto,
-        texto: fila.contenido?.texto ?? textoAvisoListo({ establecimiento, placa: vehiculo?.placa, total: orden?.total }),
+        texto: fila.contenido?.texto ?? textoAvisoListo({
+          establecimiento,
+          placa: vehiculo?.placa,
+          total: orden?.total,
+          hora: fila.created_at,
+        }),
         alterno: true,
       };
+  // HU-40: al tocar el aviso push se abre el seguimiento del vehículo.
+  if (siguiente.canal === 'push' && orden?.codigo_seguimiento) {
+    contenido.url = enlaceSeguimiento(orden.codigo_seguimiento);
+  }
 
   try {
     const creada = await tenant.crear('notificaciones', {
@@ -500,7 +790,9 @@ async function armarEnvio(tenant, fila, destino) {
   }
   const texto = await reconstruirTextoCorto(tenant, fila);
   if (!texto) return null;
-  return { envio: { para: destino, asunto: fila.contenido?.asunto ?? 'Tu vehículo está listo', texto }, asunto: fila.contenido?.asunto, texto };
+  const envio = { para: destino, asunto: fila.contenido?.asunto ?? 'Tu vehículo está listo', texto };
+  if (fila.canal === 'push' && fila.contenido?.url) envio.url = fila.contenido.url;
+  return { envio, asunto: fila.contenido?.asunto, texto };
 }
 
 const SIN_DESTINO = {
@@ -557,7 +849,14 @@ export async function enviarUnIntento(tenant, fila, opciones = {}) {
       recuperable,
       error: motivo,
     });
-    if (!puedeReintentar) await despuesDeFallar(tenant, { ...fila, intentos: intento }, ahora, motivoFallo);
+    if (!puedeReintentar) {
+      await marcarRecordatorio(tenant, fila, {
+        estado: 'cancelado',
+        motivo_cancelacion: 'fallo_envio',
+        updated_at: ahora.toISOString(),
+      });
+      await despuesDeFallar(tenant, { ...fila, intentos: intento }, ahora, motivoFallo);
+    }
     return { estado: puedeReintentar ? 'pendiente' : 'fallida', intentos: intento, error: motivo };
   };
 
@@ -681,8 +980,15 @@ export async function enviarUnIntento(tenant, fila, opciones = {}) {
       idProveedor,
       entregado: false,
     });
+    await marcarRecordatorio(tenant, fila, {
+      estado: 'enviado',
+      enviado_at: ahora.toISOString(),
+      updated_at: ahora.toISOString(),
+    });
     return { estado: 'enviada', intentos: intento };
   } catch (err) {
+    // HU-40: el dispositivo ya no existe (404/410): se borra su suscripción para no volver a intentarlo.
+    if (canal === 'push' && err?.suscripcionVencida) await olvidarSuscripcionVencida(tenant, destino);
     const { recuperable } = clasificarError(err);
     // HU-39: el proveedor no aceptó el mensaje; la reserva no debe contar ni ocupar el cupo.
     try {
@@ -773,6 +1079,81 @@ export async function procesarCola(db, { limite = 20, ahora = new Date(), provee
 }
 
 /**
+ * HU-28 CA3: el operario revirtió `estadoRevertido` (HU-10 solo lo permite dentro de 60 segundos).
+ * - Los avisos de ese estado que todavía no salieron se cancelan: el cliente no recibe nada.
+ * - Si alguno ya salió, se encola una corrección por el mismo canal con el estado actual.
+ * En ambos casos se libera la clave anti-duplicados: si la orden vuelve a ese estado, el cliente
+ * recibe el aviso otra vez.
+ * @returns {Promise<{ canceladas: number, correcciones: number }>}
+ */
+export async function alRevertirEstado(tenant, ordenId, estadoRevertido, { ahora = new Date() } = {}) {
+  const evento = eventoDeEstado(estadoRevertido);
+  if (!evento) return { canceladas: 0, correcciones: 0 };
+
+  const { data, error } = await tenant
+    .listar('notificaciones', 'id, cliente_id, canal, destino, estado, clave_dedupe')
+    .eq('orden_id', ordenId)
+    .eq('evento', evento)
+    .eq('tipo', 'operativa');
+  if (error) throw error;
+
+  const sufijo = `:revertida:${ahora.getTime()}`;
+  const liberar = (f) => (f.clave_dedupe ? { clave_dedupe: `${f.clave_dedupe}${sufijo}` } : {});
+  let canceladas = 0;
+  const enviadasPorCanal = new Map();
+
+  for (const f of data ?? []) {
+    if (EN_CURSO.has(f.estado) && f.estado !== 'enviando') {
+      try {
+        // Solo si sigue pendiente: si el worker la tomó justo ahora, no se toca.
+        await tenant.actualizar('notificaciones', f.id, {
+          estado: 'cancelada',
+          error: 'El operario revirtió el estado antes del envío (HU-28 CA3)',
+          proximo_intento_at: null,
+          ...liberar(f),
+        }, 'id', 'Notificación', { estado: f.estado });
+        canceladas += 1;
+      } catch (err) {
+        if (err?.codigo !== 'NO_ENCONTRADO') throw err;
+      }
+    } else if (ACEPTADAS.has(f.estado)) {
+      if (f.clave_dedupe) await tenant.actualizar('notificaciones', f.id, liberar(f), 'id', 'Notificación');
+      if (!enviadasPorCanal.has(f.canal)) enviadasPorCanal.set(f.canal, f);
+    }
+  }
+  if (enviadasPorCanal.size === 0) return { canceladas, correcciones: 0 };
+
+  const { data: orden, error: errorOrden } = await tenant
+    .listar('ordenes', 'id, estado, vehiculos(placa)')
+    .eq('id', ordenId)
+    .maybeSingle();
+  if (errorOrden) throw errorOrden;
+  const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre').maybeSingle();
+  const estadoActual = NOMBRE_ESTADO[orden?.estado] ?? orden?.estado ?? '';
+
+  let correcciones = 0;
+  for (const [canal, enviada] of enviadasPorCanal) {
+    const texto = canal === 'correo'
+      ? null
+      : textoCorreccion({ establecimiento, placa: orden?.vehiculos?.placa, estadoActual });
+    await tenant.crear('notificaciones', {
+      cliente_id: enviada.cliente_id,
+      orden_id: ordenId,
+      tipo: 'correccion',
+      evento: EVENTOS.CORRECCION,
+      canal,
+      // El mismo destino (ya cifrado) por el que salió el aviso equivocado.
+      destino: enviada.destino,
+      contenido: { asunto: 'Corrección del aviso anterior', estadoRevertido, ...(texto ? { texto } : {}) },
+      estado: 'pendiente',
+      clave_dedupe: `${ordenId}:${EVENTOS.CORRECCION}:${evento}:${canal}:${ahora.getTime()}`,
+    }, 'id');
+    correcciones += 1;
+  }
+  return { canceladas, correcciones };
+}
+
+/**
  * Compatibilidad con los controladores existentes del proyecto actual.
  * `ingreso` y `listo` se traducen al nuevo outbox.
  *
@@ -782,7 +1163,46 @@ export async function procesarCola(db, { limite = 20, ahora = new Date(), provee
 export async function programarNotificacion(tenant, ordenId, tipo) {
   // `ingreso` se conserva por compatibilidad; el resto son estados del flujo (HU-31).
   const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : eventoDeEstado(tipo) ?? EVENTOS.LISTA;
-  const preparado = await prepararCorreo(tenant, { evento, ordenId });
+  const workerActivo = process.env.NODE_ENV !== 'test' && String(process.env.NOTIFICACIONES_WORKER ?? 'on') !== 'off';
+
+  // HU-29: una sola lectura de la orden y de las preferencias sirve para todos los canales. Si la orden no
+  // se puede leer, prepararCorreo informa el error igual que antes de HU-29.
+  let orden;
+  let preferencias;
+  try {
+    orden = await cargarOrden(tenant, ordenId);
+    const cliente = orden.vehiculos?.clientes;
+    if (cliente) preferencias = await canalesActivos(tenant, cliente.id);
+  } catch {
+    orden = undefined;
+  }
+
+  // CA4: el correo solo sale si el cliente lo dejó activo (sin preferencias guardadas, sale como siempre).
+  const correo = preferencias && !preferencias.correo
+    ? { resumen: resumen('omitida', { motivo: 'canal_inactivo' }), enviar: async () => null }
+    : await prepararCorreo(tenant, { evento, ordenId }, { orden });
+  const sms = orden && preferencias?.sms ? await prepararSms(tenant, { evento, ordenId }, { orden, preferencias }) : null;
+  // HU-40: push solo si el cliente lo activó y tiene un dispositivo registrado (canalesActivos lo verifica).
+  const push = orden && preferencias?.push ? await prepararPush(tenant, { evento, ordenId }, { orden }) : null;
+
+  const preparados = [correo, sms, push].filter(Boolean);
+  if (!workerActivo) {
+    for (const preparado of preparados) {
+      if (preparado.resumen.estado === 'pendiente') enSegundoPlano(preparado.enviar);
+    }
+  }
+
+  // El panel recibe un solo resumen (el del canal que se está enviando) y, si hay varios, la lista completa.
+  const resumenes = preparados.map((p) => p.resumen);
+  const principal = resumenes.find((r) => r.estado === 'pendiente')
+    ?? resumenes.find((r) => r.motivo !== 'canal_inactivo')
+    ?? resumenes[0];
+  return resumenes.length > 1 ? { ...principal, canales: resumenes } : principal;
+}
+
+/** HU-37 RF-F7-18: encola un correo al cliente con la novedad que registró el operario. */
+export async function programarNotificacionNovedad(tenant, ordenId, novedadId) {
+  const preparado = await prepararCorreo(tenant, { evento: EVENTOS.NOVEDAD, ordenId, novedadId });
   const workerActivo = process.env.NODE_ENV !== 'test' && String(process.env.NOTIFICACIONES_WORKER ?? 'on') !== 'off';
   if (preparado.resumen.estado === 'pendiente' && !workerActivo) enSegundoPlano(preparado.enviar);
   return preparado.resumen;

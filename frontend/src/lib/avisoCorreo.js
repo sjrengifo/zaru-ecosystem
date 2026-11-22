@@ -6,14 +6,18 @@ export function mensajeCorreo(notificacion) {
   if (!notificacion) return null;
   switch (notificacion.estado) {
     case 'pendiente':
+      // HU-29: el cliente puede haber elegido recibir el aviso por SMS.
+      if (notificacion.canal === 'sms') return { tipo: 'exito', texto: `Se está enviando el SMS a ${notificacion.destino ?? 'el cliente'}.` };
       return { tipo: 'exito', texto: `Se está enviando el correo a ${notificacion.destino ?? 'el cliente'}.` };
     case 'duplicada':
       return { tipo: 'exito', texto: 'El cliente ya había recibido este aviso.' };
     case 'omitida':
       if (notificacion.motivo === 'revocado') return { tipo: 'advertencia', texto: 'El cliente pidió no recibir avisos: no se envió correo.' };
+      // HU-29: el cliente eligió, en su app, no recibir avisos por este canal.
+      if (notificacion.motivo === 'canal_inactivo') return { tipo: 'advertencia', texto: 'El cliente eligió no recibir avisos por correo ni por SMS: avísale por otro medio.' };
       return { tipo: 'advertencia', texto: 'El cliente no tiene correo registrado: avísale por otro medio.' };
     default:
-      return { tipo: 'advertencia', texto: 'No se pudo enviar el correo, pero el cambio quedó guardado.' };
+      return { tipo: 'advertencia', texto: notificacion.canal === 'sms' ? 'No se pudo enviar el SMS, pero el cambio quedó guardado.' : 'No se pudo enviar el correo, pero el cambio quedó guardado.' };
   }
 }
 

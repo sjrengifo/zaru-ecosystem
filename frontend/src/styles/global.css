@@ -273,6 +273,23 @@ label { display: block; font-size: 14px; }
 }
 .columna-tarjetas { display: flex; flex-direction: column; gap: 10px; }
 
+.tarjeta-vehiculo-novedad { min-height: 40px; border-color: var(--color-borde); }
+.formulario-novedad { display: flex; flex-direction: column; gap: 14px; }
+.formulario-novedad > .texto-suave { margin: 0; }
+.novedad-opciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.novedad-opcion { min-height: 38px; font-size: 13px; }
+.novedad-opcion.seleccionada { border-color: var(--color-primario); color: var(--color-primario); background: var(--color-primario-suave); }
+.campo-novedad { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 650; }
+.campo-novedad textarea, .campo-novedad input { width: 100%; }
+.novedad-contador { align-self: flex-end; color: var(--color-texto-suave); font-size: 12px; font-weight: 500; }
+.novedad-acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.tarjeta-novedades { padding-top: 3px; border-top: 1px solid var(--color-borde); }
+.tarjeta-novedades-lista { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.tarjeta-novedades-lista > p { margin: 0; color: var(--color-texto-suave); font-size: 12px; }
+.tarjeta-novedad { padding: 9px; border-radius: 8px; background: var(--color-fondo); font-size: 12px; }
+.tarjeta-novedad p { margin: 5px 0 0; overflow-wrap: anywhere; }
+.tarjeta-novedad-fotos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
 /* Un color por columna, siempre acompañado por el título y la etiqueta de la tarjeta. */
 .columna-recibido { border-top: 3px solid var(--color-secundario); }
 .columna-en_lavado { border-top: 3px solid var(--color-primario); }
@@ -1731,3 +1748,9 @@ textarea {
 .interruptor input:checked + .interruptor-pista .interruptor-bola { background: #fff; transform: translateX(20px); }
 .interruptor input:focus-visible + .interruptor-pista { outline: 2px solid var(--color-secundario); outline-offset: 2px; }
 .interruptor-texto { min-width: 58px; font-size: 13px; font-weight: 600; }
+
+/* HU-28 CA2: dirección de la sede en Branding. */
+.direccion-sede { margin-top: var(--espacio); }
+.direccion-sede h3 { margin: 0 0 4px; }
+.direccion-sede form { margin-top: 12px; max-width: 560px; }
+.direccion-sede-acciones { display: flex; justify-content: flex-end; }

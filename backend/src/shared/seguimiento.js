@@ -16,7 +16,7 @@ const COLUMNAS_ORDEN = [
   'id, estado, estado_desde, subtotal, descuento, total, codigo_seguimiento, entrega_estimada_at,',
   'entregada_at, created_at, version,',
   'vehiculo:vehiculos(placa, tipo, marca, color),',
-  'servicios:orden_servicios(precio, servicio:servicios(nombre)),',
+  'servicios:orden_servicios(precio, duracion_min, servicio:servicios(nombre)),',
   'historial:historial_estados(estado, created_at, revertido)',
 ].join(' ');
 

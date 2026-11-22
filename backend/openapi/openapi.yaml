@@ -338,20 +338,64 @@ paths:
                       revocadaAt: { type: [string, 'null'], format: date-time }
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
-  /publico/sedes/{slug}/historial/acceso:
+  /publico/recordatorios/{token}/desactivar:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Token firmado del enlace "no volver a recordarme" de un correo (HU-36 CA3). Solo sirve para los recordatorios de ese vehículo.
+        schema: { type: string, maxLength: 500 }
+    get:
+      tags: [Acceso del cliente]
+      operationId: consultarRecordatorioPublico
+      summary: Estado de los recordatorios de próximo lavado del vehículo
+      description: |
+        Devuelve la placa, si los recordatorios siguen activos y la fecha estimada del próximo lavado.
+        No incluye datos personales. Un token alterado, o de un vehículo que ya no existe, responde `404`.
+      security: []
+      responses:
+        '200':
+          description: Recordatorios del vehículo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordatorioPublico' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+    post:
+      tags: [Acceso del cliente]
+      operationId: desactivarRecordatorioPublico
+      summary: No volver a recibir recordatorios de este vehículo (sin iniciar sesión)
+      description: |
+        Desactiva solo los recordatorios de próximo lavado del vehículo del enlace y cancela el correo
+        que estuviera programado (HU-36 CA3). No modifica los avisos del servicio ni las promociones de
+        HU-30. Es `POST` para que las vistas previas de los correos no desactiven nada al abrirlos.
+        Repetirlo no agrega cambios.
+      security: []
+      responses:
+        '200':
+          description: Recordatorios desactivados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/RecordatorioPublico' }
+                  - type: object
+                    properties:
+                      desactivadoAt: { type: [string, 'null'], format: date-time }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+  /publico/sedes/{slug}/otp:
     post:
       tags: [Historial del cliente]
-      operationId: accederHistorialCliente
-      summary: Verificar placa y celular para abrir el historial de servicios
+      operationId: solicitarCodigoAccesoCliente
+      summary: Pedir el código de acceso por SMS
       description: |
-        HU-23. El cliente final confirma que es dueño del vehículo con la **placa + el celular** registrados en
-        esa sede. Si ambos coinciden, recibe un `pase` firmado de vida corta (30 minutos) que debe enviar como
-        `Authorization: Bearer <pase>` en las rutas del historial.
+        RF-F5-11. El cliente final escribe su celular, elige el `canal` (`sms` por defecto o `correo`) y, si
+        está registrado en esa sede, le llega un código de 6 dígitos que vence a los 5 minutos. Si eligió
+        `correo` y no tiene uno registrado, el código sale por SMS (la respuesta es la misma en ambos casos). La respuesta es la misma (`202`) exista o no el celular:
+        no revela quién es cliente de la sede. Solo se guarda el hash del código.
 
-        El pase identifica al establecimiento y al cliente dentro de la firma: no se puede alterar ni usar para
-        otra sede. Si la placa o el celular no coinciden, la respuesta es el mismo `404` exista o no la placa
-        (no revela quién es cliente de la sede). Tras 5 intentos fallidos en 10 minutos desde el mismo origen
-        responde `429`.
+        Límite (RNF-F5-02): 3 solicitudes por celular cada 15 minutos; al exceder responde `429`.
       security: []
       parameters:
         - $ref: '#/components/parameters/SlugSede'
@@ -359,22 +403,61 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/AccesoHistorial' }
-            example: { placa: ABC123, celular: '3001234567' }
+            schema: { $ref: '#/components/schemas/SolicitudOtp' }
+            example: { celular: '3001234567', canal: correo }
+      responses:
+        '202':
+          description: Solicitud recibida. Si el celular está registrado, el código va en camino.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SolicitudOtpRespuesta' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+        '500':
+          description: No se pudo enviar el código por el canal elegido; el código queda invalidado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /publico/sedes/{slug}/otp/verificar:
+    post:
+      tags: [Historial del cliente]
+      operationId: verificarCodigoAccesoCliente
+      summary: Validar el código y abrir la sesión del cliente
+      description: |
+        RF-F5-12. Con el código correcto el cliente recibe un `pase` firmado de **30 días** que debe enviar como
+        `Authorization: Bearer <pase>` en las rutas `/publico/cliente/*` (historial, notificaciones, preferencias).
+        El pase identifica al establecimiento y al cliente dentro de la firma: no se puede alterar ni usar para
+        otra sede.
+
+        El código es de un solo uso y solo vale el último pedido. Con 5 intentos incorrectos queda invalidado.
+        Cualquier fallo (código incorrecto, vencido, usado o celular que no es cliente) responde el mismo `401`.
+        Tras 10 códigos incorrectos en 10 minutos desde el mismo origen responde `429`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugSede'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerificacionOtp' }
+            example: { celular: '3001234567', codigo: '123456' }
       responses:
         '200':
-          description: Pase emitido para consultar el historial de ese cliente en esa sede.
+          description: Pase emitido para ese cliente en esa sede.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AccesoHistorialRespuesta' }
         '400': { $ref: '#/components/responses/Validacion' }
-        '404':
-          description: La placa y el celular no coinciden con un vehículo de la sede (o la sede no existe).
+        '401':
+          description: El código no es válido, venció o ya se usó.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example:
-                error: { codigo: NO_ENCONTRADO, mensaje: No encontramos un vehículo con esa placa y celular en esta sede, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+                error: { codigo: NO_AUTENTICADO, mensaje: El código no es válido o ya venció. Revísalo o pide uno nuevo, requestId: 5f6ec373-1b0e-4f0b-8c3a-6f1e2d3c4b5a }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
 
   /publico/cliente/vehiculos:
@@ -508,6 +591,223 @@ paths:
         '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /publico/cliente/preferencias:
+    get:
+      tags: [Notificaciones del cliente]
+      operationId: obtenerPreferenciasCanal
+      summary: Canales de notificación del cliente con su estado actual
+      description: |
+        HU-29 CA1. Devuelve los canales `push`, `sms` y `correo` con su estado (`activo`). Un cliente que nunca
+        eligió recibe solo por correo. Los destinos viajan enmascarados. `push` aparece con
+        `disponible: false` hasta que se registre el dispositivo (HU-40).
+      security:
+        - paseCliente: []
+      responses:
+        '200':
+          description: Canales y su estado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenciasCanal' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    put:
+      tags: [Notificaciones del cliente]
+      operationId: guardarPreferenciasCanal
+      summary: Guardar los canales por los que el cliente quiere recibir avisos
+      description: |
+        HU-29 CA2, CA3 y CA4. Las siguientes notificaciones salen únicamente por los canales activos.
+
+        - CA2: activar `sms` exige un celular validado. El registrado ya lo está (el pase solo se emite con el
+          código enviado a ese número, HU-59) y se guarda como validado al activar el canal. Otro número se valida
+          con el código de 6 dígitos; si no hay ninguno válido responde `400` con `detalles[0].requiere = verificar_celular`.
+        - CA3: si los tres canales quedan inactivos responde `409` con `detalles[0].requiereConfirmacion = true`;
+          se repite la petición con `confirmarSinCanales: true` para confirmar la decisión.
+        - No se puede activar `correo` si el cliente no tiene correo registrado, ni `push` mientras no esté disponible.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [push, sms, correo]
+              properties:
+                push: { type: boolean }
+                sms: { type: boolean }
+                correo: { type: boolean }
+                confirmarSinCanales:
+                  type: boolean
+                  description: Confirma que el cliente entiende que no recibirá avisos (CA3).
+            example: { push: false, sms: true, correo: true }
+      responses:
+        '200':
+          description: Preferencias guardadas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenciasCanal' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+
+  /publico/cliente/celular/codigo:
+    post:
+      tags: [Notificaciones del cliente]
+      operationId: solicitarCodigoCelular
+      summary: Enviar por sms el código de 6 dígitos para validar el celular
+      description: |
+        HU-29 CA2. Envía un código de 6 dígitos al celular indicado o, si no se indica, al celular con el que el
+        cliente está registrado. El código vence a los 10 minutos y nunca se devuelve en la respuesta. Límites:
+        una solicitud por minuto y 3 por hora (`429`).
+      security:
+        - paseCliente: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                celular: { type: string, description: 'Celular de 10 dígitos (acepta +57). Opcional.', example: '3001234567' }
+      responses:
+        '200':
+          description: Código enviado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enviado, celular, expiraEn, reenvioEn]
+                properties:
+                  enviado: { type: boolean, const: true }
+                  celular: { type: string, description: Celular enmascarado., example: '300****567' }
+                  expiraEn: { type: string, format: date-time }
+                  reenvioEn: { type: string, format: date-time, description: Desde cuándo se puede pedir otro código. }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
+  /publico/cliente/celular/verificar:
+    post:
+      tags: [Notificaciones del cliente]
+      operationId: verificarCodigoCelular
+      summary: Validar el código de 6 dígitos y dejar el celular verificado
+      description: |
+        HU-29 CA2. Con el código correcto el celular queda verificado y el canal `sms` ya se puede activar al
+        guardar las preferencias. Un código incorrecto responde `400` con los intentos que quedan; tras 5 intentos
+        fallidos responde `429` y hay que pedir un código nuevo.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [codigo]
+              properties:
+                codigo: { type: string, pattern: '^[0-9]{6}$', example: '123456' }
+      responses:
+        '200':
+          description: Celular verificado; devuelve las preferencias actualizadas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenciasCanal' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
+  /publico/push/clave:
+    get:
+      tags: [Historial del cliente]
+      operationId: clavePublicaPush
+      summary: Llave pública para suscribir el navegador a las notificaciones push
+      description: >-
+        HU-40. Devuelve la llave pública VAPID con la que el navegador crea su suscripción Web Push. No es
+        secreta. Si el ambiente no tiene Web Push configurado responde `503` y la app no ofrece push.
+      security: []
+      responses:
+        '200':
+          description: Llave pública VAPID (base64url).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [clavePublica]
+                properties:
+                  clavePublica: { type: string }
+        '503':
+          description: Web Push no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /publico/cliente/push:
+    post:
+      tags: [Historial del cliente]
+      operationId: registrarDispositivoPush
+      summary: Registrar el dispositivo del cliente para recibir push
+      description: >-
+        HU-40 CA1. La web móvil envía la suscripción Web Push del navegador (`PushSubscription.toJSON()`) después de
+        que el cliente acepta el permiso. Queda asociada al cliente del pase. Si el mismo navegador ya estaba
+        registrado, se actualiza.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SuscripcionPush' }
+      responses:
+        '201':
+          description: Dispositivo registrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [registrado]
+                properties:
+                  registrado: { type: boolean, const: true }
+                  dispositivo: { type: string, example: Chrome en Android }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409':
+          description: Este navegador ya recibe avisos de otra sede.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: Web Push no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Historial del cliente]
+      operationId: eliminarDispositivoPush
+      summary: Dejar de recibir push en este dispositivo
+      description: HU-40. Borra la suscripción de este navegador. Si no existía, responde igual.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: { type: string, format: uri }
+      responses:
+        '200':
+          description: El dispositivo ya no recibe push.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registrado: { type: boolean, const: false }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
 
   /me:
     get:
@@ -987,6 +1287,121 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /ordenes/{id}/novedades:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Órdenes]
+      operationId: registrarNovedadOrden
+      summary: Registrar una novedad del vehículo
+      description: >-
+        HU-20 y HU-37. El operario registra una novedad sobre una orden en curso; el aviso se encola para el cliente si autorizó notificaciones del servicio. Si el tipo
+        es `demora`, `minutosExtra` es obligatorio y la entrega estimada suma esos minutos; el
+        seguimiento público recibe la nueva hora sin recargar. Los demás tipos no cambian la
+        entrega estimada y no admiten `minutosExtra`. Una orden entregada responde `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovedadNueva' }
+            examples:
+              demora:
+                summary: Reportar 15 minutos de demora
+                value: { tipo: demora, minutosExtra: 15, mensaje: El vehículo requiere un segundo lavado }
+              dano:
+                summary: Registrar un daño preexistente
+                value: { tipo: dano_preexistente, mensaje: Rayón en la puerta delantera }
+      responses:
+        '201':
+          description: Novedad registrada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Novedad' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La orden ya fue entregada y no admite novedades.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      tags: [Órdenes]
+      operationId: listarNovedadesOrden
+      summary: Consultar el historial de novedades de una orden
+      description: HU-37. Las fotos de evidencia se devuelven como enlaces firmados de una hora y solo se muestran al personal de la sede.
+      responses:
+        '200':
+          description: Novedades más recientes primero.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    tipo: { type: string, enum: [demora, dano_preexistente, objeto_encontrado, otro] }
+                    mensaje: { type: [string, 'null'], maxLength: 300 }
+                    minutosExtra: { type: [integer, 'null'] }
+                    createdAt: { type: string, format: date-time }
+                    fotos:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          ruta: { type: string }
+                          url: { type: string, format: uri }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /ordenes/{id}/novedades/{novedadId}/fotos:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: novedadId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Órdenes]
+      operationId: adjuntarFotosNovedad
+      summary: Guardar fotos de evidencia para un daño preexistente
+      description: HU-37 CA2. Acepta hasta tres imágenes JPG o PNG, de máximo 5 MB cada una; las almacena en un bucket privado y las vincula al historial de la orden.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [fotos]
+              properties:
+                fotos:
+                  type: array
+                  minItems: 1
+                  maxItems: 3
+                  items: { type: string, format: binary }
+      responses:
+        '201':
+          description: Evidencias guardadas; enlaces firmados válidos por una hora.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fotos:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ruta: { type: string }
+                        url: { type: string, format: uri }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /promociones:
     get:
@@ -1792,6 +2207,33 @@ paths:
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
 
+  /establecimiento/direccion:
+    put:
+      tags: [Establecimiento]
+      operationId: actualizarDireccionSede
+      summary: Guardar la dirección de la sede (solo administrador)
+      description: >-
+        HU-28 CA2. La dirección se muestra en el aviso de "listo para recoger" (correo y SMS). Hasta 160
+        caracteres; un texto vacío la borra.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [direccion]
+              properties:
+                direccion: { type: string, maxLength: 160, example: 'Cra 10 # 5-20, barrio Centro' }
+      responses:
+        '200':
+          description: Establecimiento con la dirección guardada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Establecimiento' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
   /establecimiento/logo:
     post:
       tags: [Establecimiento]
@@ -2072,8 +2514,8 @@ components:
       scheme: bearer
       bearerFormat: pase
       description: >-
-        Pase firmado (HMAC) de 30 minutos emitido por POST /publico/sedes/{slug}/historial/acceso (HU-23).
-        Identifica la sede y el cliente verificados con placa + celular. No es un JWT de Supabase; el panel
+        Pase firmado (HMAC) de 30 días emitido por POST /publico/sedes/{slug}/otp/verificar (RF-F5-12).
+        Identifica la sede y el cliente verificados con el código enviado por SMS a su celular. No es un JWT de Supabase; el panel
         no lo usa.
 
   headers:
@@ -2304,6 +2746,7 @@ components:
             properties:
               nombre: { type: string }
               precio: { type: number }
+              duracionMin: { type: integer, minimum: 0, description: Duración contratada del servicio. }
         subtotal: { type: number }
         descuento: { type: number }
         total: { type: number }
@@ -2315,7 +2758,7 @@ components:
             logoUrl: { type: [string, 'null'] }
             colorPrimario: { type: string }
             colorSecundario: { type: string }
-        version: { type: integer, description: Aumenta con cada cambio de estado. }
+        version: { type: integer, description: Aumenta con cada cambio de estado o de la entrega estimada. }
 
     EstadoPlantilla:
       type: string
@@ -2551,6 +2994,24 @@ components:
             colorPrimario: { type: [string, 'null'] }
             colorSecundario: { type: [string, 'null'] }
 
+    RecordatorioPublico:
+      type: object
+      properties:
+        vehiculo:
+          type: object
+          properties:
+            placa: { type: string, example: XYZ987 }
+        activos: { type: boolean, description: false cuando el cliente desactivó los recordatorios de este vehículo. }
+        proximaFecha: { type: [string, 'null'], format: date, description: Fecha estimada del próximo lavado; null si no hay ninguno programado. }
+        desactivadoAt: { type: [string, 'null'], format: date-time }
+        sede:
+          type: object
+          properties:
+            nombre: { type: string }
+            logoUrl: { type: [string, 'null'] }
+            colorPrimario: { type: [string, 'null'] }
+            colorSecundario: { type: [string, 'null'] }
+
     Consentimiento:
       type: object
       properties:
@@ -2709,6 +3170,41 @@ components:
         duracionMin: { type: integer }
         descuento: { type: number, description: Descuento aplicado por la mejor promoción vigente. }
 
+    NovedadNueva:
+      type: object
+      required: [tipo]
+      properties:
+        tipo: { type: string, enum: [demora, dano_preexistente, objeto_encontrado, otro] }
+        mensaje: { type: [string, 'null'], maxLength: 300 }
+        minutosExtra:
+          type: [integer, 'null']
+          minimum: 1
+          description: Obligatorio solo para `demora`; se suma a la entrega estimada.
+      additionalProperties: false
+
+    Novedad:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ordenId: { type: string, format: uuid }
+        tipo: { type: string, enum: [demora, dano_preexistente, objeto_encontrado, otro] }
+        mensaje: { type: [string, 'null'] }
+        minutosExtra: { type: [integer, 'null'] }
+        fotos:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+        entregaEstimadaAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer }
+        notificacion:
+          type: object
+          description: Estado de la notificación por correo que se encoló para el cliente.
+          properties:
+            canal: { type: string, enum: [correo] }
+            estado: { type: string, enum: [pendiente, omitida, duplicada, error] }
+            id: { type: string, format: uuid }
+            destino: { type: string, description: Correo enmascarado. }
+
     OrdenCambioEstado:
       description: Indica un estado nuevo o la reversión del último cambio, pero no ambos.
       oneOf:
@@ -2728,7 +3224,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
-        version: { type: integer, minimum: 1, description: Se incrementa en cada cambio de estado. }
+        version: { type: integer, minimum: 1, description: Se incrementa en cada cambio de estado o de la entrega estimada. }
         subtotal: { type: number }
         descuento: { type: number }
         total: { type: number }
@@ -3126,6 +3622,7 @@ components:
         logo_url: { type: [string, 'null'], format: uri }
         color_primario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$', example: '#2563EB' }
         color_secundario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$', example: '#0EA5E9' }
+        direccion: { type: [string, 'null'], maxLength: 160, description: 'HU-28 CA2: dirección que llevan los avisos de listo.' }
 
     BrandingEntrada:
       type: object
@@ -3243,18 +3740,48 @@ components:
               franja: { type: string }
               vehiculos: { type: integer, minimum: 0 }
 
-    AccesoHistorial:
+    SolicitudOtp:
       type: object
-      required: [placa, celular]
+      required: [celular]
       properties:
-        placa:
-          type: string
-          description: Placa del vehículo; se normaliza a mayúsculas y sin espacios.
-          example: ABC123
         celular:
           type: string
           description: Celular registrado para el cliente en esa sede (10 dígitos; acepta +57, espacios y guiones).
           example: '3001234567'
+        canal:
+          type: string
+          enum: [sms, correo]
+          default: sms
+          description: Por dónde quiere recibir el código. Con `correo` y sin correo registrado, sale por SMS.
+
+    SolicitudOtpRespuesta:
+      type: object
+      required: [enviado, canal, celular, expiraEn]
+      properties:
+        enviado: { type: boolean, const: true }
+        canal: { type: string, enum: [sms, correo], description: El canal que pidió el cliente. }
+        celular: { type: string, description: Celular enmascarado al que se envió., example: '300****567' }
+        expiraEn: { type: string, format: date-time }
+
+    SuscripcionPush:
+      type: object
+      required: [endpoint, keys]
+      description: Suscripción Web Push del navegador (`PushSubscription.toJSON()`).
+      properties:
+        endpoint: { type: string, format: uri, maxLength: 1000, example: 'https://fcm.googleapis.com/fcm/send/abc123' }
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh: { type: string, minLength: 20, maxLength: 200 }
+            auth: { type: string, minLength: 10, maxLength: 100 }
+
+    VerificacionOtp:
+      type: object
+      required: [celular, codigo]
+      properties:
+        celular: { type: string, example: '3001234567' }
+        codigo: { type: string, pattern: '^[0-9]{6}$', example: '123456' }
 
     AccesoHistorialRespuesta:
       type: object
@@ -3394,6 +3921,39 @@ components:
           type: array
           items: { $ref: '#/components/schemas/NotificacionCliente' }
         noLeidas: { type: integer, minimum: 0, description: HU-38 CA2. Avisos de la lista sin leer. }
+
+    PreferenciasCanal:
+      type: object
+      required: [canales, sinCanales]
+      description: HU-29. Canales de notificación del cliente y su estado.
+      properties:
+        canales:
+          type: object
+          required: [push, sms, correo]
+          properties:
+            push:
+              type: object
+              required: [activo, disponible]
+              properties:
+                activo: { type: boolean }
+                disponible: { type: boolean, description: Falso hasta que el cliente registre su dispositivo (HU-40). }
+            sms:
+              type: object
+              required: [activo, disponible, verificado]
+              properties:
+                activo: { type: boolean }
+                disponible: { type: boolean, description: Falso si el ambiente no envía sms. }
+                verificado: { type: boolean, description: 'Hay un celular validado para el sms: el registrado (validado al entrar, HU-59) u otro validado con el código de 6 dígitos (CA2).' }
+                celular: { type: [string, 'null'], description: 'Celular al que llegaría el sms, enmascarado.', example: '300****567' }
+                celularRegistrado: { type: [string, 'null'], description: 'Celular con el que se registró el cliente, enmascarado.', example: '300****567' }
+            correo:
+              type: object
+              required: [activo, disponible]
+              properties:
+                activo: { type: boolean }
+                disponible: { type: boolean, description: El cliente tiene un correo registrado. }
+                destino: { type: [string, 'null'], description: Correo enmascarado., example: 'yel****@gmail.com' }
+        sinCanales: { type: boolean, description: Los tres canales están inactivos (el cliente no recibe avisos). }
 
     Notificacion:
       type: object

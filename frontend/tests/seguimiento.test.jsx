@@ -35,7 +35,7 @@ function seguimiento(estado = 'recibido', version = 1) {
     })),
     entregaEstimadaAt: '2026-11-08T14:40:00Z',
     vehiculo: { placa: 'ABC123', marca: 'Mazda', color: 'Rojo' },
-    servicios: [{ nombre: 'Lavado general', precio: 30000 }],
+    servicios: [{ nombre: 'Lavado general', precio: 30000, duracionMin: 30 }],
     subtotal: 30000,
     descuento: 0,
     total: 30000,
@@ -161,7 +161,7 @@ describe('HU-18 CA1 · indicador de la etapa actual', () => {
     expect(screen.getByRole('progressbar', { name: 'Avance del lavado' })).toHaveAttribute('aria-valuenow', '0');
     expect(screen.getByText('Lavadero Norte')).toBeInTheDocument();
     expect(screen.getByText('ABC123')).toBeInTheDocument();
-    expect(screen.getByText('El pago se realiza en el establecimiento')).toBeInTheDocument();
+    expect(screen.getByText(/El pago se realiza en el establecimiento/)).toBeInTheDocument();
     const pasos = screen.getAllByRole('listitem').filter((li) => li.classList.contains('seg-paso'));
     expect(pasos.map((li) => li.querySelector('.seg-paso-titulo').textContent)).toEqual(ETAPAS.map(([, t]) => t));
     expect(pasos[0]).toHaveAttribute('aria-current', 'step');
@@ -276,6 +276,78 @@ describe('HU-18 CA2 · actualización automática', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('HU-20 · tiempo estimado de entrega', () => {
+  it('CA1: muestra la hora estimada de entrega en la hora de Bogotá', async () => {
+    abrir();
+    await screen.findByRole('heading', { level: 1, name: 'En cola' });
+    expect(screen.getByText(/Entrega estimada: 09:40/)).toBeInTheDocument();
+  });
+
+  it('CA2: una demora actualiza la hora estimada sin recargar', async () => {
+    abrir();
+    await screen.findByRole('heading', { level: 1, name: 'En cola' });
+    const fuente = EventSourceFalso.instancias[0];
+
+    act(() =>
+      fuente.emitir('estado', {
+        ...seguimiento('en_lavado', 2),
+        entregaEstimadaAt: '2026-11-08T15:15:00Z',
+      }),
+    );
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Lavado iniciado' })).toBeInTheDocument();
+    expect(screen.getByText(/Entrega estimada: 10:15/)).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('CA3: con el vehículo listo o entregado no muestra una hora estimada', async () => {
+    fetch.mockImplementation(() => respuesta(200, seguimiento('listo', 4)));
+    const { unmount } = abrir();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Listo para recoger' })).toBeInTheDocument();
+    expect(screen.queryByText(/Entrega estimada/)).not.toBeInTheDocument();
+    unmount();
+
+    fetch.mockImplementation(() => respuesta(200, seguimiento('entregado', 5)));
+    abrir();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Entregado' })).toBeInTheDocument();
+    expect(screen.queryByText(/Entrega estimada/)).not.toBeInTheDocument();
+  });
+});
+
+describe('HU-21 - detalle de los servicios contratados', () => {
+  it('CA1: al desplegar la sección lista los servicios de la placa con su duración', async () => {
+    fetch.mockImplementation(() => respuesta(200, {
+      ...seguimiento(),
+      servicios: [
+        { nombre: 'Lavado general', precio: 30000, duracionMin: 30 },
+        { nombre: 'Polichado', precio: 20000, duracionMin: 45 },
+      ],
+    }));
+    abrir();
+    const titulo = await screen.findByRole('heading', { level: 2, name: 'Detalle del servicio' });
+    const boton = screen.getByRole('button', { name: 'Detalle del servicio' });
+    expect(boton).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(boton);
+    expect(boton).toHaveAttribute('aria-expanded', 'false');
+    expect(titulo).toBeInTheDocument();
+    fireEvent.click(boton);
+    expect(boton).toHaveAttribute('aria-expanded', 'true');
+    const lista = screen.getByRole('list', { name: 'Servicios asignados al vehículo ABC123' });
+    expect(lista).toHaveTextContent('Lavado general');
+    expect(lista).toHaveTextContent('30 min');
+    expect(lista).toHaveTextContent('Polichado');
+    expect(lista).toHaveTextContent('45 min');
+  });
+
+  it('CA2: aclara que el pago es directo en el establecimiento y no en línea', async () => {
+    abrir();
+    await screen.findByRole('heading', { level: 2, name: 'Detalle del servicio' });
+    expect(screen.getByText('Pago directo en el establecimiento físico')).toBeInTheDocument();
+    expect(screen.getByText(/El pago se realiza en el establecimiento/)).toBeInTheDocument();
+    expect(screen.getByText(/no procesa pagos en línea/)).toBeInTheDocument();
   });
 });
 
