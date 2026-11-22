@@ -33,6 +33,16 @@ describe('HU-37 formulario de novedades', () => {
     expect(notificar).toHaveBeenCalledWith(expect.objectContaining({ id: ORDEN.id }));
   });
 
+  it.each(['recibido', 'secado', 'listo'])('también ofrece notificar novedad en estado %s', (estado) => {
+    render(<TarjetaOrden orden={{ ...ORDEN, estado }} onAvanzar={vi.fn()} onNotificarNovedad={vi.fn()} ahora={new Date()} />);
+    expect(screen.getByRole('button', { name: 'Notificar novedad' })).toBeInTheDocument();
+  });
+
+  it('no ofrece notificar novedad cuando el vehículo ya se entregó', () => {
+    render(<TarjetaOrden orden={{ ...ORDEN, estado: 'entregado' }} onAvanzar={vi.fn()} onNotificarNovedad={vi.fn()} ahora={new Date()} />);
+    expect(screen.queryByRole('button', { name: 'Notificar novedad' })).not.toBeInTheDocument();
+  });
+
   it('envía la demora con minutos adicionales para actualizar la entrega estimada', async () => {
     const guardado = vi.fn();
     api.post.mockResolvedValue({ id: 'novedad-1', tipo: 'demora', entregaEstimadaAt: '2026-11-19T18:30:00Z' });

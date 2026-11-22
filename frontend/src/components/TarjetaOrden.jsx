@@ -99,7 +99,8 @@ export default function TarjetaOrden({ orden, onAvanzar, onNotificarNovedad, ava
           {avanzando === orden.id ? 'Guardando…' : `Avanzar a ${ESTADOS_ORDEN[siguiente]}`}
         </button>
       )}
-      {orden.estado === 'en_lavado' && (
+      {/* HU-37: el operario puede avisar una novedad mientras el vehículo siga en la sede. */}
+      {orden.estado !== 'entregado' && (
         <button
           type="button"
           className="boton tarjeta-vehiculo-novedad"
