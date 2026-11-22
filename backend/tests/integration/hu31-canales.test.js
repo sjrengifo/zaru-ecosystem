@@ -5,14 +5,16 @@
 // Si falta alguna, la suite FALLA con un mensaje explícito: sin la tabla/RPC no se puede afirmar
 // que el panel de canales funciona.
 //
-// En este ambiente los proveedores de correo y SMS son «consola» y push sigue sin HU-40. La prueba
-// no envía correos ni SMS externos: ejecuta el adaptador real, fuerza el respaldo y verifica el
-// consumo HU-39. Preferencias, reservas y contadores se restauran al terminar. Las filas de auditoría
+// En este ambiente los proveedores de correo y SMS son «consola». Push usa Web Push real cuando hay
+// llaves VAPID; sin dispositivo del administrador la prueba reporta `sin_destino` y cae al correo.
+// La suite no envía correos ni SMS externos: ejecuta el adaptador real, fuerza el respaldo y verifica
+// el consumo HU-39. Preferencias, reservas y contadores se restauran al terminar. Las filas de auditoría
 // quedan por diseño: esa tabla es inmutable y solo guarda destinos enmascarados y el id de la prueba.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import '../helpers/entorno.js';
 import { hayEntornoIntegracion, faltantes } from '../helpers/entorno.js';
+import { pushConfigurado } from '../../src/shared/proveedorPush.js';
 
 const EST_A = '00000000-0000-0000-0000-00000000a058';
 const MARCA = randomUUID().slice(0, 8);
@@ -100,11 +102,12 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-31/HU-39 · canales y prueba real${h
 
     expect(respuesta.status).toBe(200);
     expect(respuesta.body.map((item) => item.canal)).toEqual(['sms', 'correo', 'push']);
+    const pushConfig = pushConfigurado();
     expect(respuesta.body.find((item) => item.canal === 'push')).toEqual(expect.objectContaining({
       activo: expect.any(Boolean),
-      disponible: false,
-      proveedor: 'no_configurado',
-      motivo: 'El canal push no está configurado en este ambiente (PUSH_PROVEEDOR y llaves VAPID)',
+      disponible: pushConfig,
+      proveedor: pushConfig ? 'webpush' : 'no_configurado',
+      motivo: pushConfig ? null : 'El canal push no está configurado en este ambiente (PUSH_PROVEEDOR y llaves VAPID)',
     }));
     expect(respuesta.body.every((item) => !Object.keys(item).some((clave) => clave.includes('establecimiento')))).toBe(true);
 
@@ -156,7 +159,10 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-31/HU-39 · canales y prueba real${h
     const push = prueba.body.resultados.find((item) => item.canal === 'push');
     const sms = prueba.body.resultados.find((item) => item.canal === 'sms');
     const correo = prueba.body.resultados.find((item) => item.canal === 'correo');
-    expect(push.estado).toBe('no_disponible');
+    // Con VAPID configurado el proveedor existe, pero la prueba no tiene un dispositivo del
+    // administrador registrado: se reporta sin destino y continúa por SMS/correo. Sin VAPID, el
+    // proveedor directamente no está disponible. En los dos casos el respaldo es el mismo.
+    expect(push.estado).toBe(pushConfigurado() ? 'sin_destino' : 'no_disponible');
     expect(push.aceptado).toBe(false);
     expect(sms.estado).toBe('inactivo');
     expect(sms.consumo.contado).toBe(false);

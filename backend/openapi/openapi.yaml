@@ -1702,6 +1702,80 @@ paths:
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
 
+  /notificaciones/push:
+    post:
+      tags: [Notificaciones]
+      operationId: registrarPushAdministrador
+      summary: Registrar el dispositivo push del administrador (solo administrador)
+      description: >-
+        HU-39/HU-40. Guarda la suscripción Web Push del navegador del administrador autenticado para
+        que la prueba de envío pueda verificar el canal push. El usuario y la sede salen de la sesión:
+        el cuerpo solo trae la suscripción de PushSubscription.toJSON(). Requiere
+        PUSH_PROVEEDOR=webpush y llaves VAPID configuradas en el backend.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, keys]
+              properties:
+                endpoint: { type: string, format: uri, maxLength: 1000 }
+                keys:
+                  type: object
+                  required: [p256dh, auth]
+                  properties:
+                    p256dh: { type: string, minLength: 20, maxLength: 200 }
+                    auth: { type: string, minLength: 10, maxLength: 100 }
+      responses:
+        '200':
+          description: Dispositivo registrado (o actualizado) para este administrador.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [registrado, dispositivo]
+                properties:
+                  registrado: { type: boolean, example: true }
+                  dispositivo: { type: string, example: 'Chrome en Android' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '503':
+          description: Web Push no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /notificaciones/push/baja:
+    post:
+      tags: [Notificaciones]
+      operationId: quitarPushAdministrador
+      summary: Quitar el dispositivo push del administrador (solo administrador)
+      description: HU-39/HU-40. El administrador deja de recibir por push la prueba de envío de esta sede.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: { type: string, format: uri, maxLength: 1000 }
+      responses:
+        '200':
+          description: Dispositivo quitado (o inexistente).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [registrado]
+                properties:
+                  registrado: { type: boolean, example: false }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
   /notificaciones/prueba:
     post:
       tags: [Notificaciones]
@@ -1712,7 +1786,9 @@ paths:
         destino nunca se recibe del frontend. Prueba los canales en el orden push → SMS → correo,
         se detiene en el primero que el proveedor acepta y devuelve el resultado de cada intento.
         Cada envío aparta y confirma (o libera) consumo HU-39; si el SMS alcanza el 80 %, se dispara
-        la alerta correspondiente. Push sigue no disponible mientras HU-40 no conecte el proveedor.
+        la alerta correspondiente. Con HU-40 y Web Push configurado, push se prueba si el administrador
+        registró su dispositivo (POST /notificaciones/push); si no, se reporta sin destino y continúa
+        por SMS o correo.
       requestBody:
         required: true
         content:

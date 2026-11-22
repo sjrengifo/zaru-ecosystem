@@ -18,11 +18,12 @@ import {
 } from './consumo.js';
 import { armarPreferenciasCanales, proveedoresDeCanales } from './preferenciasCanales.js';
 import { enmascararCelular, enmascararCorreo } from './mascaras.js';
+import { destinoAdminPush, suscripcionAdminVigente } from './suscripcionesPushAdmin.js';
 
 const MOTIVO_SIN_DESTINO = {
   sms: 'El administrador no tiene un celular registrado en su cuenta',
   correo: 'El administrador no tiene un correo registrado en su cuenta',
-  push: 'El canal push no tiene un dispositivo registrado (HU-40)',
+  push: 'El administrador no tiene un dispositivo push registrado; actívalo en Canales de notificación (HU-40)',
 };
 
 const textoError = (error) => String(error?.message ?? error).slice(0, 300);
@@ -44,8 +45,11 @@ function celularValido(valor) {
 }
 
 /** Los destinos salen de Auth; el frontend nunca puede elegir a quién se envía la prueba. */
-async function destinoAdministrador(db, usuarioId, canal) {
-  if (canal === 'push') return { valor: null, visible: null };
+async function destinoAdministrador(db, usuarioId, canal, { tenant } = {}) {
+  if (canal === 'push') {
+    // El dispositivo se lee con el tenant de la sesión; el frontend nunca envía el destino.
+    return destinoAdminPush(await suscripcionAdminVigente(tenant, usuarioId));
+  }
   if (!db?.auth?.admin?.getUserById) throw new Error('La API de administración de Auth no está disponible');
   const { data, error } = await db.auth.admin.getUserById(usuarioId);
   if (error) throw error;
@@ -130,7 +134,7 @@ export async function enviarPruebaCanales({
 
     let destino;
     try {
-      destino = await destinoAdministrador(db, usuarioId, nombreCanal);
+      destino = await destinoAdministrador(db, usuarioId, nombreCanal, { tenant });
     } catch (error) {
       resultados.push(resultado(nombreCanal, proveedor, { motivo: `No se pudo consultar el destino: ${textoError(error)}` }));
       continue;

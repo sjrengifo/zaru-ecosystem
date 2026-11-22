@@ -13,6 +13,7 @@ import { enmascararDestino } from '../shared/mascaras.js';
 import { AppError } from '../shared/errores.js';
 import { finDiaBogotaExclusivo, inicioDiaBogota } from '../shared/reportes.js';
 import { enviarPruebaCanales } from '../shared/pruebaCanales.js';
+import { eliminarDispositivoAdmin, registrarDispositivoAdmin } from '../shared/suscripcionesPushAdmin.js';
 
 const COLUMNAS = [
   'id, created_at, tipo, evento, canal, estado, intentos, error, destino, contenido,',
@@ -105,6 +106,48 @@ export async function listar(req, res, next) {
       notificaciones: (data ?? []).map(filaPublica),
       paginacion: { pagina, porPagina, total, totalPaginas: Math.ceil(total / porPagina) },
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /notificaciones/push — registra el dispositivo del administrador autenticado.
+ * El usuario y la sede salen de la sesión; el cuerpo solo trae la suscripción del navegador.
+ */
+export async function registrarPushAdmin(req, res, next) {
+  try {
+    const datos = await registrarDispositivoAdmin(
+      req.tenant,
+      req.ctx?.usuarioId,
+      req.body,
+      { userAgent: req.get('user-agent') },
+    );
+    await registrarAuditoria(req, {
+      accion: 'notificacion.push_admin.registrada',
+      recurso: 'notificaciones',
+      recursoId: req.ctx?.usuarioId ?? null,
+      resultado: 'permitido',
+      detalle: { dispositivo: datos.dispositivo },
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** POST /notificaciones/push/baja — quita el dispositivo push del administrador. */
+export async function eliminarPushAdmin(req, res, next) {
+  try {
+    const datos = await eliminarDispositivoAdmin(req.tenant, req.ctx?.usuarioId, req.body?.endpoint);
+    await registrarAuditoria(req, {
+      accion: 'notificacion.push_admin.eliminada',
+      recurso: 'notificaciones',
+      recursoId: req.ctx?.usuarioId ?? null,
+      resultado: 'permitido',
+    });
+    res.json(datos);
   } catch (err) {
     next(err);
   }

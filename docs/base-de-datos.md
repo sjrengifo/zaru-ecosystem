@@ -25,6 +25,8 @@ establecimientos ◀── perfiles (auth.users)
    ├── campanas ── promociones (segmento de clientes)
    ├── config_notificaciones (un interruptor por estado del flujo)
    ├── config_canales (preferencia de SMS, correo y push; no bloquea avisos)
+   ├── suscripciones_push ── dispositivos de clientes finales (HU-40)
+   ├── notificaciones_push_admin ── dispositivo del administrador para la prueba (HU-39/HU-40)
    ├── consumo_mensual ── establecimientos, por mes de Bogotá y canal
    │      ├── consumo_reservas (idempotencia por notificación)
    │      └── consumo_alertas (entrega del 80 % por destinatario)
@@ -44,6 +46,8 @@ establecimientos ◀── perfiles (auth.users)
 | Campañas de promociones | `campanas` | `establecimiento_id`; promoción del mismo establecimiento; cada campaña se materializa como notificaciones comerciales (`notificaciones.campana_id`) |
 | Configuración de notificaciones | `config_notificaciones` | `establecimiento_id`; una fila por estado del flujo, con `listo` siempre activo |
 | Preferencia de canales | `config_canales` | `establecimiento_id` + canal (`sms`, `correo`, `push`); una fila por canal y sede para la prueba de envío, sin bloquear avisos operativos |
+| Suscripciones push del cliente | `suscripciones_push` | `establecimiento_id` + cliente del mismo establecimiento; un dispositivo por navegador (HU-40) |
+| Dispositivo push del administrador | `notificaciones_push_admin` | `establecimiento_id` + `usuario_id` de la sesión; un dispositivo por administrador para la prueba (HU-39/HU-40) |
 | Cupos de los planes | `planes` | Tabla global: no pertenece a un establecimiento; `establecimientos.plan` apunta a su `nombre` |
 | Consumo mensual | `consumo_mensual` | `establecimiento_id` + mes (primer día, `America/Bogota`) + canal; el historial nunca se borra |
 | Reservas de consumo | `consumo_reservas` | `establecimiento_id` + mes + canal + referencia de la notificación (idempotencia) |
@@ -101,6 +105,8 @@ HU-39 agrega `planes` (catálogo global con los cupos propuestos por DA-12, pend
 | `20261118090000` | `hu35_campanas` | Tabla `campanas` con RLS; `notificaciones.prioridad` y `campana_id`; segmentador `segmento_campana` (privado y público) y revalidación atómica `reclamar_comercial` |
 | `20261119100000` | `hu39_consumo_por_plan` | Tablas `planes`, `consumo_mensual`, `consumo_reservas` y `consumo_alertas` con RLS; RPC atómicas e idempotentes `hu39_reservar_consumo`, `hu39_confirmar_consumo` y `hu39_liberar_consumo`; cupos sembrados desde DA-12 |
 | `20261119110000` | `hu31_preferencias_canales` | Tabla `config_canales` con RLS de lectura por sede y RPC `guardar_preferencias_canales(uuid, jsonb)` para la prueba de envío; **aplicada en Supabase**, integración 4/4 |
+| `20261122120000` | `hu40_suscripciones_push` | Tabla `suscripciones_push` para dispositivos de clientes finales (Web Push/VAPID); un endpoint por cliente |
+| `20261122130000` | `hu39_push_administrador` | Tabla `notificaciones_push_admin` para que la prueba de envío verifique push desde el dispositivo del administrador; **pendiente de aplicar** en Supabase |
 
 **Reglas:**
 
@@ -109,7 +115,7 @@ HU-39 agrega `planes` (catálogo global con los cupos propuestos por DA-12, pend
    - Supabase: `supabase db push`, o la herramienta de migraciones del panel o del MCP.
    - Local o CI: `database/pruebas/aplicar-migraciones.sh`.
 3. `database/schema.sql` se regenera desde las migraciones y solo sirve de referencia legible.
-   > **Pendiente tras HU-39:** ambas migraciones están aplicadas en el proyecto Supabase de pruebas. `backend/tests/integration/hu39-consumo.test.js` pasa 4/4 (CA1/CA2/CA3) y `backend/tests/integration/hu31-canales.test.js` pasa 4/4 (preferencias, fallback y consumo de la prueba). Falta regenerar `database/schema.sql` con `pg_dump`; no se edita a mano (ADR-02). No hay `psql`/`pg_dump`/Docker en el entorno de desarrollo, por lo que el esquema de referencia todavía no incluye `planes`, `consumo_mensual`, `consumo_reservas`, `consumo_alertas` ni `config_canales`.
+   > **Pendiente tras HU-40/HU-39:** las migraciones de planes, consumo, preferencias y dispositivos push del cliente están aplicadas en el proyecto Supabase de pruebas; `20261122130000_hu39_push_administrador.sql` **todavía no está aplicada**. El esquema de referencia `database/schema.sql` sigue desactualizado porque no hay `pg_dump`/`psql`/Docker ni `DATABASE_URL` en el entorno de desarrollo. Para regenerarlo con todas las migraciones aplicadas, ejecutar `DATABASE_URL=… database/pruebas/regenerar-esquema.sh` (o usar las variables `PG*`). El dump incluye los esquemas `public` y `privado` con `--schema-only --no-owner --no-privileges`; no se edita a mano (ADR-02).
 
 **Verificación en un PostgreSQL vacío** (PostgreSQL 16, sin Supabase):
 
@@ -185,4 +191,11 @@ psql -d zaru_prueba -f database/pruebas/11_estado_orden.sql            # HU-10: 
 psql -d zaru_prueba -f database/pruebas/12_configuracion_notificaciones.sql  # HU-31: interruptores, "listo" obligatorio y aislamiento
 ```
 
+Para regenerar el esquema de referencia después de aplicar las migraciones en una base con credenciales:
+
+```bash
+DATABASE_URL="postgresql://usuario:clave@host:5432/base" database/pruebas/regenerar-esquema.sh
+```
+
+El script valida que exista `pg_dump`, no imprime la URL con credenciales y reemplaza `database/schema.sql` de forma atómica.
 Los scripts 02 y 03 son solo para bases locales o de pruebas. Nunca se ejecutan contra producción.

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { guardarCanales, listarCanales } from '../services/canales.js';
 import { obtenerConsumoPropio } from '../services/consumo.js';
 import { enviarPruebaNotificacion } from '../services/notificaciones.js';
+import { activarPushAdministrador, desactivarPushAdministrador } from '../lib/pushAdmin.js';
 import {
   ETIQUETAS_ESTADO_CONSUMO,
   anchoBarra,
@@ -76,6 +77,30 @@ function FilaConsumo({ nombre, datos, sinCupo = false }) {
   );
 }
 
+function PanelPushAdmin({ disponible, estado, onActivar, onDesactivar }) {
+  if (!disponible) return null;
+  return (
+    <section className="tarjeta canales-seccion" aria-labelledby="titulo-push-admin">
+      <h3 id="titulo-push-admin">Push en este dispositivo</h3>
+      <p className="texto-suave">
+        Activa este navegador para que la prueba de envío compruebe también el canal push. El dispositivo
+        queda asociado a tu usuario y a esta sede; nadie puede elegir otro destino desde el panel.
+      </p>
+      <div className="canales-prueba-controles">
+        <button type="button" className="boton secundario" onClick={onActivar} disabled={estado.ocupado}>
+          {estado.ocupado ? 'Activando…' : 'Activar push en este dispositivo'}
+        </button>
+        <button type="button" className="boton secundario boton-pequeno" onClick={onDesactivar} disabled={estado.ocupado}>
+          Quitar push
+        </button>
+      </div>
+      {estado.mensaje && (
+        <p className={estado.error ? 'aviso aviso-error' : 'aviso aviso-exito'} role="status">{estado.mensaje}</p>
+      )}
+    </section>
+  );
+}
+
 function PanelConsumo({ consumo, error, onReintentar }) {
   if (!error && consumo && !consumo.sms) {
     return (
@@ -134,7 +159,7 @@ function PanelPrueba({ canales, enviando, resultado, error, onEnviar }) {
     <section className="tarjeta canales-seccion" aria-labelledby="titulo-prueba-canales">
       <h3 id="titulo-prueba-canales">Prueba de envío</h3>
       <p className="texto-suave">
-        Se envía un mensaje real al correo o celular del administrador de esta sede. Si el canal elegido falla,
+        Se envía un mensaje real al correo, celular o dispositivo push del administrador de esta sede. Si el canal elegido falla,
         se prueba automáticamente el siguiente de la cadena push → SMS → correo. Cada intento queda registrado
         y contabilizado.
       </p>
@@ -213,6 +238,7 @@ export default function ConfiguracionCanales() {
   const [errorConsumo, setErrorConsumo] = useState('');
   const [errorPrueba, setErrorPrueba] = useState('');
   const [resultado, setResultado] = useState(null);
+  const [pushAdmin, setPushAdmin] = useState({ ocupado: false, mensaje: '', error: false });
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -253,6 +279,32 @@ export default function ConfiguracionCanales() {
       setErrorCanales(e.message);
     } finally {
       setGuardando(null);
+    }
+  }
+
+  async function activarPush() {
+    setPushAdmin({ ocupado: true, mensaje: '', error: false });
+    try {
+      const respuesta = await activarPushAdministrador();
+      setPushAdmin({
+        ocupado: false,
+        mensaje: respuesta.resultado === 'activado'
+          ? `Push activado en ${respuesta.dispositivo ?? 'este dispositivo'}. Ya puedes probar el canal.`
+          : respuesta.mensaje,
+        error: respuesta.resultado !== 'activado',
+      });
+    } catch (e) {
+      setPushAdmin({ ocupado: false, mensaje: e.message ?? 'No se pudo activar el push', error: true });
+    }
+  }
+
+  async function desactivarPush() {
+    setPushAdmin({ ocupado: true, mensaje: '', error: false });
+    try {
+      const respuesta = await desactivarPushAdministrador();
+      setPushAdmin({ ocupado: false, mensaje: respuesta.mensaje, error: respuesta.resultado === 'sin-soporte' });
+    } catch (e) {
+      setPushAdmin({ ocupado: false, mensaje: e.message ?? 'No se pudo quitar el push', error: true });
     }
   }
 
@@ -319,6 +371,12 @@ export default function ConfiguracionCanales() {
         )}
       </section>
 
+      <PanelPushAdmin
+        disponible={canales.some((item) => item.canal === 'push' && item.disponible !== false)}
+        estado={pushAdmin}
+        onActivar={activarPush}
+        onDesactivar={desactivarPush}
+      />
       <PanelConsumo consumo={consumo} error={errorConsumo} onReintentar={cargar} />
       <PanelPrueba canales={canales} enviando={enviando} resultado={resultado} error={errorPrueba} onEnviar={enviar} />
     </div>
