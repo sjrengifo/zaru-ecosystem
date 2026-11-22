@@ -1877,6 +1877,33 @@ paths:
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
 
+  /establecimiento/direccion:
+    put:
+      tags: [Establecimiento]
+      operationId: actualizarDireccionSede
+      summary: Guardar la dirección de la sede (solo administrador)
+      description: >-
+        HU-28 CA2. La dirección se muestra en el aviso de "listo para recoger" (correo y SMS). Hasta 160
+        caracteres; un texto vacío la borra.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [direccion]
+              properties:
+                direccion: { type: string, maxLength: 160, example: 'Cra 10 # 5-20, barrio Centro' }
+      responses:
+        '200':
+          description: Establecimiento con la dirección guardada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Establecimiento' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
   /establecimiento/logo:
     post:
       tags: [Establecimiento]
@@ -3013,6 +3040,7 @@ components:
         logo_url: { type: [string, 'null'], format: uri }
         color_primario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$', example: '#2563EB' }
         color_secundario: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$', example: '#0EA5E9' }
+        direccion: { type: [string, 'null'], maxLength: 160, description: 'HU-28 CA2: dirección que llevan los avisos de listo.' }
 
     BrandingEntrada:
       type: object

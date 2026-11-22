@@ -12,6 +12,7 @@ import {
   COLUMNAS_TABLERO,
   ESTADOS_ORDEN,
   SIGUIENTE_ESTADO,
+  segundosParaDeshacer,
   agruparPorColumna,
   calcularDemora,
   horaBogota,
@@ -43,6 +44,8 @@ export default function Dashboard() {
 
   const [ingresando, setIngresando] = useState(false);
   const [avanzando, setAvanzando] = useState(null);
+  // HU-10: avances hechos desde este tablero que todavía se pueden deshacer { ordenId: momento en ms }.
+  const [recientes, setRecientes] = useState({});
   const [confirmacion, setConfirmacion] = useState(null);
   const [errorAccion, setErrorAccion] = useState('');
   const [alertaDemoraVisible, setAlertaDemoraVisible] = useState(false);
@@ -105,6 +108,7 @@ export default function Dashboard() {
     setErrorAccion('');
     try {
       const actualizada = await api.patch(`/ordenes/${orden.id}/estado`, { estado: siguiente });
+      setRecientes((actuales) => ({ ...actuales, [orden.id]: Date.now() }));
       const aviso = mensajeCorreo(actualizada.notificacion);
       setConfirmacion({
         id: Date.now(),
@@ -122,6 +126,40 @@ export default function Dashboard() {
       setAvanzando(null);
     }
   }
+
+  /** HU-10: deshace el último avance. HU-28 CA3: el backend cancela o corrige el aviso al cliente. */
+  async function deshacerEstado(orden) {
+    if (avanzando) return;
+    setAvanzando(orden.id);
+    setErrorAccion('');
+    try {
+      const actualizada = await api.patch(`/ordenes/${orden.id}/estado`, { revertir: true });
+      const { canceladas = 0, correcciones = 0 } = actualizada.correccion ?? {};
+      const detalleAviso = correcciones > 0
+        ? 'Le enviamos una corrección al cliente'
+        : canceladas > 0 ? 'El aviso al cliente se canceló antes de salir' : null;
+      setConfirmacion({
+        id: Date.now(),
+        titulo: 'Cambio deshecho',
+        detalle: [`${actualizada.vehiculo?.placa ?? 'Vehículo'} · ${ESTADOS_ORDEN[actualizada.estado]}`, detalleAviso].filter(Boolean).join(' · '),
+        tipo: 'exito',
+      });
+      refrescar();
+    } catch (fallo) {
+      setErrorAccion(fallo.message || 'No se pudo deshacer el cambio.');
+      if (fallo.status === 409) refrescar();
+    } finally {
+      // Un cambio se deshace una sola vez: el botón desaparece haya funcionado o vencido.
+      setRecientes(({ [orden.id]: _, ...resto }) => resto);
+      setAvanzando(null);
+    }
+  }
+
+  const segundosDeshacer = Object.fromEntries(
+    Object.entries(recientes)
+      .map(([id, momento]) => [id, segundosParaDeshacer(momento, ahora)])
+      .filter(([, segundos]) => segundos > 0),
+  );
 
   const textoConexion = conectado ? 'En vivo' : cargando ? 'Conectando…' : 'Sin conexión en vivo';
 
@@ -218,6 +256,8 @@ export default function Dashboard() {
                 columna={columna}
                 ordenes={grupos[columna.id]}
                 onAvanzar={avanzarEstado}
+                onDeshacer={deshacerEstado}
+                segundosDeshacer={segundosDeshacer}
                 avanzando={avanzando}
                 ahora={ahora}
               />

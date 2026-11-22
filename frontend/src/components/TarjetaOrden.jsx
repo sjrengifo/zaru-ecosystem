@@ -1,6 +1,7 @@
 // HU-09 CA1 — Tarjeta de un vehículo en el tablero.
 // Muestra los datos obligatorios (placa, servicio, hora de ingreso y estado) y
-// conserva la acción de HU-10 para avanzar la orden al siguiente estado.
+// conserva la acción de HU-10 para avanzar la orden al siguiente estado y, durante unos segundos
+// después de avanzarla, para deshacer ese cambio (HU-10; el aviso al cliente lo corrige HU-28 CA3).
 import { formatoMoneda } from '../lib/formato.js';
 import EnlaceSeguimiento from './EnlaceSeguimiento.jsx';
 import { correosPorEvento, etiquetaCorreo } from '../lib/avisoCorreo.js';
@@ -13,7 +14,7 @@ import {
   tiempoEnEstadoLegible,
 } from '../lib/dashboard.js';
 
-export default function TarjetaOrden({ orden, onAvanzar, avanzando, ahora }) {
+export default function TarjetaOrden({ orden, onAvanzar, onDeshacer, segundosDeshacer = 0, avanzando, ahora }) {
   const placa = orden.vehiculos?.placa ?? 'Sin placa';
   const estado = ESTADOS_ORDEN[orden.estado] ?? orden.estado;
   const siguiente = SIGUIENTE_ESTADO[orden.estado];
@@ -87,6 +88,19 @@ export default function TarjetaOrden({ orden, onAvanzar, avanzando, ahora }) {
           )
         )}
       </dl>
+
+      {segundosDeshacer > 0 && onDeshacer && (
+        <button
+          type="button"
+          className="boton secundario tarjeta-vehiculo-deshacer"
+          onClick={() => onDeshacer(orden)}
+          disabled={avanzando !== null}
+          aria-busy={avanzando === orden.id}
+          aria-label={`Deshacer el cambio a ${estado} de ${placa}. Quedan ${segundosDeshacer} segundos`}
+        >
+          ↶ Deshacer <span className="tarjeta-vehiculo-deshacer-segundos">{segundosDeshacer} s</span>
+        </button>
+      )}
 
       {siguiente && (
         <button

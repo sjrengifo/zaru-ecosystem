@@ -6,7 +6,7 @@
 //   el evento de dominio para que HU-46 notifique al cliente.
 import { AppError, noEncontrado } from '../shared/errores.js';
 import { cifrar } from '../shared/cifrado.js';
-import { programarNotificacion } from '../shared/notificaciones.js';
+import { alRevertirEstado, programarNotificacion } from '../shared/notificaciones.js';
 
 /** HU-46: el aviso al cliente corre después de responder; un fallo nunca afecta la operación. */
 async function avisarCliente(tenant, ordenId, tipo) {
@@ -16,6 +16,16 @@ async function avisarCliente(tenant, ordenId, tipo) {
     // CA3: un problema al preparar el aviso nunca revierte la orden.
     console.error('[HU-46] No se pudo preparar el aviso:', err?.message ?? err);
     return { estado: 'error', motivo: 'preparacion' };
+  }
+}
+
+/** HU-28 CA3: al revertir, cancela el aviso del estado deshecho o envía una corrección. Nunca falla la operación. */
+async function corregirAviso(tenant, ordenId, estadoRevertido) {
+  try {
+    return await alRevertirEstado(tenant, ordenId, estadoRevertido);
+  } catch (err) {
+    console.error('[HU-28] No se pudo cancelar o corregir el aviso del estado revertido:', err?.message ?? err);
+    return null;
   }
 }
 
@@ -145,7 +155,8 @@ export async function cambiarEstado(req, res, next) {
     const { estado, revertir } = req.body;
 
     // Un id inválido o de otro establecimiento responde 404 sin revelar que existe (HU-41 CA2).
-    await req.tenant.obtener('ordenes', id, 'id', 'Orden');
+    // Se guarda el estado previo: al revertir, es el estado que se deshace (HU-28 CA3).
+    const previa = await req.tenant.obtener('ordenes', id, 'id, estado', 'Orden');
 
     try {
       await req.tenant.rpc('cambiar_estado_orden', {
@@ -160,10 +171,14 @@ export async function cambiarEstado(req, res, next) {
 
     const orden = detalle(await req.tenant.obtener('ordenes', id, COLUMNAS_DETALLE, 'Orden'));
     // HU-31 CA3: cada avance notifica el estado alcanzado. La configuración de la sede decide
-    // si ese estado genera correo; la reversión no genera un aviso nuevo (HU-28 CA3).
-    const notificacion = revertir !== true
-      ? await avisarCliente(req.tenant, id, orden.estado)
-      : null;
+    // si ese estado genera aviso. HU-28 CA3: la reversión no genera un aviso nuevo; cancela el del
+    // estado deshecho si aún no salió, o envía una corrección si ya llegó.
+    if (revertir === true) {
+      const correccion = await corregirAviso(req.tenant, id, previa.estado);
+      res.json({ ...orden, ...(correccion ? { correccion } : {}) });
+      return;
+    }
+    const notificacion = await avisarCliente(req.tenant, id, orden.estado);
     res.json({ ...orden, ...(notificacion ? { notificacion } : {}) }); // HU-46 CA2
   } catch (err) {
     next(err);
