@@ -19,20 +19,49 @@ export function hayCambios(casillas, preferencias) {
 /** CA3: ¿el cliente se quedaría sin ningún canal? */
 export const sinCanales = (casillas) => CANALES.every((canal) => !casillas[canal]);
 
-/** CA1: texto del estado de un canal. */
-export function textoEstado(canal, preferencias) {
-  const datos = preferencias?.canales?.[canal];
-  if (!datos) return '';
-  if (canal === 'push' && !datos.disponible) return 'Próximamente';
-  return datos.activo ? 'Activo' : 'Inactivo';
-}
+/**
+ * HU-40: soporte de push en este navegador. Por defecto se asume soportado y sin preguntar (pruebas y SSR).
+ * @typedef {{ soportado: boolean, motivo: string|null, permiso: string }} SoportePush
+ */
+const SOPORTE_POR_DEFECTO = { soportado: true, motivo: null, permiso: 'default' };
 
-/** Detalle bajo el nombre del canal: a dónde llegará el aviso o por qué no se puede activar. */
-export function detalleCanal(canal, preferencias) {
+/** CA1: texto del estado de un canal. */
+export function textoEstado(canal, preferencias, soporte = SOPORTE_POR_DEFECTO) {
   const datos = preferencias?.canales?.[canal];
   if (!datos) return '';
   if (canal === 'push') {
-    return datos.disponible ? 'Avisos en tu celular.' : 'Estará disponible cuando permitas las notificaciones en tu celular.';
+    if (datos.configurado === false || !soporte.soportado) return 'No disponible';
+    if (!datos.disponible) return 'Sin activar';
+  }
+  return datos.activo ? 'Activo' : 'Inactivo';
+}
+
+/** HU-40 CA3: por qué este navegador no puede recibir push. */
+export function mensajeSinSoportePush(motivo) {
+  if (motivo === 'ios-sin-instalar') {
+    return 'En iPhone, agrega esta página a tu pantalla de inicio (Compartir → Agregar a inicio) para activarlas. Mientras, usa SMS o correo.';
+  }
+  return 'Tu navegador no permite notificaciones push. Elige SMS o correo.';
+}
+
+/** HU-40: ¿se puede ofrecer el botón "Activar en este celular"? */
+export function puedeRegistrarPush(preferencias, soporte = SOPORTE_POR_DEFECTO) {
+  const datos = preferencias?.canales?.push;
+  return Boolean(datos && datos.configurado !== false && !datos.disponible && soporte.soportado && soporte.permiso !== 'denied');
+}
+
+/** Detalle bajo el nombre del canal: a dónde llegará el aviso o por qué no se puede activar. */
+export function detalleCanal(canal, preferencias, soporte = SOPORTE_POR_DEFECTO) {
+  const datos = preferencias?.canales?.[canal];
+  if (!datos) return '';
+  if (canal === 'push') {
+    if (datos.configurado === false) return 'Por ahora no enviamos notificaciones push.';
+    if (!soporte.soportado) return mensajeSinSoportePush(soporte.motivo);
+    if (datos.disponible) return 'Avisos al instante en tu celular, aunque no tengas la página abierta.';
+    if (soporte.permiso === 'denied') {
+      return 'Bloqueaste las notificaciones en este navegador. Permítelas en su configuración; mientras, te avisamos por SMS o correo.';
+    }
+    return 'Actívalas para recibir los avisos al instante en este celular.';
   }
   if (canal === 'sms') {
     if (!datos.disponible) return 'Por ahora no enviamos avisos por SMS.';

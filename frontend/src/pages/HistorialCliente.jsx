@@ -12,6 +12,7 @@ import { ArrowLeft, CarFront, ChevronRight, Clock, Droplets, Info, LogOut, MapPi
 import Cargando from '../components/Cargando.jsx';
 import CampanaNotificaciones from '../components/CampanaNotificaciones.jsx';
 import FormularioPase from '../components/FormularioPase.jsx';
+import AvisoPush from '../components/AvisoPush.jsx';
 import MarcaZaru from '../components/MarcaZaru.jsx';
 import Modal from '../components/Modal.jsx';
 import { formatoFechaHora, formatoMoneda } from '../lib/formato.js';
@@ -277,6 +278,9 @@ export default function HistorialCliente() {
                 </button>
               </div>
             </div>
+
+            {/* HU-40 CA1: invitación a recibir los avisos en este celular. */}
+            <AvisoPush pase={pase} />
 
             {vehiculos.length > 1 && (
               <div className="campo historial-filtro">

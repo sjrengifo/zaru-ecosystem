@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    include: ['tests/dashboard-correo.test.jsx', 'tests/logica.test.js', 'tests/notificaciones.test.js', 'tests/notificaciones.test.jsx', 'tests/permisos-rutas.test.jsx', 'tests/seguimiento.test.jsx', 'tests/superadmin.test.jsx', 'tests/acceso-cliente.test.jsx', 'tests/autorizaciones.test.jsx', 'tests/branding-cliente.test.jsx', 'tests/notificaciones-cliente.test.jsx', 'tests/avisos-fallidos.test.jsx', 'tests/promociones-cliente.test.jsx', 'tests/promocion-detalle-cliente.test.jsx', 'tests/plantillas-notificacion.test.jsx', 'tests/campanas.test.jsx', 'tests/api-idempotencia.test.js', 'tests/preferencias-notificacion.test.jsx', 'tests/direccion-sede.test.jsx', 'tests/deshacer-estado.test.jsx'],
+    include: ['tests/dashboard-correo.test.jsx', 'tests/logica.test.js', 'tests/notificaciones.test.js', 'tests/notificaciones.test.jsx', 'tests/permisos-rutas.test.jsx', 'tests/seguimiento.test.jsx', 'tests/superadmin.test.jsx', 'tests/acceso-cliente.test.jsx', 'tests/autorizaciones.test.jsx', 'tests/branding-cliente.test.jsx', 'tests/notificaciones-cliente.test.jsx', 'tests/avisos-fallidos.test.jsx', 'tests/promociones-cliente.test.jsx', 'tests/promocion-detalle-cliente.test.jsx', 'tests/plantillas-notificacion.test.jsx', 'tests/campanas.test.jsx', 'tests/api-idempotencia.test.js', 'tests/preferencias-notificacion.test.jsx', 'tests/direccion-sede.test.jsx', 'tests/deshacer-estado.test.jsx', 'tests/push-cliente.test.jsx'],
     setupFiles: ['tests/setup.js'],
     restoreMocks: true,
   },

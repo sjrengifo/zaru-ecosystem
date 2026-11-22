@@ -18,6 +18,8 @@ import { conTiempoMaximo } from './correo.js';
 import { descifrar } from './cifrado.js';
 import { enmascararCelular, enmascararCorreo } from './mascaras.js';
 import { proveedorSms, smsDisponible, textoCodigoVerificacion } from './proveedorSms.js';
+import { pushConfigurado } from './proveedorPush.js';
+import { tienePush } from './suscripcionesPush.js';
 
 export const CANALES = ['push', 'sms', 'correo'];
 /** Sin preferencias guardadas el cliente sigue recibiendo el correo, como antes de HU-29. */
@@ -52,12 +54,11 @@ function correoPlano(valor) {
 }
 
 /**
- * Push depende del registro del dispositivo (HU-40). Mientras no exista, no se ofrece: guardarlo como
- * activo haría que el cliente creyera que recibe avisos que nadie envía.
- * HU-40 reemplaza esta función por la consulta de la suscripción del dispositivo del cliente.
+ * HU-40: push solo se puede activar si el ambiente tiene Web Push y el cliente registró al menos un
+ * dispositivo. Así nunca cree que recibe avisos que nadie le puede entregar.
  */
-export async function pushDisponible() {
-  return false;
+export async function pushDisponible(tenant, clienteId) {
+  return tenant && clienteId ? tienePush(tenant, clienteId) : false;
 }
 
 async function leerFila(tenant, clienteId) {
@@ -94,13 +95,14 @@ function estadoDe(fila) {
 }
 
 /** CA1: lo que ve el cliente. Los destinos viajan siempre enmascarados. */
-async function vistaDe(fila, cliente) {
+async function vistaDe(fila, cliente, tenant) {
   const estado = estadoDe(fila);
   const correo = correoPlano(cliente.correo);
   const registrado = celularLimpio(cliente.telefono);
   return {
     canales: {
-      push: { activo: estado.push, disponible: await pushDisponible() },
+      // HU-40: `disponible` = este cliente ya registró un dispositivo; `configurado` = el ambiente envía push.
+      push: { activo: estado.push, disponible: await pushDisponible(tenant, cliente.id), configurado: pushConfigurado() },
       sms: {
         activo: estado.sms,
         disponible: smsDisponible(),
@@ -121,7 +123,7 @@ async function vistaDe(fila, cliente) {
 /** CA1: canales con su estado actual para la pantalla "preferencias de notificación". */
 export async function obtenerPreferencias(tenant, clienteId) {
   const [fila, cliente] = await Promise.all([leerFila(tenant, clienteId), leerCliente(tenant, clienteId)]);
-  return vistaDe(fila, cliente);
+  return vistaDe(fila, cliente, tenant);
 }
 
 /**
@@ -140,7 +142,8 @@ export async function canalesActivos(tenant, clienteId) {
       correo: estado.correo,
       // El SMS solo sale si el celular quedó validado, aunque la casilla esté activa.
       sms: estado.sms && Boolean(telefonoSms),
-      push: estado.push,
+      // HU-40: la casilla activa no basta; hace falta un dispositivo registrado.
+      push: estado.push && (await tienePush(tenant, clienteId)),
       telefonoSms,
     };
   } catch (err) {
@@ -203,7 +206,7 @@ export async function guardarPreferencias(tenant, clienteId, entrada, { ahora = 
   const guardada = fila
     ? await tenant.actualizar('preferencias_notificacion', fila.id, valores, COLUMNAS_FILA, 'Preferencias')
     : await tenant.crear('preferencias_notificacion', { cliente_id: clienteId, ...valores }, COLUMNAS_FILA);
-  return vistaDe(guardada ?? { ...fila, ...valores }, cliente);
+  return vistaDe(guardada ?? { ...fila, ...valores }, cliente, tenant);
 }
 
 // ---------------------------------------------------------------------------
@@ -362,5 +365,5 @@ export async function confirmarCodigo(tenant, clienteId, { codigo }, { ahora = n
   const guardada = fila
     ? await tenant.actualizar('preferencias_notificacion', fila.id, verificado, COLUMNAS_FILA, 'Preferencias')
     : await tenant.crear('preferencias_notificacion', { cliente_id: clienteId, ...verificado }, COLUMNAS_FILA);
-  return vistaDe(guardada ?? { ...fila, ...verificado }, cliente);
+  return vistaDe(guardada ?? { ...fila, ...verificado }, cliente, tenant);
 }

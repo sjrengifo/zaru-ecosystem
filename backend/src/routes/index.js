@@ -27,6 +27,7 @@ import * as cliente from '../controllers/cliente.controller.js';
 import { validar } from '../shared/validar.js';
 import { busquedaPublica } from '../schemas/publico.schemas.js';
 import {
+  bajaPush,
   confirmacionCodigoSms,
   filtroHistorial,
   idNotificacionCliente,
@@ -35,6 +36,7 @@ import {
   solicitudCodigoSms,
   solicitudOtp,
   verificacionOtp,
+  suscripcionPush,
 } from '../schemas/cliente.schemas.js';
 import { requierePase } from '../shared/paseCliente.js';
 
@@ -123,6 +125,10 @@ router.get('/publico/cliente/preferencias', requierePase, cliente.preferencias);
 router.put('/publico/cliente/preferencias', requierePase, validar({ body: preferenciasCanal }), cliente.guardarPreferenciasCanal);
 router.post('/publico/cliente/celular/codigo', requierePase, validar({ body: solicitudCodigoSms }), cliente.solicitarCodigoCelular);
 router.post('/publico/cliente/celular/verificar', requierePase, validar({ body: confirmacionCodigoSms }), cliente.verificarCodigoCelular);
+// HU-40: registrar (o quitar) el dispositivo del cliente para recibir notificaciones push.
+router.get('/publico/push/clave', cliente.clavePush);
+router.post('/publico/cliente/push', requierePase, validar({ body: suscripcionPush }), cliente.registrarPush);
+router.delete('/publico/cliente/push', requierePase, validar({ body: bajaPush }), cliente.eliminarPush);
 
 // Todo lo demás requiere sesión.
 router.use(requiereSesion);

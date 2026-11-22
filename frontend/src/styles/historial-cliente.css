@@ -108,3 +108,30 @@
   .historial-tarjeta { transition: none; }
   .historial-tarjeta:active { transform: none; }
 }
+
+/* ---------- HU-40: invitación a activar las notificaciones push ---------- */
+.aviso-push { position: relative; margin: 14px 0 0; }
+.aviso-push-invitacion {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-primario) 30%, var(--color-borde));
+  border-radius: 14px;
+  background: var(--color-primario-suave);
+}
+.aviso-push-icono {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--color-primario);
+  color: #fff;
+}
+.aviso-push-texto p { margin: 0; font-size: 14px; color: var(--color-texto-suave); }
+.aviso-push-texto .aviso-push-titulo { margin-bottom: 2px; font-weight: 700; color: var(--color-texto); }
+.aviso-push-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.aviso-push.aviso { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.aviso-push.aviso p { margin: 0; }
+.aviso-push-cerrar { flex: none; padding: 2px; border: 0; background: none; color: inherit; cursor: pointer; }

@@ -8,6 +8,9 @@ import { detalleHistorial, listarHistorial, vehiculosDelCliente } from '../share
 import { listarCentro, marcarLeida } from '../shared/centroNotificaciones.js';
 import { confirmarCodigo, guardarPreferencias, obtenerPreferencias, solicitarCodigo } from '../shared/preferenciasCanal.js';
 import { crearLimiteIntentos } from '../shared/limiteIntentos.js';
+import { eliminarDispositivo, registrarDispositivo } from '../shared/suscripcionesPush.js';
+import { clavePublicaPush } from '../shared/proveedorPush.js';
+import { AppError } from '../shared/errores.js';
 
 // Códigos incorrectos por dirección IP, además de los 5 intentos de cada código.
 export const limiteAccesos = crearLimiteIntentos({ maximo: 10 });
@@ -141,6 +144,41 @@ export async function verificarCodigoCelular(req, res, next) {
 export async function notificacionLeida(req, res, next) {
   try {
     const datos = await marcarLeida(req.cliente.tenant, req.cliente.clienteId, req.params.id);
+    res.set('Cache-Control', 'no-store');
+    res.json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** GET /publico/push/clave — HU-40: llave pública VAPID para que el navegador se suscriba. 503 sin push. */
+export function clavePush(req, res, next) {
+  const clavePublica = clavePublicaPush();
+  if (!clavePublica) {
+    next(new AppError('SERVICIO_NO_DISPONIBLE', 'Las notificaciones push no están disponibles en este momento'));
+    return;
+  }
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.json({ clavePublica });
+}
+
+/** POST /publico/cliente/push — HU-40 CA1: registra el dispositivo del cliente para recibir push. */
+export async function registrarPush(req, res, next) {
+  try {
+    const datos = await registrarDispositivo(req.cliente.tenant, req.cliente.clienteId, req.body, {
+      userAgent: req.get?.('user-agent'),
+    });
+    res.set('Cache-Control', 'no-store');
+    res.status(201).json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** DELETE /publico/cliente/push — HU-40: el cliente deja de recibir push en este dispositivo. */
+export async function eliminarPush(req, res, next) {
+  try {
+    const datos = await eliminarDispositivo(req.cliente.tenant, req.cliente.clienteId, req.body.endpoint);
     res.set('Cache-Control', 'no-store');
     res.json(datos);
   } catch (err) {
