@@ -89,7 +89,7 @@ describe('reglas de presentación', () => {
     const datos = preferencias({ sms: true, verificado: true });
     expect(textoEstado('correo', datos)).toBe('Activo');
     expect(textoEstado('sms', preferencias())).toBe('Inactivo');
-    expect(textoEstado('push', datos)).toBe('Próximamente');
+    expect(textoEstado('push', datos)).toBe('Sin activar');
     expect(detalleCanal('sms', datos)).toBe('Al celular 300****567.');
     expect(detalleCanal('sms', preferencias({ verificado: false }))).toContain('Usar otro número');
     expect(detalleCanal('correo', datos)).toBe('A lui****@correo.com.');
@@ -118,7 +118,9 @@ describe('HU-29 · pantalla de preferencias', () => {
     expect(interruptor('Notificación push')).toBeDisabled();
     expect(screen.getByText('Activo')).toBeInTheDocument();
     expect(screen.getAllByText('Inactivo')).toHaveLength(1);
-    expect(screen.getByText('Próximamente')).toBeInTheDocument();
+    // HU-40 CA3: jsdom no tiene PushManager, así que push se muestra como no disponible en este navegador.
+    expect(screen.getByText('No disponible')).toBeInTheDocument();
+    expect(screen.getByText(/Tu navegador no permite notificaciones push/)).toBeInTheDocument();
     expect(screen.getByText('A lui****@correo.com.')).toBeInTheDocument();
   });
 
