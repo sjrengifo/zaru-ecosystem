@@ -6,7 +6,8 @@
 //   el evento de dominio para que HU-46 notifique al cliente.
 import { AppError, noEncontrado } from '../shared/errores.js';
 import { cifrar } from '../shared/cifrado.js';
-import { alRevertirEstado, programarNotificacion } from '../shared/notificaciones.js';
+import { alRevertirEstado, programarNotificacion, programarNotificacionNovedad } from '../shared/notificaciones.js';
+import { cancelarPorNuevoServicio, cancelarRecordatorio, programarRecordatorio } from '../shared/recordatorios.js';
 
 /** HU-46: el aviso al cliente corre después de responder; un fallo nunca afecta la operación. */
 async function avisarCliente(tenant, ordenId, tipo) {
@@ -16,6 +17,21 @@ async function avisarCliente(tenant, ordenId, tipo) {
     // CA3: un problema al preparar el aviso nunca revierte la orden.
     console.error('[HU-46] No se pudo preparar el aviso:', err?.message ?? err);
     return { estado: 'error', motivo: 'preparacion' };
+  }
+}
+
+/** HU-36: programa o cancela el recordatorio sin bloquear ni revertir la operación de la orden. */
+async function sincronizarRecordatorio(tenant, orden, { nuevoServicio = false, revertir = false } = {}) {
+  const vehiculoId = orden?.vehiculo?.id;
+  if (!vehiculoId) return null;
+  try {
+    if (nuevoServicio) return await cancelarPorNuevoServicio(tenant, vehiculoId);
+    if (orden.estado === 'entregado') return await programarRecordatorio(tenant, vehiculoId);
+    if (revertir) return await cancelarRecordatorio(tenant, vehiculoId, 'orden_revertida');
+    return null;
+  } catch (err) {
+    console.error('[HU-36] No se pudo sincronizar el recordatorio:', err?.message ?? err);
+    return { estado: 'error', motivo: 'recordatorio' };
   }
 }
 
@@ -127,6 +143,7 @@ export async function crear(req, res, next) {
     }
 
     const orden = detalle(await req.tenant.obtener('ordenes', ordenId, COLUMNAS_DETALLE, 'Orden'));
+    await sincronizarRecordatorio(req.tenant, orden, { nuevoServicio: true }); // HU-36 CA2
     const notificacion = await avisarCliente(req.tenant, ordenId, 'ingreso'); // HU-46 CA1
     res.status(201).json({ ...orden, notificacion });
   } catch (err) {
@@ -170,6 +187,7 @@ export async function cambiarEstado(req, res, next) {
     }
 
     const orden = detalle(await req.tenant.obtener('ordenes', id, COLUMNAS_DETALLE, 'Orden'));
+    await sincronizarRecordatorio(req.tenant, orden, { revertir: revertir === true }); // HU-36
     // HU-31 CA3: cada avance notifica el estado alcanzado. La configuración de la sede decide
     // si ese estado genera aviso. HU-28 CA3: la reversión no genera un aviso nuevo; cancela el del
     // estado deshecho si aún no salió, o envía una corrección si ya llegó.
@@ -180,6 +198,39 @@ export async function cambiarEstado(req, res, next) {
     }
     const notificacion = await avisarCliente(req.tenant, id, orden.estado);
     res.json({ ...orden, ...(notificacion ? { notificacion } : {}) }); // HU-46 CA2
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function registrarNovedad(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { tipo, mensaje, minutosExtra } = req.body;
+
+    await req.tenant.obtener('ordenes', id, 'id', 'Orden');
+
+    let novedad;
+    try {
+      novedad = await req.tenant.rpc('registrar_novedad', {
+        p_orden_id: id,
+        p_tipo: tipo,
+        p_mensaje: mensaje ?? null,
+        p_minutos_extra: minutosExtra ?? null,
+        p_creada_por: req.ctx.usuarioId,
+      });
+    } catch (err) {
+      throw traducirErrorEstado(err);
+    }
+
+    let notificacion;
+    try {
+      notificacion = await programarNotificacionNovedad(req.tenant, id, novedad.id);
+    } catch (err) {
+      console.error('[HU-37] No se pudo encolar la notificación de novedad:', err?.message ?? err);
+      notificacion = { estado: 'error', motivo: 'preparacion' };
+    }
+    res.status(201).json({ ...novedad, notificacion });
   } catch (err) {
     next(err);
   }

@@ -22,6 +22,7 @@ import * as seguimiento from '../controllers/seguimiento.controller.js';
 import * as publico from '../controllers/publico.controller.js';
 import * as promocionesPublicas from '../controllers/promocionesPublicas.controller.js';
 import * as baja from '../controllers/baja.controller.js';
+import * as recordatorios from '../controllers/recordatorios.controller.js';
 import * as webhooks from '../controllers/webhooks.controller.js';
 import * as cliente from '../controllers/cliente.controller.js';
 import { validar } from '../shared/validar.js';
@@ -108,6 +109,10 @@ router.post('/webhooks/twilio', express.urlencoded({ extended: false, limit: '64
 // HU-30 CA3: el cliente deja de recibir avisos o promociones desde el enlace del correo, sin sesión.
 router.get('/publico/baja/:token', baja.consultar);
 router.post('/publico/baja/:token', baja.confirmar);
+
+// HU-36 CA3: baja de los recordatorios de un vehículo desde el enlace del correo.
+router.get('/publico/recordatorios/:token/desactivar', recordatorios.consultar);
+router.post('/publico/recordatorios/:token/desactivar', recordatorios.desactivar);
 // HU-23 / HU-24: historial y detalle de servicios del cliente final. Ninguna de estas rutas acepta
 // un id de cliente o de sede ajeno: ambos salen del pase firmado.
 // RF-F5-11 / RF-F5-12: el cliente entra con su celular y un código de un solo uso por SMS.

@@ -37,6 +37,8 @@ function archivos(dir) {
 //   resuelve la sede por su slug y lee el cliente y los códigos con el acceso del tenant de esa sede.
 // - workerNotificaciones.js (HU-34): cola global de envíos en segundo plano, sin petición ni sesión;
 //   cada notificación se procesa con el acceso del tenant de su establecimiento.
+// - recordatorioPublico.js (HU-36): el enlace de baja por vehículo no tiene sesión; el token firmado
+//   trae el establecimiento, el cliente y el vehículo, y el resto se lee con el tenant de esa sede.
 const PERMITIDOS = new Set([
   'config/supabase.js',
   'shared/tenant.js',
@@ -49,6 +51,7 @@ const PERMITIDOS = new Set([
   'shared/otpCliente.js',
   'shared/promocionesPublicas.js',
   'shared/workerNotificaciones.js',
+  'shared/recordatorioPublico.js',
   // HU-33 CA4: el webhook no tiene sesión; el establecimiento sale de la notificación misma.
   'controllers/webhooks.controller.js',
   'middlewares/auth.js',

@@ -14,7 +14,7 @@ import {
   tiempoEnEstadoLegible,
 } from '../lib/dashboard.js';
 
-export default function TarjetaOrden({ orden, onAvanzar, onDeshacer, segundosDeshacer = 0, avanzando, ahora }) {
+export default function TarjetaOrden({ orden, onAvanzar, onDeshacer, onNotificarNovedad, segundosDeshacer = 0, avanzando, ahora }) {
   const placa = orden.vehiculos?.placa ?? 'Sin placa';
   const estado = ESTADOS_ORDEN[orden.estado] ?? orden.estado;
   const siguiente = SIGUIENTE_ESTADO[orden.estado];
@@ -111,6 +111,16 @@ export default function TarjetaOrden({ orden, onAvanzar, onDeshacer, segundosDes
           aria-busy={avanzando === orden.id}
         >
           {avanzando === orden.id ? 'Guardando…' : `Avanzar a ${ESTADOS_ORDEN[siguiente]}`}
+        </button>
+      )}
+      {/* HU-37: el operario puede avisar una novedad mientras el vehículo siga en la sede. */}
+      {orden.estado !== 'entregado' && (
+        <button
+          type="button"
+          className="boton tarjeta-vehiculo-novedad"
+          onClick={() => onNotificarNovedad(orden)}
+        >
+          Notificar novedad
         </button>
       )}
     </article>

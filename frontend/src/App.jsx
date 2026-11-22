@@ -23,6 +23,7 @@ import AceptarInvitacion from './pages/AceptarInvitacion.jsx';
 import Seguimiento from './pages/Seguimiento.jsx';
 import AccesoCliente from './pages/AccesoCliente.jsx';
 import BajaNotificaciones from './pages/BajaNotificaciones.jsx';
+import BajaRecordatorios from './pages/BajaRecordatorios.jsx';
 import PoliticaDatos from './pages/PoliticaDatos.jsx';
 import HistorialCliente from './pages/HistorialCliente.jsx';
 import NotificacionesCliente from './pages/NotificacionesCliente.jsx';
@@ -46,6 +47,8 @@ export default function App() {
       <Route path="/s/:slug" element={<AccesoCliente />} />
       {/* HU-30: "dejar de recibir" desde el correo y la política que enlazan las casillas de autorización. */}
       <Route path="/baja/:token" element={<BajaNotificaciones />} />
+      {/* HU-36: baja de los recordatorios de próximo lavado de un vehículo. */}
+      <Route path="/recordatorios/:token/desactivar" element={<BajaRecordatorios />} />
       <Route path="/politica-datos" element={<PoliticaDatos />} />
       {/* HU-23 / HU-24: historial y detalle de servicios del cliente final, con placa + celular. */}
       <Route path="/s/:slug/historial" element={<HistorialCliente />} />

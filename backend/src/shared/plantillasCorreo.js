@@ -170,6 +170,68 @@ ${direccionHtml(establecimiento)}${horaHtml(horaCambio)}
   };
 }
 
+/** RF-F7-18: aviso inmediato al cliente con el mensaje que escribió el operario. */
+export function plantillaNovedad({ establecimiento, cliente, orden, vehiculo, novedad }) {
+  const sede = establecimiento?.nombre ?? 'el car wash';
+  const tipo = {
+    demora: 'Actualización de la entrega estimada',
+    dano_preexistente: 'Reporte de daño preexistente',
+    objeto_encontrado: 'Objeto encontrado en tu vehículo',
+    otro: 'Actualización sobre tu vehículo',
+  }[novedad?.tipo] ?? 'Actualización sobre tu vehículo';
+  const texto = novedad?.mensaje || tipo;
+  const minutos = Number(novedad?.minutos_extra ?? novedad?.minutosExtra ?? 0);
+  const fechaEstimada = orden?.entrega_estimada_at
+    ? formatoFechaHora(orden.entrega_estimada_at)
+    : null;
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, tenemos una novedad sobre tu vehículo ${placaHtml(vehiculo?.placa)} en ${escaparHtml(sede)}.</p>
+<p style="margin:0 0 16px;white-space:pre-wrap">${escaparHtml(texto)}</p>
+${minutos ? `<p style="margin:0 0 16px">Tiempo adicional estimado: <strong>${minutos} minutos</strong>${fechaEstimada ? ` · nueva hora estimada: <strong>${escaparHtml(fechaEstimada)}</strong>` : ''}</p>` : ''}
+<p style="margin:0">Puedes consultar el estado de tu vehículo en el enlace de seguimiento que recibiste al ingresar.</p>`;
+  return {
+    asunto: `${tipo} · ${vehiculo?.placa ?? ''}`.trim(),
+    html: marco({ establecimiento, titulo: tipo, cuerpoHtml }),
+    texto: [
+      `Hola ${primerNombre(cliente?.nombre)}, tenemos una novedad sobre tu vehículo ${vehiculo?.placa} en ${sede}.`,
+      '',
+      texto,
+      ...(minutos ? [`Tiempo adicional estimado: ${minutos} minutos${fechaEstimada ? `; nueva hora estimada: ${fechaEstimada}` : ''}.`] : []),
+    ].join('\n'),
+  };
+}
+
+export const formatoDia = (valor) =>
+  new Intl.DateTimeFormat('es-CO', { timeZone: ZONA, dateStyle: 'long' }).format(new Date(`${valor}T12:00:00-05:00`));
+
+/** HU-36: recordatorio del próximo lavado calculado con la frecuencia del vehículo. */
+export function plantillaRecordatorio({ establecimiento, cliente, vehiculo, recordatorio, enlaceRecordatorio = null }) {
+  const sede = establecimiento?.nombre ?? 'el car wash';
+  const dia = formatoDia(recordatorio?.fecha_estimada);
+  const telefono = String(establecimiento?.telefono ?? '').trim();
+  const contacto = telefono ? ` Puedes agendar llamando al ${telefono}.` : ' Puedes agendar en el establecimiento.';
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, por el ritmo de tus lavados estimamos que tu vehículo ${placaHtml(vehiculo?.placa)} estará listo para un nuevo lavado el <strong>${escaparHtml(dia)}</strong>.</p>
+<p style="margin:0">${escaparHtml(contacto.trim())}</p>`;
+
+  return {
+    asunto: `¿Cuándo lavamos tu ${vehiculo?.placa ?? 'vehículo'}?`.replace(/\s+/g, ' ').trim(),
+    html: marco({
+      establecimiento,
+      titulo: 'Tu próximo lavado se acerca',
+      cuerpoHtml,
+      enlaceBaja: enlaceRecordatorio,
+      textoBaja: 'No volver a recordarme',
+      motivo: `lavaste tu vehículo en ${escaparHtml(sede)}`,
+    }),
+    texto: [
+      `Hola ${primerNombre(cliente?.nombre)}, por el ritmo de tus lavados estimamos que tu vehículo ${vehiculo?.placa} estará listo para un nuevo lavado el ${dia}.`,
+      contacto.trim(),
+      ...(enlaceRecordatorio ? ['', `No quiero recibir más recordatorios de este vehículo: ${enlaceRecordatorio}`] : []),
+    ].join('\n'),
+  };
+}
+
 /**
  * HU-59 (RF-F5-11): código de un solo uso para entrar a la app del cliente. Lo pide el propio cliente,
  * así que no lleva enlace de baja: es un mensaje de seguridad, no un aviso del servicio (HU-30).
@@ -371,6 +433,8 @@ export const PLANTILLAS = {
   'orden.en_lavado': plantillaEnLavado,
   'orden.secado': plantillaSecado,
   'orden.lista': plantillaListo,
+  'orden.novedad': plantillaNovedad,
+  'recordatorio.proximo_lavado': plantillaRecordatorio,
   'orden.entregada': plantillaEntregada,
   'orden.correccion': plantillaCorreccion,
 };

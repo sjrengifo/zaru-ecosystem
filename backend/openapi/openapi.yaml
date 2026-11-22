@@ -336,6 +336,52 @@ paths:
                       revocadaAt: { type: [string, 'null'], format: date-time }
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
+  /publico/recordatorios/{token}/desactivar:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Token firmado del enlace "no volver a recordarme" de un correo (HU-36 CA3). Solo sirve para los recordatorios de ese vehículo.
+        schema: { type: string, maxLength: 500 }
+    get:
+      tags: [Acceso del cliente]
+      operationId: consultarRecordatorioPublico
+      summary: Estado de los recordatorios de próximo lavado del vehículo
+      description: |
+        Devuelve la placa, si los recordatorios siguen activos y la fecha estimada del próximo lavado.
+        No incluye datos personales. Un token alterado, o de un vehículo que ya no existe, responde `404`.
+      security: []
+      responses:
+        '200':
+          description: Recordatorios del vehículo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordatorioPublico' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+    post:
+      tags: [Acceso del cliente]
+      operationId: desactivarRecordatorioPublico
+      summary: No volver a recibir recordatorios de este vehículo (sin iniciar sesión)
+      description: |
+        Desactiva solo los recordatorios de próximo lavado del vehículo del enlace y cancela el correo
+        que estuviera programado (HU-36 CA3). No modifica los avisos del servicio ni las promociones de
+        HU-30. Es `POST` para que las vistas previas de los correos no desactiven nada al abrirlos.
+        Repetirlo no agrega cambios.
+      security: []
+      responses:
+        '200':
+          description: Recordatorios desactivados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/RecordatorioPublico' }
+                  - type: object
+                    properties:
+                      desactivadoAt: { type: [string, 'null'], format: date-time }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
   /publico/sedes/{slug}/otp:
     post:
       tags: [Historial del cliente]
@@ -1239,6 +1285,121 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /ordenes/{id}/novedades:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Órdenes]
+      operationId: registrarNovedadOrden
+      summary: Registrar una novedad del vehículo
+      description: >-
+        HU-20 y HU-37. El operario registra una novedad sobre una orden en curso; el aviso se encola para el cliente si autorizó notificaciones del servicio. Si el tipo
+        es `demora`, `minutosExtra` es obligatorio y la entrega estimada suma esos minutos; el
+        seguimiento público recibe la nueva hora sin recargar. Los demás tipos no cambian la
+        entrega estimada y no admiten `minutosExtra`. Una orden entregada responde `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovedadNueva' }
+            examples:
+              demora:
+                summary: Reportar 15 minutos de demora
+                value: { tipo: demora, minutosExtra: 15, mensaje: El vehículo requiere un segundo lavado }
+              dano:
+                summary: Registrar un daño preexistente
+                value: { tipo: dano_preexistente, mensaje: Rayón en la puerta delantera }
+      responses:
+        '201':
+          description: Novedad registrada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Novedad' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La orden ya fue entregada y no admite novedades.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      tags: [Órdenes]
+      operationId: listarNovedadesOrden
+      summary: Consultar el historial de novedades de una orden
+      description: HU-37. Las fotos de evidencia se devuelven como enlaces firmados de una hora y solo se muestran al personal de la sede.
+      responses:
+        '200':
+          description: Novedades más recientes primero.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    tipo: { type: string, enum: [demora, dano_preexistente, objeto_encontrado, otro] }
+                    mensaje: { type: [string, 'null'], maxLength: 300 }
+                    minutosExtra: { type: [integer, 'null'] }
+                    createdAt: { type: string, format: date-time }
+                    fotos:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          ruta: { type: string }
+                          url: { type: string, format: uri }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /ordenes/{id}/novedades/{novedadId}/fotos:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: novedadId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Órdenes]
+      operationId: adjuntarFotosNovedad
+      summary: Guardar fotos de evidencia para un daño preexistente
+      description: HU-37 CA2. Acepta hasta tres imágenes JPG o PNG, de máximo 5 MB cada una; las almacena en un bucket privado y las vincula al historial de la orden.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [fotos]
+              properties:
+                fotos:
+                  type: array
+                  minItems: 1
+                  maxItems: 3
+                  items: { type: string, format: binary }
+      responses:
+        '201':
+          description: Evidencias guardadas; enlaces firmados válidos por una hora.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fotos:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ruta: { type: string }
+                        url: { type: string, format: uri }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
 
   /promociones:
     get:
@@ -2388,6 +2549,7 @@ components:
             properties:
               nombre: { type: string }
               precio: { type: number }
+              duracionMin: { type: integer, minimum: 0, description: Duración contratada del servicio. }
         subtotal: { type: number }
         descuento: { type: number }
         total: { type: number }
@@ -2399,7 +2561,7 @@ components:
             logoUrl: { type: [string, 'null'] }
             colorPrimario: { type: string }
             colorSecundario: { type: string }
-        version: { type: integer, description: Aumenta con cada cambio de estado. }
+        version: { type: integer, description: Aumenta con cada cambio de estado o de la entrega estimada. }
 
     EstadoPlantilla:
       type: string
@@ -2635,6 +2797,24 @@ components:
             colorPrimario: { type: [string, 'null'] }
             colorSecundario: { type: [string, 'null'] }
 
+    RecordatorioPublico:
+      type: object
+      properties:
+        vehiculo:
+          type: object
+          properties:
+            placa: { type: string, example: XYZ987 }
+        activos: { type: boolean, description: false cuando el cliente desactivó los recordatorios de este vehículo. }
+        proximaFecha: { type: [string, 'null'], format: date, description: Fecha estimada del próximo lavado; null si no hay ninguno programado. }
+        desactivadoAt: { type: [string, 'null'], format: date-time }
+        sede:
+          type: object
+          properties:
+            nombre: { type: string }
+            logoUrl: { type: [string, 'null'] }
+            colorPrimario: { type: [string, 'null'] }
+            colorSecundario: { type: [string, 'null'] }
+
     Consentimiento:
       type: object
       properties:
@@ -2793,6 +2973,41 @@ components:
         duracionMin: { type: integer }
         descuento: { type: number, description: Descuento aplicado por la mejor promoción vigente. }
 
+    NovedadNueva:
+      type: object
+      required: [tipo]
+      properties:
+        tipo: { type: string, enum: [demora, dano_preexistente, objeto_encontrado, otro] }
+        mensaje: { type: [string, 'null'], maxLength: 300 }
+        minutosExtra:
+          type: [integer, 'null']
+          minimum: 1
+          description: Obligatorio solo para `demora`; se suma a la entrega estimada.
+      additionalProperties: false
+
+    Novedad:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ordenId: { type: string, format: uuid }
+        tipo: { type: string, enum: [demora, dano_preexistente, objeto_encontrado, otro] }
+        mensaje: { type: [string, 'null'] }
+        minutosExtra: { type: [integer, 'null'] }
+        fotos:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+        entregaEstimadaAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer }
+        notificacion:
+          type: object
+          description: Estado de la notificación por correo que se encoló para el cliente.
+          properties:
+            canal: { type: string, enum: [correo] }
+            estado: { type: string, enum: [pendiente, omitida, duplicada, error] }
+            id: { type: string, format: uuid }
+            destino: { type: string, description: Correo enmascarado. }
+
     OrdenCambioEstado:
       description: Indica un estado nuevo o la reversión del último cambio, pero no ambos.
       oneOf:
@@ -2812,7 +3027,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
-        version: { type: integer, minimum: 1, description: Se incrementa en cada cambio de estado. }
+        version: { type: integer, minimum: 1, description: Se incrementa en cada cambio de estado o de la entrega estimada. }
         subtotal: { type: number }
         descuento: { type: number }
         total: { type: number }
