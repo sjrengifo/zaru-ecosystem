@@ -4,7 +4,7 @@
 |---|---|
 | Historias | HU-39 (ZARU-28) y HU-40 (ZARU-70), con HU-31/HU-29 como contexto |
 | Fecha del documento | 2026-11-22 |
-| Estado | **Ejecución parcial**: automatización en verde; falta UAT manual con dispositivo real y ambiente desplegado |
+| Estado | **DA-12 aprobada y automatización en verde**; falta UAT manual con dispositivo real y ambiente desplegado |
 | Rama | `feature/ZARU-20-configuracion-notificaciones` |
 
 > Este documento no certifica una entrega push de extremo a extremo con un dispositivo falso ni con
@@ -21,7 +21,57 @@
 | P3 | Service worker publicado | `GET /sw-zaru.js` responde 200 en el dominio del panel |
 | P4 | Usuario administrador de la sede de prueba con sesión vigente | Login en el panel; el endpoint `/configuracion/canales` responde 200 |
 | P5 | Dispositivo real con navegador que soporte Web Push | Chrome/Edge en Android o escritorio. En iPhone, la web debe estar instalada en la pantalla de inicio |
-| P6 | Datos de DA-12 todavía sin aprobación | No cambiar los cupos sembrados sin el acta del PO (ver [`../decisiones/DA-12-cupos-notificaciones.md`](../decisiones/DA-12-cupos-notificaciones.md)) |
+| P6 | DA-12 aprobada por el PO el 2026-11-22 | `select nombre, cupo_sms_mes, cupo_correo_mes from public.planes order by nombre;` debe devolver `basico 200/1000`, `intermedio 600/3000`, `empresarial 2000/10000` (ver [`../decisiones/DA-12-cupos-notificaciones.md`](../decisiones/DA-12-cupos-notificaciones.md)) |
+
+## 1.1 SQL para Supabase (copiar y pegar)
+
+Ejecutar esto en **SQL Editor → New query** del proyecto `djutvsulfduzuylvaten`. Es idempotente: si la
+tabla ya existe, no la modifica.
+
+```sql
+-- HU-39/HU-40 · dispositivo push del administrador para la prueba real de envío.
+create table if not exists public.notificaciones_push_admin (
+  id                 uuid primary key default gen_random_uuid(),
+  establecimiento_id uuid not null references public.establecimientos(id) on delete cascade,
+  usuario_id         uuid not null,
+  endpoint           text not null unique
+                     check (endpoint ~ '^https://' and char_length(endpoint) <= 1000),
+  p256dh             text not null check (char_length(p256dh) between 20 and 200),
+  auth               text not null check (char_length(auth) between 10 and 100),
+  dispositivo        text not null default 'Navegador',
+  actualizada_at     timestamptz not null default now(),
+  unique (establecimiento_id, usuario_id)
+);
+
+create index if not exists notificaciones_push_admin_endpoint_idx
+  on public.notificaciones_push_admin (endpoint);
+
+alter table public.notificaciones_push_admin enable row level security;
+
+grant select, insert, update, delete on public.notificaciones_push_admin to service_role;
+
+-- Registrar la migración para que supabase db push no intente repetirla.
+do $$
+begin
+  if to_regclass('supabase_migrations.schema_migrations') is not null then
+    insert into supabase_migrations.schema_migrations (version, name)
+    values ('20261122130000', 'hu39_push_administrador')
+    on conflict (version) do nothing;
+  end if;
+end $$;
+
+-- Verificación: las cuatro consultas deben devolver valores, no null/false.
+select
+  to_regclass('public.planes')                    as planes,
+  to_regclass('public.config_canales')            as canales,
+  to_regclass('public.suscripciones_push')        as push_cliente,
+  to_regclass('public.notificaciones_push_admin') as push_admin,
+  (select relrowsecurity from pg_class
+    where oid = 'public.notificaciones_push_admin'::regclass) as rls_activa;
+```
+
+Si la última consulta devuelve `rls_activa = false`, volver a ejecutar solo el `alter table … enable
+row level security`. No crear políticas para `authenticated`: el backend escribe con `service_role`.
 
 ## 2. Casos de prueba manuales
 
@@ -33,7 +83,7 @@
 4. Entrar con un administrador de sede y abrir **Notificaciones → Canales de notificación**.
 5. Confirmar que solo se muestran sus cupos y los de ninguna otra sede.
 
-**Esperado:** los valores de cupo son los de `public.planes` (hoy la propuesta DA-12: 200/1.000,
+**Esperado:** los valores de cupo son los de `public.planes` (DA-12 aprobada: 200/1.000,
 600/3.000, 2.000/10.000), el porcentaje coincide con `usados / cupo`, y ningún pedido del frontend
 incluye `establecimiento_id` elegido por el usuario.
 
@@ -119,7 +169,7 @@ La historia no se marca como *Validada* hasta que:
 1. Se aplique la migración admin push en el ambiente de la UAT.
 2. Se configuren las llaves VAPID en el ambiente desplegado (nunca en el repositorio).
 3. Se completen CA-UAT-1 a CA-UAT-5 con un dispositivo real y se adjunten capturas o grabación.
-4. El PO apruebe DA-12 por escrito.
+4. ~~El PO apruebe DA-12 por escrito.~~ **Hecho el 2026-11-22**: redacción y cupos aprobados; ver [`../decisiones/DA-12-cupos-notificaciones.md`](../decisiones/DA-12-cupos-notificaciones.md). Si el proceso exige enlace a Jira, adjuntarlo en el registro de decisión.
 
 | Rol | Nombre | Fecha | Acepta / Observaciones |
 |---|---|---|---|
