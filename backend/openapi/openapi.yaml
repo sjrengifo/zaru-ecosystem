@@ -3545,7 +3545,7 @@ components:
         activo: { type: boolean }
         disponible: { type: boolean }
         proveedor: { type: [string, 'null'], example: consola }
-        motivo: { type: [string, 'null'], example: 'El canal push está pendiente de HU-40' }
+        motivo: { type: [string, 'null'], example: 'El canal push no está configurado en este ambiente (PUSH_PROVEEDOR y llaves VAPID)' }
 
     PreferenciasCanalesEntrada:
       type: object

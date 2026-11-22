@@ -104,7 +104,7 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-31/HU-39 · canales y prueba real${h
       activo: expect.any(Boolean),
       disponible: false,
       proveedor: 'no_configurado',
-      motivo: 'El canal push está pendiente de HU-40',
+      motivo: 'El canal push no está configurado en este ambiente (PUSH_PROVEEDOR y llaves VAPID)',
     }));
     expect(respuesta.body.every((item) => !Object.keys(item).some((clave) => clave.includes('establecimiento')))).toBe(true);
 

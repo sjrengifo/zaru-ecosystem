@@ -32,7 +32,7 @@ export function proveedoresDeCanales() {
 const MOTIVO_NO_DISPONIBLE = {
   sms: 'El proveedor de SMS no está configurado en este ambiente',
   correo: null,
-  push: 'El canal push está pendiente de HU-40',
+  push: 'El canal push no está configurado en este ambiente (PUSH_PROVEEDOR y llaves VAPID)',
 };
 
 /** Combina lo guardado con los tres canales, dejando visible si el proveedor existe. */

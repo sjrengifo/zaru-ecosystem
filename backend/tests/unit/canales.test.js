@@ -22,7 +22,7 @@ describe('HU-31/HU-39 · preferencias de canales', () => {
       ['correo', true],
       ['push', true],
     ]);
-    expect(filas.find((f) => f.canal === 'push')).toMatchObject({ disponible: false, motivo: 'El canal push está pendiente de HU-40' });
+    expect(filas.find((f) => f.canal === 'push')).toMatchObject({ disponible: false, motivo: 'El canal push no está configurado en este ambiente (PUSH_PROVEEDOR y llaves VAPID)' });
     expect(filas.every((f) => f.etiqueta)).toBe(true);
   });
 

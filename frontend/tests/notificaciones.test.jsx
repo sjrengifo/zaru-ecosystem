@@ -28,7 +28,7 @@ const canales = () => [
     activo: true,
     disponible: false,
     proveedor: null,
-    motivo: 'El canal push está pendiente de HU-40',
+    motivo: 'El canal push no está configurado en este ambiente (PUSH_PROVEEDOR y llaves VAPID)',
   },
 ];
 
@@ -154,7 +154,7 @@ describe('HU-39 · canales, consumo y prueba real en la sede', () => {
     expect(lista.getAllByRole('switch')).toHaveLength(3);
     expect(lista.getByRole('switch', { name: 'Canal SMS' })).toBeChecked();
     expect(lista.getByRole('switch', { name: 'Canal Push' })).toBeChecked(); // activo, aunque no disponible
-    expect(screen.getByText('El canal push está pendiente de HU-40')).toBeInTheDocument();
+    expect(screen.getByText('El canal push no está configurado en este ambiente (PUSH_PROVEEDOR y llaves VAPID)')).toBeInTheDocument();
     expect((await listaEstados()).getAllByRole('switch')).toHaveLength(5);
   });
 
