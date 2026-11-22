@@ -35,7 +35,7 @@
 import { cifrar, descifrar, estaCifrado } from './cifrado.js';
 import { proveedorCorreo, conTiempoMaximo, enmascararCorreo } from './correo.js';
 import { proveedorSms, smsDisponible, textoAvisoListo, textoAvisoSms, textoCorreccion } from './proveedorSms.js';
-import { proveedorPush } from './proveedorPush.js';
+import { proveedorPush, pushConfigurado } from './proveedorPush.js';
 import { canalesActivos } from './preferenciasCanal.js';
 import { enmascararCelular } from './mascaras.js';
 import { clasificarError, esperaExponencial, esperasConfiguradas } from './reintentos.js';
@@ -641,27 +641,40 @@ export const ORDEN_CANALES = ['push', 'sms', 'correo'];
 /** Id del aviso original de una cadena (el original y sus alternos comparten este id). */
 export const origenDe = (fila) => fila.notificacion_origen_id ?? fila.id;
 
-/** El original y todos sus alternos. */
+/**
+ * Todas las notificaciones del mismo aviso: con HU-29 un aviso sale en paralelo por cada canal que el
+ * cliente dejó activo (una fila por canal), y cada una puede tener alternos (HU-33). Por eso el aviso
+ * es el mismo evento de la misma orden, no solo el original y sus alternos: si cualquiera llegó, el
+ * cliente ya tiene el aviso; los canales usados son los de todas; y el fallo es definitivo solo cuando
+ * ninguna sigue en curso.
+ */
 export async function cadenaDe(tenant, fila) {
-  const origen = origenDe(fila);
-  const { data, error } = await tenant
-    .listar('notificaciones', 'id, canal, estado')
-    .or(`id.eq.${origen},notificacion_origen_id.eq.${origen}`);
+  const consulta = fila.orden_id && fila.evento
+    ? tenant.listar('notificaciones', 'id, canal, estado, notificacion_origen_id').eq('orden_id', fila.orden_id).eq('evento', fila.evento)
+    : tenant.listar('notificaciones', 'id, canal, estado, notificacion_origen_id').or(`id.eq.${origenDe(fila)},notificacion_origen_id.eq.${origenDe(fila)}`);
+  const { data, error } = await consulta;
   if (error) throw error;
   return Array.isArray(data) ? data : [];
 }
 
 /**
  * HU-33 CA2: canales por los que se le puede avisar al cliente, en orden de preferencia.
- * - push: lo agrega HU-40 cuando el dispositivo quede registrado; hasta entonces no hay destino.
- * - sms: celular registrado (es obligatorio al crear el cliente) y SMS no deshabilitado.
+ * - push (HU-40): Web Push configurado y un dispositivo registrado del cliente.
+ * - sms: celular registrado (o el verificado en HU-29) y SMS no deshabilitado.
  * - correo: correo registrado.
- * Cuando HU-29 guarde las preferencias del cliente, se filtran aquí.
+ * HU-29 CA4: si el cliente guardó preferencias, solo se usan los canales que dejó activos.
  */
-function canalesDisponibles(cliente, preferencias) {
-  // HU-29 CA4: si el cliente guardó preferencias, solo se usan los canales que dejó activos.
+async function canalesDisponibles(tenant, cliente, preferencias) {
   const filtrar = Boolean(preferencias?.guardadas);
   const canales = [];
+  if (pushConfigurado() && (!filtrar || preferencias.push)) {
+    try {
+      const suscripcion = await suscripcionVigente(tenant, cliente.id);
+      if (suscripcion) canales.push({ canal: 'push', destino: suscripcionComoDestino(suscripcion) });
+    } catch (err) {
+      console.warn('[HU-33] No se pudo leer el dispositivo push del cliente:', err?.message ?? err);
+    }
+  }
   const telefono = preferencias?.telefonoSms ?? String(cliente.telefono ?? '').replace(/\D/g, '');
   if (telefono && smsDisponible() && (!filtrar || preferencias.sms)) canales.push({ canal: 'sms', destino: telefono });
   const correo = cliente.correo ? destinoPlano(cliente.correo).trim() : '';
@@ -689,7 +702,8 @@ export async function crearAlterno(tenant, fila, { ahora = new Date() } = {}) {
   if (cadena.some((f) => f.id !== fila.id && ACEPTADAS.has(f.estado))) return { sinAlterno: 'entregada' };
 
   const usados = new Set([fila.canal, ...cadena.map((f) => f.canal)]);
-  const siguiente = canalesDisponibles(cliente, await canalesActivos(tenant, cliente.id)).find((c) => !usados.has(c.canal));
+  const disponibles = await canalesDisponibles(tenant, cliente, await canalesActivos(tenant, cliente.id));
+  const siguiente = disponibles.find((c) => !usados.has(c.canal));
   if (!siguiente) {
     // Si otro canal de la cadena todavía está en curso, aún no es un fallo definitivo.
     const enCurso = cadena.some((f) => f.id !== fila.id && EN_CURSO.has(f.estado));
@@ -700,6 +714,8 @@ export async function crearAlterno(tenant, fila, { ahora = new Date() } = {}) {
   const contenido = siguiente.canal === 'correo'
     ? { asunto, alterno: true }
     : { asunto, texto: textoAvisoListo({ establecimiento, placa: vehiculo.placa, total: orden.total, hora: fila.created_at }), alterno: true };
+  // HU-40: al tocar el aviso push se abre el seguimiento del vehículo.
+  if (siguiente.canal === 'push' && orden.codigo_seguimiento) contenido.url = enlaceSeguimiento(orden.codigo_seguimiento);
 
   try {
     const creada = await tenant.crear('notificaciones', {
