@@ -97,7 +97,9 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `ordenes` | Orden de servicio y su estado (`recibido` → `en_lavado` → `listo` → `entregado`) | HU-08, HU-10 |
 | `orden_servicios` | Servicios de cada orden con el precio y la duración vigentes al momento de crearla | HU-07, HU-08 |
 | `historial_estados` | Trazabilidad de cada cambio de estado (usuario y hora) | HU-10 |
+| `novedades` | Novedades del vehículo; una demora actualiza la entrega estimada | HU-20, HU-37 |
 | `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
+| `recordatorios` | Próximo lavado estimado por vehículo; uno programado a la vez y su baja por enlace | HU-36 |
 | `campanas` | Campañas de promociones segmentadas; cada una se materializa en notificaciones comerciales | HU-35 |
 | `config_notificaciones` | Interruptores por sede de los estados del flujo que generan aviso automático al cliente | HU-31 |
 | `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
@@ -239,6 +241,14 @@ HU-35 agrega **Enviar promoción a tus clientes** dentro de **Promociones** (sol
 
 HU-19 agrega a esa pantalla la línea de tiempo del lavado: todas las etapas en orden, las completadas con check y la hora en que terminaron (`terminadaAt`), la actual resaltada y las pendientes en gris. Al entregar el vehículo todas quedan completadas. Tampoco requiere migraciones.
 
+HU-20 expone el registro de novedades de una orden para el operario. Una novedad `demora` exige `minutosExtra`, suma esos minutos a la entrega estimada y sube la versión de la orden para que el seguimiento del cliente reciba la nueva hora por SSE. La entrega estimada deja de mostrarse cuando el vehículo está listo o entregado. Requiere aplicar la migración `20261109120000_hu20_novedades_demora.sql`.
+
+HU-37 agrega **Notificar novedad** a las tarjetas de los vehículos que siguen en la sede (todo estado menos entregado): ofrece demora, daño preexistente y objeto encontrado, permite editar un texto de hasta 300 caracteres y, para daños, adjuntar hasta 3 fotos JPG/PNG de máximo 5 MB. Las fotos se guardan como evidencia en el historial del servicio, en un bucket privado con enlaces firmados. En las demoras, los minutos adicionales actualizan la hora del seguimiento en tiempo real. La novedad se encola para notificar al cliente por correo si tiene autorizados los avisos del servicio. Requiere la migración `20261119120000_hu37_evidencias_novedades.sql`.
+
+HU-21 agrega al seguimiento la sección desplegable **Detalle del servicio**: muestra la placa, los servicios contratados con su duración y precio, el descuento y el total. El resumen aclara que el pago se realiza directamente en el establecimiento físico y que la plataforma no procesa pagos en línea. No requiere migraciones.
+
+HU-36 programa el **recordatorio de próximo lavado** cuando una orden pasa a entregado: con al menos tres servicios entregados calcula el promedio de días entre visitas consecutivas, estima la próxima fecha y deja un correo en la cola para las 09:00 de Bogotá del día anterior. Si el cliente registra un servicio nuevo, el recordatorio vigente se cancela y se recalcula al entregar; revertir una entrega también lo cancela. Cada correo lleva un enlace propio (`/recordatorios/{token}/desactivar`) que solo desactiva los recordatorios de ese vehículo, sin tocar los avisos del servicio ni las promociones de HU-30. Requiere la migración `20261111120000_hu36_recordatorios.sql` (columna `vehiculos.recordatorios_activos` y tabla `recordatorios`).
+
 HU-34 incorpora **Notificaciones** en el menú del administrador: bitácora por sede con fecha, hora, cliente, placa, canal, tipo y estado, filtros combinables (placa, rango de fechas, canal, estado, tipo), paginación y detalle de cada intento con el error real del proveedor. Los destinos se muestran enmascarados (`300****567`, `yel****@gmail.com`) porque el backend los descifra solo para enmascararlos. Los envíos se procesan en un worker del servidor con reintentos exponenciales acotados (solo errores recuperables) y, si el correo de "listo" agota sus intentos, un SMS alterno cuando `SMS_PROVEEDOR` está configurado y el cliente autorizó avisos. "Enviada" significa aceptada por el proveedor; "Entregada" requiere el acuse de entrega del proveedor. Requiere la migración `20261113032127_hu34_hu23_hu24_historiales.sql` (aplicada en Supabase el 12 de noviembre de 2026).
 
 HU-29 permite al cliente elegir, en `/s/{slug}/preferencias` (enlace "Preferencias de notificación" del centro de notificaciones), por cuáles canales recibe los avisos de su servicio: push, SMS y correo. Un cliente que nunca eligió sigue recibiendo por correo. El SMS se activa directo con el celular registrado, que el cliente ya validó al entrar con el código de HU-59. Solo si quiere recibirlo en **otro número** lo valida con un código de 6 dígitos (vence a los 10 minutos, 5 intentos, una solicitud por minuto y 3 por hora; solo se guarda su hash). Si desactiva todos los canales debe confirmar que no recibirá avisos. Desde que guarda, el motor de envío (`shared/notificaciones.js`) manda el aviso de ingreso y el de "listo" solo por los canales activos, y el SMS alterno de HU-34 no se envía a quien desactivó el SMS. El canal push se muestra como "Próximamente" y no se puede activar hasta que HU-40 registre el dispositivo (`pushDisponible()` en `backend/src/shared/preferenciasCanal.js`). Con `SMS_PROVEEDOR=consola` el código aparece en el log del servidor. Requiere la migración `20261111150000_hu29_preferencias_canal_notificacion.sql`.
@@ -315,9 +325,10 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, `/politicas-datos/vigente
 | GET | `/vehiculos/:id/historial` | Admin, Operario | Historial de servicios | Implementado |
 | GET | `/servicios` | Admin, Operario | Catálogo de servicios | Implementado |
 | POST / PUT | `/servicios`, `/servicios/:id` | Admin | Crear, editar o desactivar servicio | Pendiente |
-| GET | `/ordenes/activas` | Admin, Operario | Órdenes en curso para el dashboard | Pendiente |
-| POST | `/ordenes` | Admin, Operario | Crear orden de servicio | Pendiente |
-| PATCH | `/ordenes/:id/estado` | Admin, Operario | Avanzar estado de la orden | Pendiente |
+| GET | `/ordenes/activas` | Admin, Operario | Órdenes en curso para el dashboard | Implementado |
+| POST | `/ordenes` | Admin, Operario | Crear orden de servicio | Implementado |
+| PATCH | `/ordenes/:id/estado` | Admin, Operario | Avanzar estado de la orden | Implementado |
+| POST | `/ordenes/:id/novedades` | Admin, Operario | Registrar una novedad; una demora actualiza la entrega estimada (HU-20) | Implementado |
 | GET | `/promociones` | Admin, Operario | Listar promociones | Pendiente |
 | POST / PUT | `/promociones`, `/promociones/:id` | Admin | Crear o editar promoción | Pendiente |
 | GET / POST / PUT | `/usuarios`, `/usuarios/:id` | Admin | Gestión de operarios | Pendiente |
@@ -363,6 +374,7 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 | ZARU-33 | HU-17 Acceder a la plataforma móvil con la placa o el celular, sin contraseña | 5 | Must | `AccesoCliente.jsx` · `EnlaceClientes.jsx` (QR en Branding) · `lib/accesoCliente.js` | `publico.controller.js` · `shared/accesoCliente.js` · migración `hu17_enlace_publico_sede` |
 | ZARU-34 | HU-18 Seguimiento en tiempo real del estado del lavado | 8 | Must | `Seguimiento.jsx` · `EnlaceSeguimiento.jsx` | `seguimiento.controller.js` · `shared/seguimiento.js` (SSE + Supabase Realtime) |
 | ZARU-39 | HU-19 Visualizar la línea de tiempo de las etapas del lavado | 5 | Should | `Seguimiento.jsx` (`LineaDeTiempo`) · `lib/seguimiento.js` | `shared/etapasSeguimiento.js` (`construirEtapas`) |
+| ZARU-40 | HU-21 Visualización del detalle de servicios contratados | 3 | Should | `Seguimiento.jsx` (`DetalleServicio`) · `lib/seguimiento.js` | `shared/etapasSeguimiento.js` · `shared/seguimiento.js` |
 
 Épica 3 — Notificaciones y comunicación con el cliente (`ZARU-15`).
 
@@ -372,6 +384,8 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 | ZARU-19 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones | 5 | Must | `CasillasNotificaciones.jsx` · `AutorizacionesCliente.jsx` · `BajaNotificaciones.jsx` · `PoliticaDatos.jsx` | `shared/autorizaciones.js` · `shared/bajaPublica.js` · `baja.controller.js` · migración `hu30_autorizacion_notificaciones` |
 | ZARU-20 | HU-31 Configuración de los estados que generan notificación | 3 | Should | `Notificaciones.jsx` | `configuracion.routes.js` · `shared/configNotificaciones.js` · migración `hu31_configuracion_notificaciones` |
 | ZARU-24 | HU-35 Envío de promociones a clientes del establecimiento | 8 | Could | `CampanaPromociones.jsx` (dentro de Promociones) · `lib/campanas.js` | `campanas.routes.js` · `shared/campanas.js` · `shared/notificaciones.js` · migración `hu35_campanas` |
+| ZARU-25 | HU-36 Recordatorio de próximo lavado | 5 | Could | `BajaRecordatorios.jsx` | `shared/recordatorios.js` · `shared/recordatorioPublico.js` · `recordatorios.controller.js` · migración `20261111120000_hu36_recordatorios.sql` |
+| ZARU-26 | HU-37 Mensaje manual del operario durante el lavado | 5 | Should | `FormularioNovedad.jsx` · `TarjetaOrden.jsx` | `novedades.controller.js` · `shared/evidencias.js` · `shared/notificaciones.js` · migración `20261119120000_hu37_evidencias_novedades.sql` |
 
 Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
 

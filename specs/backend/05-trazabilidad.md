@@ -71,8 +71,8 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-17 Acceder a la plataforma móvil con la placa o el celular, sin contraseña | ZARU-33 | 5 | Must | Samuel | F5 | RF-F5-02, 03 | ESC-F5-01, 02 | `tests/unit/acceso-cliente.test.js` · `tests/integration/acceso-cliente.test.js` · `frontend/tests/acceso-cliente.test.jsx` | Cubierta |
 | HU-18 Seguimiento en tiempo real del estado del lavado | ZARU-34 | 8 | Must | — | F5 | RF-F5-04, 05, 07, 08 · RNF-F5-04, 05 | ESC-F5-03, 04, 06 | `tests/unit/seguimiento.test.js`, `tests/integration/seguimiento.test.js`, `frontend/tests/seguimiento.test.jsx` | En desarrollo |
 | HU-19 Visualizar la línea de tiempo de las etapas del lavado | ZARU-39 | 5 | Should | — | F5 | RF-F5-04 | ESC-F5-03 | `tests/unit/seguimiento.test.js`, `frontend/tests/seguimiento.test.jsx` | En desarrollo |
-| HU-20 Consultar el tiempo estimado de entrega de mi vehículo | ZARU-69 | 3 | Should | — | F5 | RF-F5-04 · RF-F3-04 | ESC-F3-01 | — | Pendiente |
-| HU-21 Visualización del detalle de servicios contratados | ZARU-40 | 3 | Should | — | F5 | RF-F5-04 | ESC-F5-03 | — | Pendiente |
+| HU-20 Consultar el tiempo estimado de entrega de mi vehículo | ZARU-69 | 3 | Should | — | F5 | RF-F5-04 · RF-F3-04 | ESC-F3-01 | `tests/unit/ordenes.test.js`, `tests/unit/seguimiento.test.js`, `frontend/tests/seguimiento.test.jsx` | En desarrollo |
+| HU-21 Visualización del detalle de servicios contratados | ZARU-40 | 3 | Should | — | F5 | RF-F5-04 | ESC-F5-03 | `tests/unit/seguimiento.test.js`, `frontend/tests/seguimiento.test.jsx` | Cubierta |
 | HU-22 Personalización del branding de la sede en la app | ZARU-41 | 5 | Should | María José | F4, F5 | RF-F4-09, RF-F5-01 | ESC-F4-05 | `tests/integration/branding-cliente.test.js` · `frontend/tests/branding-cliente.test.jsx` | En desarrollo |
 | HU-23 Consulta del historial de servicios del vehículo | ZARU-35 | 3 | Should | — | F5 | RF-F5-13, 14 | ESC-F5-09 | — | Pendiente |
 | HU-24 Consultar el detalle de un servicio del historial | ZARU-43 | 3 | Could | — | F5 | RF-F5-15 | ESC-F5-10 | — | Pendiente |
@@ -94,8 +94,8 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 | HU-33 Reintento y canal alterno ante fallas de envío | ZARU-22 | 8 | Should | Samuel | F6 | RF-F6-16 a 19 | ESC-F6-09 a 11 | `tests/unit/hu33-reintento-alterno.test.js` · `tests/integration/hu33-reintento-alterno.test.js` · `frontend/tests/avisos-fallidos.test.jsx` | Cubierta |
 | HU-34 Bitácora de notificaciones enviadas | ZARU-23 | 5 | Should | — | F6 | RF-F6-20, 21 | ESC-F6-12 | — | Pendiente |
 | HU-35 Envío de promociones a clientes del establecimiento | ZARU-24 | 8 | Could | — | F7 | RF-F7-06 a 10 | ESC-F7-04, 05 | `tests/unit/campanas.test.js` · `tests/integration/campanas.test.js` · `frontend/tests/campanas.test.jsx` · `frontend/tests/api-idempotencia.test.js` | En desarrollo |
-| HU-36 Recordatorio de próximo lavado | ZARU-25 | 5 | Could | — | F7 | RF-F7-11 a 14 | ESC-F7-06, 07 | — | Pendiente |
-| HU-37 Mensaje manual del operario durante el lavado | ZARU-26 | 5 | Should | — | F7 | RF-F7-15 a 18 | ESC-F7-08, 09 | — | Pendiente |
+| HU-36 Recordatorio de próximo lavado | ZARU-25 | 5 | Could | — | F7 | RF-F7-11 a 14 | ESC-F7-06, 07 | `tests/unit/hu36-recordatorios.test.js` · `frontend/tests/recordatorios.test.jsx` | Cubierta |
+| HU-37 Mensaje manual del operario durante el lavado | ZARU-26 | 5 | Should | — | F7 | RF-F7-15 a 18 | ESC-F7-08, 09 | `tests/unit/ordenes.test.js` · `tests/unit/novedades.controller.test.js` · `frontend/tests/novedades.test.jsx` | Cubierta |
 | HU-38 Centro de notificaciones en la app | ZARU-27 | 3 | Should | Nikol | F6 | RF-F6-22, 23 | ESC-F6-13 | `tests/unit/hu38-centro-notificaciones.test.js` · `tests/integration/centro-notificaciones.test.js` · `frontend/tests/notificaciones-cliente.test.jsx` | Cubierta |
 | HU-39 Control de consumo de notificaciones por plan | ZARU-28 | 5 | Could | — | F7 | RF-F7-19 a 23 | ESC-F7-10, 11 | — | Pendiente |
 | HU-40 Registrar el dispositivo para recibir notificaciones push | ZARU-70 | 5 | Should | Adri | F6 | RF-F6-11 | — | `tests/unit/hu40-push.test.js` · `frontend/tests/push-cliente.test.jsx` · `frontend/tests/preferencias-notificacion.test.jsx` | En desarrollo |

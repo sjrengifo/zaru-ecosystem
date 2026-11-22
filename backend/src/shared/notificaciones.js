@@ -43,6 +43,7 @@ import { NOMBRE_ESTADO, PLANTILLAS, enlaceSeguimiento, plantillaPromocion } from
 import { olvidarSuscripcionVencida, suscripcionComoDestino, suscripcionVigente } from './suscripcionesPush.js';
 import { enlaceBaja, puedeRecibir, TIPOS } from './autorizaciones.js';
 import { crearAccesoTenant } from './tenant.js';
+import { enlaceRecordatorio } from './tokenRecordatorio.js';
 
 export const EVENTOS = {
   RECIBIDA: 'orden.recibida',
@@ -52,6 +53,10 @@ export const EVENTOS = {
   ENTREGADA: 'orden.entregada',
   // HU-28 CA3: aviso de que el estado anterior se notificó por error.
   CORRECCION: 'orden.correccion',
+  // HU-37: mensaje manual del operario durante el lavado.
+  NOVEDAD: 'orden.novedad',
+  // HU-36: recordatorio del próximo lavado.
+  RECORDATORIO: 'recordatorio.proximo_lavado',
 };
 
 /** HU-31: cada evento corresponde a un estado del flujo y a su interruptor en la sede. */
@@ -140,7 +145,7 @@ async function eventoDesactivado(tenant, evento) {
  * @returns {Promise<{ resumen: object, enviar: () => Promise<object> }>}
  *   `resumen` se devuelve al panel; `enviar` se ejecuta en segundo plano después de responder.
  */
-export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {}) {
+export async function prepararCorreo(tenant, { evento, ordenId, novedadId = null }, opciones = {}) {
   const sinEnvio = async () => null;
   try {
     const plantilla = PLANTILLAS[evento];
@@ -156,6 +161,18 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
     const vehiculo = orden.vehiculos ?? {};
     const cliente = vehiculo.clientes ?? null;
     if (!cliente) return { resumen: resumen('omitida', { motivo: 'sin_cliente' }), enviar: sinEnvio };
+
+    let novedad = null;
+    if (evento === EVENTOS.NOVEDAD) {
+      const { data, error: errorNovedad } = await tenant
+        .listar('novedades', 'id, tipo, mensaje, minutos_extra')
+        .eq('id', novedadId)
+        .eq('orden_id', ordenId)
+        .maybeSingle();
+      if (errorNovedad) throw errorNovedad;
+      if (!data) return { resumen: resumen('omitida', { motivo: 'sin_novedad' }), enviar: sinEnvio };
+      novedad = data;
+    }
 
     // CA3: sin correo registrado no se envía nada y la operación sigue normal.
     const correoGuardado = cliente.correo;
@@ -176,6 +193,7 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
       cliente,
       orden,
       vehiculo,
+      novedad,
       servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
       enlaceBaja: enlaceDeBaja(tenant, cliente.id),
       horaCambio: opciones.ahora ?? new Date(),
@@ -186,15 +204,16 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
       fila = await tenant.crear('notificaciones', {
         cliente_id: cliente.id,
         orden_id: orden.id,
-        tipo: 'operativa',
+        tipo: evento === EVENTOS.NOVEDAD ? 'novedad' : 'operativa',
         evento,
         canal: 'correo',
         destino: estaCifrado(correoGuardado) ? correoGuardado : cifrar(correo),
         // Solo se guarda el asunto y metadatos: el cuerpo se reconstruye con la plantilla al enviar,
         // así no se duplican datos personales en la cola.
-        contenido: { asunto: mensaje.asunto },
+        contenido: { asunto: mensaje.asunto, ...(novedadId ? { novedadId } : {}) },
         estado: 'pendiente',
-        clave_dedupe: claveDedupe(orden.id, evento, 'correo'),
+        // HU-37: cada novedad de la misma orden es un aviso distinto.
+        clave_dedupe: claveDedupe(orden.id, evento, novedadId ?? 'correo'),
       }, 'id');
     } catch (err) {
       // RNF-F6-04: el mismo evento de la misma orden nunca genera un segundo correo.
@@ -352,6 +371,19 @@ async function marcar(tenant, id, cambios) {
   }
 }
 
+/** HU-36: cancela un correo programado que todavía no salió. */
+export async function cancelarAvisoProgramado(tenant, id, motivo) {
+  const { data: fila, error } = await tenant.listar('notificaciones', 'id, estado').eq('id', id).maybeSingle();
+  if (error) throw error;
+  if (!fila || ['enviada', 'entregada', 'cancelada'].includes(fila.estado)) return null;
+  await tenant.actualizar('notificaciones', id, {
+    estado: 'cancelada',
+    error: `Cancelada: ${String(motivo ?? 'solicitud del cliente').slice(0, 200)}`,
+    proximo_intento_at: null,
+  });
+  return fila;
+}
+
 /**
  * HU-34: guarda la auditoría de un intento. Es best-effort: si la migración todavía no está
  * aplicada, el envío sigue funcionando y la bitácora simplemente no muestra el detalle.
@@ -458,6 +490,53 @@ export function enSegundoPlano(tarea) {
   });
 }
 
+/** HU-36: el estado del recordatorio sigue al del correo que lo representa. */
+async function marcarRecordatorio(tenant, fila, cambios) {
+  if (fila.evento !== EVENTOS.RECORDATORIO || !fila.contenido?.recordatorioId) return;
+  try {
+    await tenant.actualizar('recordatorios', fila.contenido.recordatorioId, cambios);
+  } catch (err) {
+    console.error(`[HU-36] No se pudo actualizar el recordatorio ${fila.contenido.recordatorioId}:`, err.message);
+  }
+}
+
+async function reconstruirRecordatorio(tenant, fila) {
+  const recordatorioId = fila.contenido?.recordatorioId;
+  if (!recordatorioId) return null;
+  const { data: recordatorio, error } = await tenant
+    .listar('recordatorios', 'id, cliente_id, vehiculo_id, fecha_estimada, estado')
+    .eq('id', recordatorioId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!recordatorio || recordatorio.estado !== 'programado') return null;
+
+  const [{ data: vehiculo, error: errorVehiculo }, { data: cliente, error: errorCliente }, { data: establecimiento, error: errorSede }] =
+    await Promise.all([
+      tenant.listar('vehiculos', 'id, placa, recordatorios_activos').eq('id', recordatorio.vehiculo_id).maybeSingle(),
+      tenant.listar('clientes', 'id, nombre').eq('id', recordatorio.cliente_id).maybeSingle(),
+      tenant.listar('establecimientos', 'nombre, logo_url, color_primario, telefono').maybeSingle(),
+    ]);
+  if (errorVehiculo) throw errorVehiculo;
+  if (errorCliente) throw errorCliente;
+  if (errorSede) throw errorSede;
+  if (!vehiculo?.recordatorios_activos || !cliente) return null;
+  if (!(await puedeRecibir(tenant, recordatorio.cliente_id, TIPOS.comerciales))) return null;
+
+  let enlace = null;
+  try {
+    enlace = enlaceRecordatorio({
+      establecimientoId: tenant.establecimientoId,
+      clienteId: recordatorio.cliente_id,
+      vehiculoId: recordatorio.vehiculo_id,
+    });
+  } catch {
+    // Sin clave configurada el recordatorio sale sin enlace, igual que los avisos de HU-30.
+  }
+
+  const mensaje = PLANTILLAS[EVENTOS.RECORDATORIO]({ establecimiento, cliente, vehiculo, recordatorio, enlaceRecordatorio: enlace });
+  return { mensaje, recordatorio, cliente, vehiculo, establecimiento };
+}
+
 /**
  * Reconstruye el correo de una campaña comercial. El cuerpo sale de la foto de la promoción que
  * se guardó al confirmar; el cliente y la marca se leen de nuevo para incluir el enlace de baja
@@ -493,6 +572,7 @@ async function reconstruirComercial(tenant, fila) {
  * @returns {Promise<{ mensaje: object, orden?: object, cliente: object, vehiculo?: object, establecimiento: object } | null>}
  */
 async function reconstruirMensaje(tenant, fila) {
+  if (fila.evento === EVENTOS.RECORDATORIO) return reconstruirRecordatorio(tenant, fila);
   if (fila.tipo === 'comercial') return reconstruirComercial(tenant, fila);
 
   const plantilla = PLANTILLAS[fila.evento];
@@ -510,11 +590,25 @@ async function reconstruirMensaje(tenant, fila) {
     .listar('establecimientos', 'nombre, logo_url, color_primario, direccion')
     .maybeSingle();
 
+  let novedad = null;
+  if (fila.evento === EVENTOS.NOVEDAD) {
+    const { data, error: errorNovedad } = await tenant
+      .listar('novedades', 'id, tipo, mensaje, minutos_extra')
+      .eq('id', fila.contenido?.novedadId)
+      .eq('orden_id', fila.orden_id)
+      .maybeSingle();
+    if (errorNovedad) throw errorNovedad;
+    if (!data) return null;
+    novedad = data;
+    if (!(await puedeRecibir(tenant, cliente.id, TIPOS.servicio))) return null;
+  }
+
   const mensaje = plantilla({
     establecimiento,
     cliente,
     orden,
     vehiculo,
+    novedad,
     servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
     // HU-28 CA1: el aviso se crea en el momento del cambio de estado.
     horaCambio: fila.created_at,
@@ -711,7 +805,14 @@ export async function enviarUnIntento(tenant, fila, opciones = {}) {
       recuperable,
       error: motivo,
     });
-    if (!puedeReintentar) await despuesDeFallar(tenant, { ...fila, intentos: intento }, ahora);
+    if (!puedeReintentar) {
+      await marcarRecordatorio(tenant, fila, {
+        estado: 'cancelado',
+        motivo_cancelacion: 'fallo_envio',
+        updated_at: ahora.toISOString(),
+      });
+      await despuesDeFallar(tenant, { ...fila, intentos: intento }, ahora);
+    }
     return { estado: puedeReintentar ? 'pendiente' : 'fallida', intentos: intento, error: motivo };
   };
 
@@ -809,6 +910,11 @@ export async function enviarUnIntento(tenant, fila, opciones = {}) {
       proveedor: proveedor.nombre,
       idProveedor,
       entregado: false,
+    });
+    await marcarRecordatorio(tenant, fila, {
+      estado: 'enviado',
+      enviado_at: ahora.toISOString(),
+      updated_at: ahora.toISOString(),
     });
     return { estado: 'enviada', intentos: intento };
   } catch (err) {
@@ -1016,6 +1122,14 @@ export async function programarNotificacion(tenant, ordenId, tipo) {
     ?? resumenes.find((r) => r.motivo !== 'canal_inactivo')
     ?? resumenes[0];
   return resumenes.length > 1 ? { ...principal, canales: resumenes } : principal;
+}
+
+/** HU-37 RF-F7-18: encola un correo al cliente con la novedad que registró el operario. */
+export async function programarNotificacionNovedad(tenant, ordenId, novedadId) {
+  const preparado = await prepararCorreo(tenant, { evento: EVENTOS.NOVEDAD, ordenId, novedadId });
+  const workerActivo = process.env.NODE_ENV !== 'test' && String(process.env.NOTIFICACIONES_WORKER ?? 'on') !== 'off';
+  if (preparado.resumen.estado === 'pendiente' && !workerActivo) enSegundoPlano(preparado.enviar);
+  return preparado.resumen;
 }
 
 /** Adaptador para pruebas/integraciones antiguas que ejecutan el envío de forma síncrona. */

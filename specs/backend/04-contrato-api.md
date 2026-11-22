@@ -177,6 +177,7 @@ La sede va bajo `/publico/sedes/` para que ningún slug choque con `/publico/seg
 | POST | `/campanas` | admin | HU-35 CA3, CA4 |
 | GET | `/campanas` | admin | HU-35 |
 | POST | `/ordenes/{id}/novedades` | admin, operario | HU-37 |
+| GET | `/ordenes/{id}/novedades` | admin, operario | HU-37 historial con enlaces privados firmados |
 | POST | `/ordenes/{id}/novedades/{nid}/fotos` | admin, operario | HU-37 CA2 |
 | GET | `/publico/recordatorios/{token}/desactivar` | publico | HU-36 CA3 |
 | GET | `/consumo` | admin | HU-39 |
