@@ -12,6 +12,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Bell, BellOff, ChevronRight, Info, LogOut, Megaphone, SlidersHorizontal, TriangleAlert } from 'lucide-react';
 import Cargando from '../components/Cargando.jsx';
 import FormularioPase from '../components/FormularioPase.jsx';
+import AvisoPush from '../components/AvisoPush.jsx';
 import MarcaZaru from '../components/MarcaZaru.jsx';
 import { formatoFechaHora } from '../lib/formato.js';
 import { conLeida, rutaDestino } from '../lib/notificacionesCliente.js';
@@ -218,6 +219,9 @@ export default function NotificacionesCliente() {
                 </button>
               </div>
             </div>
+
+            {/* HU-40 CA1: invitación a recibir los avisos en este celular. */}
+            <AvisoPush pase={pase} />
 
             {error && (
               <div className="aviso aviso-error" role="alert">

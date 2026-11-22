@@ -78,3 +78,20 @@ export const confirmacionCodigoSms = z.object({
     .trim()
     .regex(/^\d{6}$/, 'El código tiene 6 dígitos'),
 });
+
+// HU-40: suscripción Web Push que entrega el navegador al aceptar el permiso (PushSubscription.toJSON()).
+const endpointPush = z
+  .string({ required_error: 'Falta el endpoint del dispositivo', invalid_type_error: 'El endpoint debe ser texto' })
+  .url('El endpoint del dispositivo no es válido')
+  .max(1000, 'El endpoint del dispositivo es demasiado largo')
+  .refine((valor) => valor.startsWith('https://'), { message: 'El endpoint del dispositivo debe usar https' });
+
+export const suscripcionPush = z.object({
+  endpoint: endpointPush,
+  keys: z.object({
+    p256dh: z.string({ required_error: 'Falta la llave p256dh' }).min(20).max(200),
+    auth: z.string({ required_error: 'Falta la llave auth' }).min(10).max(100),
+  }, { required_error: 'Faltan las llaves del dispositivo' }),
+});
+
+export const bajaPush = z.object({ endpoint: endpointPush });

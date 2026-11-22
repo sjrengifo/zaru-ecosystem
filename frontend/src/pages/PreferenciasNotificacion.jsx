@@ -20,12 +20,14 @@ import {
   hayCambios,
   limpiarCodigo,
   puedeActivar,
+  puedeRegistrarPush,
   segundosParaReenvio,
   sinCanales,
   textoEstado,
 } from '../lib/preferenciasCanal.js';
 import { obtenerSede } from '../services/accesoCliente.js';
 import { guardarPase, leerPase } from '../services/historialCliente.js';
+import { activarPush, permisoPush, soportePush } from '../lib/push.js';
 import {
   guardarPreferencias,
   obtenerPreferencias,
@@ -244,6 +246,35 @@ export default function PreferenciasNotificacion() {
     setCasillas(casillasDe(datos));
   };
 
+  // HU-40: lo que este navegador permite (se calcula una vez; el permiso cambia al activarlo).
+  const [soporte, setSoporte] = useState(() => ({ ...soportePush(), permiso: permisoPush() }));
+  const [activandoPush, setActivandoPush] = useState(false);
+  const [avisoPush, setAvisoPush] = useState('');
+
+  /** HU-40 CA1/CA2: pide el permiso, registra este celular y deja la casilla de push activada sin guardar. */
+  const activarPushAqui = async () => {
+    setActivandoPush(true);
+    setAvisoPush('');
+    setGuardado('');
+    try {
+      const { resultado } = await activarPush(pase);
+      setSoporte({ ...soportePush(), permiso: permisoPush() });
+      if (resultado === 'activado') {
+        const datos = await obtenerPreferencias(pase);
+        setPreferencias(datos);
+        setCasillas((actual) => ({ ...actual, push: true }));
+        setAvisoPush('Tu celular quedó registrado. Guarda tus preferencias para recibir los avisos por push.');
+      } else if (resultado === 'rechazado') {
+        setAvisoPush('No activaste las notificaciones. Seguirás recibiendo tus avisos por SMS o correo.');
+      }
+    } catch (err) {
+      if (err.status === 401) { vencerPase(); return; }
+      setAvisoPush(err.message || 'No pudimos activar las notificaciones. Inténtalo de nuevo.');
+    } finally {
+      setActivandoPush(false);
+    }
+  };
+
   useEffect(() => {
     if (!pase) return undefined;
     let vigente = true;
@@ -408,9 +439,9 @@ export default function PreferenciasNotificacion() {
                           <span className="pref-icono" aria-hidden="true"><Icono size={20} /></span>
                           <span className="pref-texto">
                             <span className="pref-nombre">{NOMBRE_CANAL[canal]}</span>
-                            <span className="pref-detalle">{detalleCanal(canal, preferencias)}</span>
+                            <span className="pref-detalle">{detalleCanal(canal, preferencias, soporte)}</span>
                           </span>
-                          <span className={`pref-estado ${datos.activo ? 'pref-estado-activo' : ''}`}>{textoEstado(canal, preferencias)}</span>
+                          <span className={`pref-estado ${datos.activo ? 'pref-estado-activo' : ''}`}>{textoEstado(canal, preferencias, soporte)}</span>
                           <input
                             type="checkbox"
                             role="switch"
@@ -421,6 +452,18 @@ export default function PreferenciasNotificacion() {
                             aria-label={NOMBRE_CANAL[canal]}
                           />
                         </label>
+                        {canal === 'push' && puedeRegistrarPush(preferencias, soporte) && (
+                          <button
+                            type="button"
+                            className="acceso-enlace pref-otro-numero"
+                            onClick={activarPushAqui}
+                            disabled={activandoPush}
+                            aria-busy={activandoPush}
+                          >
+                            {activandoPush ? 'Activando…' : 'Activar en este celular'}
+                          </button>
+                        )}
+                        {canal === 'push' && avisoPush && <p className="pref-aviso-push" role="status">{avisoPush}</p>}
                         {canal === 'sms' && datos.disponible && !verificando && (
                           <button type="button" className="acceso-enlace pref-otro-numero" onClick={() => setVerificando(true)}>
                             Usar otro número

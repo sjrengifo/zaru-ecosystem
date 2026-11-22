@@ -669,6 +669,98 @@ paths:
         '409': { $ref: '#/components/responses/Conflicto' }
         '429': { $ref: '#/components/responses/LimiteExcedido' }
 
+  /publico/push/clave:
+    get:
+      tags: [Historial del cliente]
+      operationId: clavePublicaPush
+      summary: Llave pública para suscribir el navegador a las notificaciones push
+      description: >-
+        HU-40. Devuelve la llave pública VAPID con la que el navegador crea su suscripción Web Push. No es
+        secreta. Si el ambiente no tiene Web Push configurado responde `503` y la app no ofrece push.
+      security: []
+      responses:
+        '200':
+          description: Llave pública VAPID (base64url).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [clavePublica]
+                properties:
+                  clavePublica: { type: string }
+        '503':
+          description: Web Push no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /publico/cliente/push:
+    post:
+      tags: [Historial del cliente]
+      operationId: registrarDispositivoPush
+      summary: Registrar el dispositivo del cliente para recibir push
+      description: >-
+        HU-40 CA1. La web móvil envía la suscripción Web Push del navegador (`PushSubscription.toJSON()`) después de
+        que el cliente acepta el permiso. Queda asociada al cliente del pase. Si el mismo navegador ya estaba
+        registrado, se actualiza.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SuscripcionPush' }
+      responses:
+        '201':
+          description: Dispositivo registrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [registrado]
+                properties:
+                  registrado: { type: boolean, const: true }
+                  dispositivo: { type: string, example: Chrome en Android }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409':
+          description: Este navegador ya recibe avisos de otra sede.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: Web Push no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Historial del cliente]
+      operationId: eliminarDispositivoPush
+      summary: Dejar de recibir push en este dispositivo
+      description: HU-40. Borra la suscripción de este navegador. Si no existía, responde igual.
+      security:
+        - paseCliente: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: { type: string, format: uri }
+      responses:
+        '200':
+          description: El dispositivo ya no recibe push.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registrado: { type: boolean, const: false }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
   /me:
     get:
       tags: [Sesión]
@@ -3180,6 +3272,19 @@ components:
         canal: { type: string, enum: [sms, correo], description: El canal que pidió el cliente. }
         celular: { type: string, description: Celular enmascarado al que se envió., example: '300****567' }
         expiraEn: { type: string, format: date-time }
+
+    SuscripcionPush:
+      type: object
+      required: [endpoint, keys]
+      description: Suscripción Web Push del navegador (`PushSubscription.toJSON()`).
+      properties:
+        endpoint: { type: string, format: uri, maxLength: 1000, example: 'https://fcm.googleapis.com/fcm/send/abc123' }
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh: { type: string, minLength: 20, maxLength: 200 }
+            auth: { type: string, minLength: 10, maxLength: 100 }
 
     VerificacionOtp:
       type: object

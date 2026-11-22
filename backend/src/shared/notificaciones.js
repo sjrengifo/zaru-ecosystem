@@ -39,7 +39,8 @@ import { proveedorPush } from './proveedorPush.js';
 import { canalesActivos } from './preferenciasCanal.js';
 import { enmascararCelular } from './mascaras.js';
 import { clasificarError, esperaExponencial, esperasConfiguradas } from './reintentos.js';
-import { NOMBRE_ESTADO, PLANTILLAS, plantillaPromocion } from './plantillasCorreo.js';
+import { NOMBRE_ESTADO, PLANTILLAS, enlaceSeguimiento, plantillaPromocion } from './plantillasCorreo.js';
+import { olvidarSuscripcionVencida, suscripcionComoDestino, suscripcionVigente } from './suscripcionesPush.js';
 import { enlaceBaja, puedeRecibir, TIPOS } from './autorizaciones.js';
 import { crearAccesoTenant } from './tenant.js';
 
@@ -120,6 +121,21 @@ function destinoPlano(destino) {
 }
 
 /**
+ * HU-31 CA3: ¿la sede apagó el aviso de este estado? Se consulta en cada envío y con el tenant de la
+ * sesión, así un interruptor apagado aplica de inmediato a todos los canales y nunca alcanza a otra sede.
+ */
+async function eventoDesactivado(tenant, evento) {
+  const estado = ESTADO_DE_EVENTO[evento];
+  if (!estado) return false;
+  const { data: config, error } = await tenant
+    .listar('config_notificaciones', 'activo')
+    .eq('estado', estado)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(config && config.activo === false);
+}
+
+/**
  * Prepara el correo de un evento de la orden.
  * @returns {Promise<{ resumen: object, enviar: () => Promise<object> }>}
  *   `resumen` se devuelve al panel; `enviar` se ejecuta en segundo plano después de responder.
@@ -130,15 +146,8 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
     const plantilla = PLANTILLAS[evento];
     if (!plantilla) throw new Error(`Evento de correo desconocido: ${evento}`);
 
-    // HU-31 CA3: la configuración se consulta en cada envío y por el tenant de la sesión.
-    // Así un interruptor apagado aplica de inmediato y nunca alcanza a otra sede.
-    const estado = ESTADO_DE_EVENTO[evento];
-    const { data: config, error: errorConfig } = await tenant
-      .listar('config_notificaciones', 'activo')
-      .eq('estado', estado)
-      .maybeSingle();
-    if (errorConfig) throw errorConfig;
-    if (config && config.activo === false) {
+    // HU-31 CA3: un estado apagado en la sede no genera aviso por ningún canal.
+    if (await eventoDesactivado(tenant, evento)) {
       return { resumen: resumen('omitida', { motivo: 'desactivado' }), enviar: sinEnvio };
     }
 
@@ -220,6 +229,9 @@ export async function prepararSms(tenant, { evento, ordenId }, opciones = {}) {
     const vehiculo = orden.vehiculos ?? {};
     const cliente = vehiculo.clientes ?? null;
     if (!cliente) return { resumen: resumenSms('omitida', { motivo: 'sin_cliente' }), enviar: sinEnvio };
+    if (await eventoDesactivado(tenant, evento)) {
+      return { resumen: resumenSms('omitida', { motivo: 'desactivado' }), enviar: sinEnvio };
+    }
 
     const preferencias = opciones.preferencias ?? (await canalesActivos(tenant, cliente.id));
     if (!preferencias.sms || !preferencias.telefonoSms) {
@@ -269,6 +281,65 @@ export async function prepararSms(tenant, { evento, ordenId }, opciones = {}) {
   } catch (err) {
     console.error(`[HU-29] No se pudo preparar el SMS ${evento} de la orden ${ordenId}:`, err.message);
     return { resumen: resumenSms('error', { motivo: 'preparacion' }), enviar: sinEnvio };
+  }
+}
+
+/**
+ * HU-40: prepara el aviso push de un evento para el cliente que activó ese canal y registró un
+ * dispositivo. Va al dispositivo registrado más reciente; al tocarlo abre el seguimiento del vehículo.
+ * @returns {Promise<{ resumen: object, enviar: () => Promise<object|null> }>}
+ */
+export async function prepararPush(tenant, { evento, ordenId }, opciones = {}) {
+  const sinEnvio = async () => null;
+  const resumenPush = (estado, extra = {}) => ({ canal: 'push', estado, ...extra });
+  try {
+    if (!PLANTILLAS[evento]) throw new Error(`Evento de push desconocido: ${evento}`);
+    const orden = opciones.orden ?? (await cargarOrden(tenant, ordenId));
+    const vehiculo = orden.vehiculos ?? {};
+    const cliente = vehiculo.clientes ?? null;
+    if (!cliente) return { resumen: resumenPush('omitida', { motivo: 'sin_cliente' }), enviar: sinEnvio };
+    if (await eventoDesactivado(tenant, evento)) {
+      return { resumen: resumenPush('omitida', { motivo: 'desactivado' }), enviar: sinEnvio };
+    }
+    if (!(await puedeRecibir(tenant, cliente.id, TIPOS.servicio))) {
+      return { resumen: resumenPush('omitida', { motivo: 'revocado' }), enviar: sinEnvio };
+    }
+    const suscripcion = await suscripcionVigente(tenant, cliente.id);
+    if (!suscripcion) return { resumen: resumenPush('omitida', { motivo: 'sin_dispositivo' }), enviar: sinEnvio };
+
+    const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre, direccion').maybeSingle();
+    const horaCambio = opciones.ahora ?? new Date();
+    const { asunto } = PLANTILLAS[evento]({ establecimiento, cliente, orden, vehiculo, servicios: [] });
+
+    let fila;
+    try {
+      fila = await tenant.crear('notificaciones', {
+        cliente_id: cliente.id,
+        orden_id: orden.id,
+        tipo: 'operativa',
+        evento,
+        canal: 'push',
+        destino: cifrar(suscripcionComoDestino(suscripcion)),
+        contenido: {
+          asunto,
+          texto: textoAvisoSms(evento, { establecimiento, placa: vehiculo.placa, total: orden.total, hora: horaCambio }),
+          url: orden.estado === 'entregado' ? null : enlaceSeguimiento(orden.codigo_seguimiento),
+        },
+        estado: 'pendiente',
+        clave_dedupe: claveDedupe(orden.id, evento, 'push'),
+      }, '*');
+    } catch (err) {
+      if (err.codigo === 'CONFLICTO') return { resumen: resumenPush('duplicada'), enviar: sinEnvio };
+      throw err;
+    }
+
+    return {
+      resumen: resumenPush('pendiente', { id: fila.id, destino: suscripcion.dispositivo ?? 'tu celular' }),
+      enviar: () => enviarUnIntento(tenant, fila, { proveedorPush: opciones.proveedorPush }),
+    };
+  } catch (err) {
+    console.error(`[HU-40] No se pudo preparar el push ${evento} de la orden ${ordenId}:`, err.message);
+    return { resumen: resumenPush('error', { motivo: 'preparacion' }), enviar: sinEnvio };
   }
 }
 
@@ -581,7 +652,9 @@ async function armarEnvio(tenant, fila, destino) {
   }
   const texto = await reconstruirTextoCorto(tenant, fila);
   if (!texto) return null;
-  return { envio: { para: destino, asunto: fila.contenido?.asunto ?? 'Tu vehículo está listo', texto }, asunto: fila.contenido?.asunto, texto };
+  const envio = { para: destino, asunto: fila.contenido?.asunto ?? 'Tu vehículo está listo', texto };
+  if (fila.canal === 'push' && fila.contenido?.url) envio.url = fila.contenido.url;
+  return { envio, asunto: fila.contenido?.asunto, texto };
 }
 
 const SIN_DESTINO = {
@@ -739,6 +812,8 @@ export async function enviarUnIntento(tenant, fila, opciones = {}) {
     });
     return { estado: 'enviada', intentos: intento };
   } catch (err) {
+    // HU-40: el dispositivo ya no existe (404/410): se borra su suscripción para no volver a intentarlo.
+    if (canal === 'push' && err?.suscripcionVencida) await olvidarSuscripcionVencida(tenant, destino);
     const { recuperable } = clasificarError(err);
     return fallar(err, recuperable, {
       contenido: { ...(fila.contenido ?? {}), proveedor: proveedor.nombre },
@@ -925,8 +1000,10 @@ export async function programarNotificacion(tenant, ordenId, tipo) {
     ? { resumen: resumen('omitida', { motivo: 'canal_inactivo' }), enviar: async () => null }
     : await prepararCorreo(tenant, { evento, ordenId }, { orden });
   const sms = orden && preferencias?.sms ? await prepararSms(tenant, { evento, ordenId }, { orden, preferencias }) : null;
+  // HU-40: push solo si el cliente lo activó y tiene un dispositivo registrado (canalesActivos lo verifica).
+  const push = orden && preferencias?.push ? await prepararPush(tenant, { evento, ordenId }, { orden }) : null;
 
-  const preparados = [correo, sms].filter(Boolean);
+  const preparados = [correo, sms, push].filter(Boolean);
   if (!workerActivo) {
     for (const preparado of preparados) {
       if (preparado.resumen.estado === 'pendiente') enSegundoPlano(preparado.enviar);

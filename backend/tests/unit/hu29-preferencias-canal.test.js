@@ -59,7 +59,7 @@ describe('HU-29 CA1 · canales con su estado actual', () => {
     expect(vista.canales.correo).toEqual({ activo: true, disponible: true, destino: 'lui****@correo.com' });
     // HU-59: el celular registrado ya está validado (el cliente entró con el código enviado a ese número).
     expect(vista.canales.sms).toMatchObject({ activo: false, verificado: true, celular: '300****567', celularRegistrado: '300****567' });
-    expect(vista.canales.push).toEqual({ activo: false, disponible: false });
+    expect(vista.canales.push).toMatchObject({ activo: false, disponible: false });
     expect(vista.sinCanales).toBe(false);
     // Nunca viajan el correo ni el celular completos.
     expect(JSON.stringify(vista)).not.toContain('luis@correo.com');
