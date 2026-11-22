@@ -86,7 +86,7 @@ Estados: `Pendiente` · `En desarrollo` · `Cubierta` (prueba en verde) · `Vali
 
 | HU | Jira | Pts | MoSCoW | Responsable | Fase | Requisitos | Escenarios | Prueba | Estado |
 |---|---|---|---|---|---|---|---|---|---|
-| HU-28 Notificación automática por cambio de estado del vehículo | ZARU-17 | 8 | Must | — | F3, F6 | RF-F3-07, 08, RF-F6-01 a 05 | ESC-F3-05, ESC-F6-01 a 04 | — | Pendiente |
+| HU-28 Notificación automática por cambio de estado del vehículo | ZARU-17 | 8 | Must | Adri | F3, F6 | RF-F3-07, 08, RF-F6-01 a 05 | ESC-F3-05, ESC-F6-01 a 04 | `tests/unit/hu28-cambio-estado.test.js` · `tests/unit/ordenes.test.js` · `frontend/tests/direccion-sede.test.jsx` | En desarrollo |
 | HU-29 Selección del canal de notificación preferido | ZARU-18 | 5 | Should | Adri | F6 | RF-F6-07 a 10 | ESC-F6-05, 06 | `tests/unit/hu29-preferencias-canal.test.js` · `frontend/tests/preferencias-notificacion.test.jsx` | Cubierta (push pendiente de HU-40) |
 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones (ley 1581 de 2012) | ZARU-19 | 5 | Must | Samuel | F2, F6, F7 | RF-F2-03 a 05, RF-F6-24, 25 | ESC-F2-03, ESC-F6-14 | `tests/unit/autorizaciones.test.js` · `tests/integration/autorizaciones.test.js` · `database/pruebas/05_consentimientos.sql` · `frontend/tests/autorizaciones.test.jsx` | Cubierta |
 | HU-31 Configuración de los estados que generan notificación | ZARU-20 | 3 | Should | — | F6 | RF-F6-12 a 14 | ESC-F6-07, 08 | `tests/unit/configuracion-notificaciones.test.js` · `tests/integration/configuracion-notificaciones.test.js` · `database/pruebas/12_configuracion_notificaciones.sql` | En desarrollo |

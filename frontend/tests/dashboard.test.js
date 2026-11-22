@@ -11,6 +11,8 @@ import {
   horaBogota,
   inicioDiaBogota,
   nombresServicios,
+  segundosParaDeshacer,
+  VENTANA_DESHACER_SEGUNDOS,
   tiempoEnEstadoLegible,
   vehiculosAtendidosHoy,
   vehiculosIngresadosHoy,
@@ -198,4 +200,14 @@ test('los nombres de servicio se muestran juntos y hay texto de respaldo', () =>
   );
   assert.equal(nombresServicios({ orden_servicios: [] }), 'Sin servicios');
   assert.equal(nombresServicios(null), 'Sin servicios');
+});
+
+test('HU-10: el botón Deshacer cuenta los segundos que quedan y se apaga antes de los 60 s del servidor', () => {
+  const cambio = REFERENCIA.getTime();
+  assert.equal(VENTANA_DESHACER_SEGUNDOS, 55);
+  assert.equal(segundosParaDeshacer(cambio, REFERENCIA), 55);
+  assert.equal(segundosParaDeshacer(cambio, new Date(cambio + 10_400)), 45);
+  assert.equal(segundosParaDeshacer(cambio, new Date(cambio + 55_000)), 0);
+  assert.equal(segundosParaDeshacer(cambio, new Date(cambio + 90_000)), 0);
+  assert.equal(segundosParaDeshacer(undefined, REFERENCIA), 0);
 });

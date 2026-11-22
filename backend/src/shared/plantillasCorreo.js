@@ -81,6 +81,20 @@ function botonSeguimiento(enlace, color) {
 }
 
 /** HU-30 CA3: versión en texto plano del enlace "dejar de recibir". */
+/** HU-28 CA1: hora en que cambió el estado. Sin hora no se agrega la línea. */
+const horaHtml = (horaCambio) =>
+  horaCambio
+    ? `<p style="margin:0 0 16px;color:#6b7280;font-size:14px">Hora del cambio: <strong style="color:#111827">${escaparHtml(formatoFechaHora(horaCambio))}</strong></p>`
+    : '';
+const horaTexto = (horaCambio) => (horaCambio ? [`Hora del cambio: ${formatoFechaHora(horaCambio)}`] : []);
+
+/** HU-28 CA2: dirección de la sede, si el administrador la registró en Branding. */
+const direccionHtml = (establecimiento) =>
+  establecimiento?.direccion
+    ? `<p style="margin:0 0 16px">Recógelo en: <strong>${escaparHtml(establecimiento.direccion)}</strong></p>`
+    : '';
+const direccionTexto = (establecimiento) => (establecimiento?.direccion ? [`Recógelo en: ${establecimiento.direccion}`] : []);
+
 const pieTexto = (enlaceBaja) => (enlaceBaja ? ['', `¿No quieres recibir más estos avisos? ${enlaceBaja}`] : []);
 
 function placaHtml(placa) {
@@ -133,10 +147,11 @@ ${botonSeguimiento(enlace, colorSeguro(establecimiento?.color_primario))}`;
 }
 
 /** CA2: aviso de que el vehículo está listo para recoger. */
-export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enlaceBaja = null }) {
+export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enlaceBaja = null, horaCambio = null }) {
   const sede = establecimiento?.nombre ?? 'el car wash';
   const cuerpoHtml = `
 <p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, tu vehículo ${placaHtml(vehiculo?.placa)} está <strong>listo para recoger</strong> en ${escaparHtml(sede)}.</p>
+${direccionHtml(establecimiento)}${horaHtml(horaCambio)}
 <p style="margin:0 0 16px">Valor a pagar en el punto: <strong>${formatoPesos(orden?.total)}</strong></p>
 <p style="margin:0">¡Gracias por confiar en nosotros!</p>`;
 
@@ -145,6 +160,8 @@ export function plantillaListo({ establecimiento, cliente, orden, vehiculo, enla
     html: marco({ establecimiento, titulo: '¡Tu vehículo está listo!', cuerpoHtml, enlaceBaja }),
     texto: [
       `Hola ${primerNombre(cliente?.nombre)}, tu vehículo ${vehiculo?.placa} está listo para recoger en ${sede}.`,
+      ...direccionTexto(establecimiento),
+      ...horaTexto(horaCambio),
       `Valor a pagar en el punto: ${formatoPesos(orden?.total)}`,
       '',
       '¡Gracias por confiar en nosotros!',
@@ -188,12 +205,13 @@ export function plantillaCodigoAcceso({ establecimiento, cliente, codigo, minuto
  * correos de ingreso y listo, e incluyen el enlace de seguimiento mientras la orden siga vigente.
  */
 function plantillaCambioEstado(
-  { establecimiento, cliente, orden, vehiculo, enlaceBaja = null },
+  { establecimiento, cliente, orden, vehiculo, enlaceBaja = null, horaCambio = null },
   { titulo, asunto, fraseHtml, fraseTexto, cierreHtml, cierreTexto, conSeguimiento = true },
 ) {
   const enlace = conSeguimiento ? enlaceSeguimiento(orden?.codigo_seguimiento) : null;
   const cuerpoHtml = `
 <p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, ${fraseHtml}</p>
+${horaHtml(horaCambio)}
 <p style="margin:0 0 16px">${cierreHtml}</p>
 ${botonSeguimiento(enlace, colorSeguro(establecimiento?.color_primario))}`;
 
@@ -202,6 +220,7 @@ ${botonSeguimiento(enlace, colorSeguro(establecimiento?.color_primario))}`;
     html: marco({ establecimiento, titulo, cuerpoHtml, enlaceBaja }),
     texto: [
       `Hola ${primerNombre(cliente?.nombre)}, ${fraseTexto}`,
+      ...horaTexto(horaCambio),
       cierreTexto,
       ...(enlace ? ['', `Sigue el estado de tu lavado en tiempo real: ${enlace}`] : []),
       ...pieTexto(enlaceBaja),
@@ -313,10 +332,45 @@ ${vigencia ? `<p style="margin:0;font-weight:600">${escaparHtml(vigencia)}</p>` 
   };
 }
 
+/** Nombre legible del estado de la orden para los avisos. */
+export const NOMBRE_ESTADO = {
+  recibido: 'Recibido',
+  en_lavado: 'En lavado',
+  secado: 'Secado',
+  listo: 'Listo para recoger',
+  entregado: 'Entregado',
+};
+
+/**
+ * HU-28 CA3: el operario revirtió un estado que ya se le había avisado al cliente. El aviso guarda
+ * en `contenido` el estado avisado por error; el estado actual sale de la orden.
+ */
+export function plantillaCorreccion({ establecimiento, cliente, orden, vehiculo, contenido = {}, enlaceBaja = null }) {
+  const actual = NOMBRE_ESTADO[orden?.estado] ?? orden?.estado ?? '';
+  const erroneo = NOMBRE_ESTADO[contenido.estadoRevertido] ?? contenido.estadoRevertido ?? 'otro estado';
+  const enlace = enlaceSeguimiento(orden?.codigo_seguimiento);
+  const cuerpoHtml = `
+<p style="margin:0 0 16px">Hola ${escaparHtml(primerNombre(cliente?.nombre))}, te avisamos por error que tu vehículo ${placaHtml(vehiculo?.placa)} pasó a <strong>${escaparHtml(erroneo)}</strong>.</p>
+<p style="margin:0 0 16px">Tu vehículo sigue en estado <strong>${escaparHtml(actual)}</strong>. Disculpa la confusión; te avisaremos cuando avance.</p>
+${botonSeguimiento(enlace, colorSeguro(establecimiento?.color_primario))}`;
+
+  return {
+    asunto: `Corrección: tu vehículo ${vehiculo?.placa ?? ''} sigue en ${actual}`.replace(/\s+/g, ' ').trim(),
+    html: marco({ establecimiento, titulo: 'Corrección del aviso anterior', cuerpoHtml, enlaceBaja }),
+    texto: [
+      `Hola ${primerNombre(cliente?.nombre)}, te avisamos por error que tu vehículo ${vehiculo?.placa} pasó a ${erroneo}.`,
+      `Tu vehículo sigue en estado ${actual}. Disculpa la confusión; te avisaremos cuando avance.`,
+      ...(enlace ? ['', `Sigue el estado de tu lavado en tiempo real: ${enlace}`] : []),
+      ...pieTexto(enlaceBaja),
+    ].join('\n'),
+  };
+}
+
 export const PLANTILLAS = {
   'orden.recibida': plantillaIngreso,
   'orden.en_lavado': plantillaEnLavado,
   'orden.secado': plantillaSecado,
   'orden.lista': plantillaListo,
   'orden.entregada': plantillaEntregada,
+  'orden.correccion': plantillaCorreccion,
 };

@@ -27,6 +27,16 @@ export async function actualizarBranding(req, res, next) {
   }
 }
 
+/** HU-28 CA2: guardar la dirección de la sede que llevan los avisos de "listo". */
+export async function actualizarDireccion(req, res, next) {
+  try {
+    const id = req.tenant.establecimientoId;
+    res.json(await req.tenant.actualizar('establecimientos', id, { direccion: req.body.direccion }, '*', 'Establecimiento'));
+  } catch (err) {
+    next(err);
+  }
+}
+
 /** HU-13 CA1, CA2 y CA3: subir el logo (PNG o JPG de máximo 2 MB por contenido) y reemplazar el anterior. */
 export async function subirLogo(req, res, next) {
   try {

@@ -34,12 +34,12 @@
 // Todo acceso a datos pasa por el acceso del tenant (HU-41). El destino se guarda cifrado (HU-50).
 import { cifrar, descifrar, estaCifrado } from './cifrado.js';
 import { proveedorCorreo, conTiempoMaximo, enmascararCorreo } from './correo.js';
-import { proveedorSms, smsDisponible, textoAvisoListo, textoAvisoSms } from './proveedorSms.js';
+import { proveedorSms, smsDisponible, textoAvisoListo, textoAvisoSms, textoCorreccion } from './proveedorSms.js';
 import { proveedorPush } from './proveedorPush.js';
 import { canalesActivos } from './preferenciasCanal.js';
 import { enmascararCelular } from './mascaras.js';
 import { clasificarError, esperaExponencial, esperasConfiguradas } from './reintentos.js';
-import { PLANTILLAS, plantillaPromocion } from './plantillasCorreo.js';
+import { NOMBRE_ESTADO, PLANTILLAS, plantillaPromocion } from './plantillasCorreo.js';
 import { enlaceBaja, puedeRecibir, TIPOS } from './autorizaciones.js';
 import { crearAccesoTenant } from './tenant.js';
 
@@ -49,6 +49,8 @@ export const EVENTOS = {
   SECADO: 'orden.secado',
   LISTA: 'orden.lista',
   ENTREGADA: 'orden.entregada',
+  // HU-28 CA3: aviso de que el estado anterior se notificó por error.
+  CORRECCION: 'orden.correccion',
 };
 
 /** HU-31: cada evento corresponde a un estado del flujo y a su interruptor en la sede. */
@@ -157,7 +159,7 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
     }
 
     const { data: establecimiento } = await tenant
-      .listar('establecimientos', 'nombre, logo_url, color_primario')
+      .listar('establecimientos', 'nombre, logo_url, color_primario, direccion')
       .maybeSingle();
 
     const mensaje = plantilla({
@@ -167,6 +169,7 @@ export async function prepararCorreo(tenant, { evento, ordenId }, opciones = {})
       vehiculo,
       servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
       enlaceBaja: enlaceDeBaja(tenant, cliente.id),
+      horaCambio: opciones.ahora ?? new Date(),
     });
 
     let fila;
@@ -227,7 +230,8 @@ export async function prepararSms(tenant, { evento, ordenId }, opciones = {}) {
       return { resumen: resumenSms('omitida', { motivo: 'revocado' }), enviar: sinEnvio };
     }
 
-    const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre').maybeSingle();
+    const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre, direccion').maybeSingle();
+    const horaCambio = opciones.ahora ?? new Date();
     const plantilla = PLANTILLAS[evento]({
       establecimiento,
       cliente,
@@ -247,7 +251,7 @@ export async function prepararSms(tenant, { evento, ordenId }, opciones = {}) {
         destino: cifrar(preferencias.telefonoSms),
         contenido: {
           asunto: plantilla.asunto,
-          texto: textoAvisoSms(evento, { establecimiento, placa: vehiculo.placa, total: orden.total }),
+          texto: textoAvisoSms(evento, { establecimiento, placa: vehiculo.placa, total: orden.total, hora: horaCambio }),
         },
         estado: 'pendiente',
         clave_dedupe: claveDedupe(orden.id, evento, 'sms'),
@@ -432,7 +436,7 @@ async function reconstruirMensaje(tenant, fila) {
   if (!cliente) return null;
 
   const { data: establecimiento } = await tenant
-    .listar('establecimientos', 'nombre, logo_url, color_primario')
+    .listar('establecimientos', 'nombre, logo_url, color_primario, direccion')
     .maybeSingle();
 
   const mensaje = plantilla({
@@ -441,6 +445,9 @@ async function reconstruirMensaje(tenant, fila) {
     orden,
     vehiculo,
     servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
+    // HU-28 CA1: el aviso se crea en el momento del cambio de estado.
+    horaCambio: fila.created_at,
+    contenido: fila.contenido ?? {},
   });
   return { mensaje, orden, cliente, vehiculo, establecimiento };
 }
@@ -455,8 +462,8 @@ async function reconstruirTextoCorto(tenant, fila) {
     .maybeSingle();
   if (error) throw error;
   if (!orden) return null;
-  const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre').maybeSingle();
-  return textoAvisoSms(fila.evento, { establecimiento, placa: orden.vehiculos?.placa, total: orden.total });
+  const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre, direccion').maybeSingle();
+  return textoAvisoSms(fila.evento, { establecimiento, placa: orden.vehiculos?.placa, total: orden.total, hora: fila.created_at });
 }
 
 /** Estados en los que el proveedor ya tiene el mensaje: no se debe enviar otro de la misma cadena. */
@@ -527,7 +534,7 @@ export async function crearAlterno(tenant, fila, { ahora = new Date() } = {}) {
   const asunto = 'Tu vehículo está listo';
   const contenido = siguiente.canal === 'correo'
     ? { asunto, alterno: true }
-    : { asunto, texto: textoAvisoListo({ establecimiento, placa: vehiculo.placa, total: orden.total }), alterno: true };
+    : { asunto, texto: textoAvisoListo({ establecimiento, placa: vehiculo.placa, total: orden.total, hora: fila.created_at }), alterno: true };
 
   try {
     const creada = await tenant.crear('notificaciones', {
@@ -812,6 +819,81 @@ export async function procesarCola(db, { limite = 20, ahora = new Date(), provee
     }
   }
   return resultados;
+}
+
+/**
+ * HU-28 CA3: el operario revirtió `estadoRevertido` (HU-10 solo lo permite dentro de 60 segundos).
+ * - Los avisos de ese estado que todavía no salieron se cancelan: el cliente no recibe nada.
+ * - Si alguno ya salió, se encola una corrección por el mismo canal con el estado actual.
+ * En ambos casos se libera la clave anti-duplicados: si la orden vuelve a ese estado, el cliente
+ * recibe el aviso otra vez.
+ * @returns {Promise<{ canceladas: number, correcciones: number }>}
+ */
+export async function alRevertirEstado(tenant, ordenId, estadoRevertido, { ahora = new Date() } = {}) {
+  const evento = eventoDeEstado(estadoRevertido);
+  if (!evento) return { canceladas: 0, correcciones: 0 };
+
+  const { data, error } = await tenant
+    .listar('notificaciones', 'id, cliente_id, canal, destino, estado, clave_dedupe')
+    .eq('orden_id', ordenId)
+    .eq('evento', evento)
+    .eq('tipo', 'operativa');
+  if (error) throw error;
+
+  const sufijo = `:revertida:${ahora.getTime()}`;
+  const liberar = (f) => (f.clave_dedupe ? { clave_dedupe: `${f.clave_dedupe}${sufijo}` } : {});
+  let canceladas = 0;
+  const enviadasPorCanal = new Map();
+
+  for (const f of data ?? []) {
+    if (EN_CURSO.has(f.estado) && f.estado !== 'enviando') {
+      try {
+        // Solo si sigue pendiente: si el worker la tomó justo ahora, no se toca.
+        await tenant.actualizar('notificaciones', f.id, {
+          estado: 'cancelada',
+          error: 'El operario revirtió el estado antes del envío (HU-28 CA3)',
+          proximo_intento_at: null,
+          ...liberar(f),
+        }, 'id', 'Notificación', { estado: f.estado });
+        canceladas += 1;
+      } catch (err) {
+        if (err?.codigo !== 'NO_ENCONTRADO') throw err;
+      }
+    } else if (ACEPTADAS.has(f.estado)) {
+      if (f.clave_dedupe) await tenant.actualizar('notificaciones', f.id, liberar(f), 'id', 'Notificación');
+      if (!enviadasPorCanal.has(f.canal)) enviadasPorCanal.set(f.canal, f);
+    }
+  }
+  if (enviadasPorCanal.size === 0) return { canceladas, correcciones: 0 };
+
+  const { data: orden, error: errorOrden } = await tenant
+    .listar('ordenes', 'id, estado, vehiculos(placa)')
+    .eq('id', ordenId)
+    .maybeSingle();
+  if (errorOrden) throw errorOrden;
+  const { data: establecimiento } = await tenant.listar('establecimientos', 'nombre').maybeSingle();
+  const estadoActual = NOMBRE_ESTADO[orden?.estado] ?? orden?.estado ?? '';
+
+  let correcciones = 0;
+  for (const [canal, enviada] of enviadasPorCanal) {
+    const texto = canal === 'correo'
+      ? null
+      : textoCorreccion({ establecimiento, placa: orden?.vehiculos?.placa, estadoActual });
+    await tenant.crear('notificaciones', {
+      cliente_id: enviada.cliente_id,
+      orden_id: ordenId,
+      tipo: 'correccion',
+      evento: EVENTOS.CORRECCION,
+      canal,
+      // El mismo destino (ya cifrado) por el que salió el aviso equivocado.
+      destino: enviada.destino,
+      contenido: { asunto: 'Corrección del aviso anterior', estadoRevertido, ...(texto ? { texto } : {}) },
+      estado: 'pendiente',
+      clave_dedupe: `${ordenId}:${EVENTOS.CORRECCION}:${evento}:${canal}:${ahora.getTime()}`,
+    }, 'id');
+    correcciones += 1;
+  }
+  return { canceladas, correcciones };
 }
 
 /**

@@ -14,6 +14,7 @@ import Notificacion from '../components/Notificacion.jsx';
 import VistaPreviaBranding from '../components/VistaPreviaBranding.jsx';
 import Cargando from '../components/Cargando.jsx';
 import EnlaceClientes from '../components/EnlaceClientes.jsx';
+import DireccionSede from '../components/DireccionSede.jsx';
 
 const COLORES = [
   { clave: 'primario', columna: 'color_primario', campoApi: 'colorPrimario', etiqueta: 'Color primario', uso: 'Encabezado y botones' },
@@ -241,6 +242,14 @@ export default function Branding() {
           sinGuardar={hayCambios}
         />
       </div>
+
+      {/* HU-28 CA2: dirección que llevan los avisos de "listo para recoger". */}
+      <DireccionSede
+        establecimiento={establecimiento}
+        setEstablecimiento={setEstablecimiento}
+        puedeEditar={esAdmin}
+        alGuardar={(detalle) => setConfirmacion({ id: Date.now(), titulo: 'Dirección guardada', detalle })}
+      />
 
       {/* HU-17 CA2: enlace y QR con los que el cliente final entra a seguir su vehículo. */}
       {establecimiento.slug && <EnlaceClientes slug={establecimiento.slug} nombre={establecimiento.nombre} />}

@@ -111,24 +111,55 @@ export function smsDisponible(env = process.env) {
   return String(env.SMS_PROVEEDOR ?? 'consola').toLowerCase() !== 'deshabilitado';
 }
 
-/** Texto corto para el aviso alterno de "listo". */
-export function textoAvisoListo({ establecimiento, placa, total }) {
-  const sede = establecimiento?.nombre ? ` en ${establecimiento.nombre}` : '';
+// ---------------------------------------------------------------------------
+// HU-28 (ZARU-17): textos cortos de cada cambio de estado (SMS y push). Llevan la placa, el estado y
+// la hora del cambio (CA1); el de "listo" agrega la sede, su dirección y el valor a pagar (CA2).
+// ---------------------------------------------------------------------------
+
+/** Hora en Colombia, p. ej. "4:26 p. m.". Sin hora válida devuelve ''. */
+export function horaCorta(valor) {
+  const fecha = new Date(valor ?? NaN);
+  if (Number.isNaN(fecha.getTime())) return '';
+  return new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', hour: 'numeric', minute: '2-digit' }).format(fecha);
+}
+
+const enSede = (establecimiento) => (establecimiento?.nombre ? ` en ${establecimiento.nombre}` : '');
+const aLas = (hora) => (horaCorta(hora) ? ` a las ${horaCorta(hora)}` : '');
+/** Cierra la frase con punto sin duplicarlo (la hora ya termina en "p. m."). */
+const conPunto = (frase) => (frase.endsWith('.') ? frase : `${frase}.`);
+
+/** Texto del aviso de "listo" (también el alterno de HU-34). */
+export function textoAvisoListo({ establecimiento, placa, total, hora }) {
+  const direccion = establecimiento?.direccion ? ` (${establecimiento.direccion})` : '';
   const valor = Number.isFinite(Number(total))
     ? ` Valor a pagar: $${Number(total).toLocaleString('es-CO')}.`
     : '';
-  return `Zaru: tu vehículo ${placa ?? ''} está listo${sede}.${valor} El pago se realiza en el establecimiento.`;
+  return `${conPunto(`Zaru: tu vehículo ${placa ?? ''} está listo para recoger${enSede(establecimiento)}${direccion}${aLas(hora)}`)}${valor} El pago se realiza en el establecimiento.`;
 }
 
-/** HU-29: texto corto del aviso de ingreso cuando el cliente eligió SMS. */
-export function textoAvisoRecibido({ establecimiento, placa }) {
-  const sede = establecimiento?.nombre ? ` en ${establecimiento.nombre}` : '';
-  return `Zaru: recibimos tu vehículo ${placa ?? ''}${sede}. Te avisaremos cuando esté listo.`;
+/** Texto del aviso de ingreso. */
+export function textoAvisoRecibido({ establecimiento, placa, hora }) {
+  return `${conPunto(`Zaru: recibimos tu vehículo ${placa ?? ''}${enSede(establecimiento)}${aLas(hora)}`)} Te avisaremos cada vez que cambie de estado.`;
 }
 
-/** HU-29: texto del SMS de un evento de la orden (`orden.recibida` u `orden.lista`). */
+/** Estados intermedios y la entrega: qué pasó y, si aplica, un cierre. */
+const FRASE_ESTADO = {
+  'orden.en_lavado': { accion: 'inició el lavado', cierre: '' },
+  'orden.secado': { accion: 'pasó a secado', cierre: '' },
+  'orden.entregada': { accion: 'fue entregado', cierre: ' ¡Gracias por tu visita!' },
+};
+
+/** Texto corto del aviso de un evento de la orden, para SMS y push. */
 export function textoAvisoSms(evento, datos) {
-  return evento === 'orden.recibida' ? textoAvisoRecibido(datos) : textoAvisoListo(datos);
+  if (evento === 'orden.recibida') return textoAvisoRecibido(datos);
+  const frase = FRASE_ESTADO[evento];
+  if (!frase) return textoAvisoListo(datos);
+  return `${conPunto(`Zaru: tu vehículo ${datos.placa ?? ''} ${frase.accion}${enSede(datos.establecimiento)}${aLas(datos.hora)}`)}${frase.cierre}`;
+}
+
+/** HU-28 CA3: corrección cuando se avisó un estado que el operario revirtió. */
+export function textoCorreccion({ establecimiento, placa, estadoActual }) {
+  return `Zaru: corrección sobre tu vehículo ${placa ?? ''}${enSede(establecimiento)}: el aviso anterior fue un error. Tu vehículo sigue en estado "${estadoActual}".`;
 }
 
 /** HU-29 CA2: SMS con el código de 6 dígitos para validar el celular. */

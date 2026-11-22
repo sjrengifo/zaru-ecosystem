@@ -126,6 +126,19 @@ export function calcularDemora(orden, referencia = new Date()) {
   };
 }
 
+/**
+ * HU-10 (revertir) — La base permite deshacer el último cambio durante 60 s. El tablero muestra
+ * "Deshacer" un poco menos (55 s) para que la petición llegue antes de que venza en el servidor.
+ */
+export const VENTANA_DESHACER_SEGUNDOS = 55;
+
+/** Segundos que quedan para deshacer un cambio hecho en `cambioMs` (0 si ya no se puede). */
+export function segundosParaDeshacer(cambioMs, referencia = new Date(), ventana = VENTANA_DESHACER_SEGUNDOS) {
+  const ahora = new Date(referencia).getTime();
+  if (!Number.isFinite(cambioMs) || Number.isNaN(ahora)) return 0;
+  return Math.max(0, Math.ceil(ventana - (ahora - cambioMs) / 1000));
+}
+
 /** Texto corto del tiempo transcurrido: segundos, minutos, horas o días. */
 export function tiempoEnEstadoLegible(segundos) {
   const total = Number.isFinite(segundos) && segundos > 0 ? Math.floor(segundos) : 0;
