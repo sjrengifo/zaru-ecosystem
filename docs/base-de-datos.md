@@ -106,7 +106,7 @@ HU-39 agrega `planes` (catálogo global con los cupos propuestos por DA-12, pend
 | `20261119100000` | `hu39_consumo_por_plan` | Tablas `planes`, `consumo_mensual`, `consumo_reservas` y `consumo_alertas` con RLS; RPC atómicas e idempotentes `hu39_reservar_consumo`, `hu39_confirmar_consumo` y `hu39_liberar_consumo`; cupos sembrados desde DA-12 |
 | `20261119110000` | `hu31_preferencias_canales` | Tabla `config_canales` con RLS de lectura por sede y RPC `guardar_preferencias_canales(uuid, jsonb)` para la prueba de envío; **aplicada en Supabase**, integración 4/4 |
 | `20261122120000` | `hu40_suscripciones_push` | Tabla `suscripciones_push` para dispositivos de clientes finales (Web Push/VAPID); un endpoint por cliente |
-| `20261122130000` | `hu39_push_administrador` | Tabla `notificaciones_push_admin` para que la prueba de envío verifique push desde el dispositivo del administrador; **pendiente de aplicar** en Supabase |
+| `20261122130000` | `hu39_push_administrador` | Tabla `notificaciones_push_admin` para que la prueba de envío verifique push desde el dispositivo del administrador; aplicada en Supabase y verificada (`rls_activa = true`) |
 
 **Reglas:**
 
@@ -115,7 +115,7 @@ HU-39 agrega `planes` (catálogo global con los cupos propuestos por DA-12, pend
    - Supabase: `supabase db push`, o la herramienta de migraciones del panel o del MCP.
    - Local o CI: `database/pruebas/aplicar-migraciones.sh`.
 3. `database/schema.sql` se regenera desde las migraciones y solo sirve de referencia legible.
-   > **Pendiente tras HU-40/HU-39:** las migraciones de planes, consumo, preferencias y dispositivos push del cliente están aplicadas en el proyecto Supabase de pruebas; `20261122130000_hu39_push_administrador.sql` **todavía no está aplicada**. El esquema de referencia `database/schema.sql` sigue desactualizado porque no hay `pg_dump`/`psql`/Docker ni `DATABASE_URL` en el entorno de desarrollo. Para regenerarlo con todas las migraciones aplicadas, ejecutar `DATABASE_URL=… database/pruebas/regenerar-esquema.sh` (o usar las variables `PG*`). El dump incluye los esquemas `public` y `privado` con `--schema-only --no-owner --no-privileges`; no se edita a mano (ADR-02).
+   > **Estado tras HU-40/HU-39 (22 nov 2026):** las 37 migraciones están aplicadas en Supabase, incluida `20261122130000_hu39_push_administrador.sql` (`rls_activa = true`). `database/schema.sql` fue regenerado desde una base local con las 37 migraciones aplicadas mediante `database/pruebas/aplicar-migraciones.sh` y `pg_dump` 17.12; por eso no fue necesario el `DATABASE_URL` de producción. Para repetirlo contra Supabase: `DATABASE_URL=… database/pruebas/regenerar-esquema.sh` (o las variables `PG*`). El dump incluye `public` y `privado` con `--schema-only --no-owner --no-privileges`; no se edita a mano (ADR-02).
 
 **Verificación en un PostgreSQL vacío** (PostgreSQL 16, sin Supabase):
 
