@@ -100,9 +100,14 @@ Este repositorio contiene actualmente la base de la Épica 1 y la infraestructur
 | `notificaciones` | Cola de notificaciones (patrón outbox) por cliente, orden y canal | HU-42, HU-46 |
 | `campanas` | Campañas de promociones segmentadas; cada una se materializa en notificaciones comerciales | HU-35 |
 | `config_notificaciones` | Interruptores por sede de los estados del flujo que generan aviso automático al cliente | HU-31 |
+| `config_canales` | Preferencia de SMS, correo y push por sede para la prueba de envío; no bloquea avisos operativos | HU-31, HU-39 |
 | `auditoria` | Registro inmutable de accesos permitidos y denegados (usuario, acción, IP, `request_id`) | HU-44, HU-53 |
 | `politicas_datos` | Versiones de la política de tratamiento de datos; una versión publicada no se modifica ([texto v1.0](docs/legal/politica-tratamiento-datos-v1.0.md), [texto v1.1](docs/legal/politica-tratamiento-datos-v1.1.md)) | HU-51 |
 | `consentimientos` | Evidencia inmutable de cada autorización o revocación: fecha, hora, versión de la política, canal, IP y usuario | HU-51, HU-30 |
+| `planes` | Catálogo global de planes y cupos mensuales de SMS y correo (semilla DA-12, pendiente de confirmación del PO) | HU-39 |
+| `consumo_mensual` | Acumulado real por establecimiento, mes de Bogotá y canal; conserva el historial | HU-39 |
+| `consumo_reservas` | Reserva idempotente por notificación entre reintentos y workers | HU-39 |
+| `consumo_alertas` | Entrega de la alerta del 80 % por destinatario y periodo, con reintentos | HU-39 |
 
 ### Seguridad multi-tenant
 
@@ -243,6 +248,10 @@ HU-33 completa el envío de avisos cuando algo falla. Cada aviso tiene un intent
 
 HU-38 agrega el **centro de notificaciones del cliente final** en `/s/{slug}/notificaciones`, con el mismo pase de HU-23 (si no lo tiene, pide placa + celular). Lista los avisos que le llegaron (estado `enviada` o `entregada`) en los últimos 90 días, del más reciente al más antiguo, y distingue los leídos de los no leídos. La campana del encabezado de la app muestra cuántos faltan por leer. Al abrir un aviso de estado se marca como leído (`notificaciones.leida_at`) y lleva al seguimiento si el vehículo sigue en servicio, o al detalle del servicio en el historial (`/s/{slug}/historial?orden={id}`) si ya se entregó. No requiere migraciones ni variables nuevas.
 
+HU-39 agrega el **control de consumo por plan**. Los cupos viven en `public.planes` (básico 200 SMS / 1.000 correos, intermedio 600 / 3.000, empresarial 2.000 / 10.000): son la propuesta de DA-12 y siguen pendientes de confirmación del PO; el superadministrador puede ajustarlos desde el panel sin desplegar código. Antes de cada envío se aparta una reserva atómica; si el proveedor falla se libera y no cuenta, y solo se contabiliza lo aceptado. Al cruzar el 80 % del cupo de SMS se avisa por correo una sola vez al mes al administrador de la sede y al de la plataforma (los reintentos los hace el worker sobre la misma entrega). Con el SMS agotado, los avisos operativos pasan a push o correo según lo que tenga el cliente; el correo y el push se contabilizan pero nunca bloquean un aviso. El mes se calcula en `America/Bogota` y el historial no se borra. Requiere la migración `20261119100000_hu39_consumo_por_plan.sql`.
+
+La configuración de notificaciones de la sede incluye también preferencias de **SMS, correo y push** para la prueba de envío y los avisos no críticos (`GET|PUT /configuracion/canales`): no detienen los avisos operativos ni el respaldo push → SMS → correo de HU-33. `POST /notificaciones/prueba` envía un mensaje real al correo o celular del administrador autenticado (el destino nunca viaja desde el frontend), prueba los canales en orden y devuelve el resultado de cada intento con su consumo HU-39; si el proveedor falla, se libera la reserva y se continúa por el siguiente canal. Push sigue sin entrega verificable mientras HU-40 no conecte el proveedor. Estas dos rutas usan la migración `20261119110000_hu31_preferencias_canales.sql`, ya aplicada en el proyecto Supabase de pruebas; crea `config_canales` y la RPC `guardar_preferencias_canales` con el establecimiento tomado de la sesión. `backend/tests/integration/hu31-canales.test.js` verifica el flujo completo (4/4).
+
 HU-57 incorpora el panel de superadministración para registrar establecimientos, invitar al administrador inicial, consultar periodos de prueba, activar, suspender y reenviar invitaciones. HU-59 centraliza los módulos permitidos por rol en el backend (`GET /me` y middleware `requiereModulo`) y usa esos permisos para filtrar el menú y proteger la navegación del frontend.
 
 ### Ejecución
@@ -309,9 +318,17 @@ Base: `/api/v1`. Todos los endpoints, salvo `/health`, `/politicas-datos/vigente
 | PUT | `/establecimiento/branding` | Admin | Actualizar logo y colores | Pendiente |
 | GET | `/configuracion/notificaciones` | Admin | Estados del flujo que generan aviso y su interruptor en la sede (HU-31) | Implementado |
 | PUT | `/configuracion/notificaciones` | Admin | Guardar los estados activos; `listo` es obligatorio y no se puede apagar (HU-31) | Implementado |
+| GET | `/configuracion/canales` | Admin | Preferencia y disponibilidad real de SMS, correo y push en la sede; no bloquean avisos (HU-31, HU-39) | Implementado |
+| PUT | `/configuracion/canales` | Admin | Guardar las preferencias de canales de la sede en una sola RPC; sin `establecimiento_id` en el cuerpo | Implementado |
+| POST | `/notificaciones/prueba` | Admin | Envío real de prueba con fallback y resultado por canal; el destino sale de Auth, consume HU-39 | Implementado |
 | POST | `/campanas/estimar` | Admin | Previsualizar destinatarios y exclusiones de una campaña sin crearla (HU-35) | Implementado |
 | POST | `/campanas` | Admin | Crear una campaña de promoción segmentada; exige `Idempotency-Key` (HU-35) | Implementado |
 | GET | `/campanas` | Admin | Historial paginado de campañas de la sede (HU-35) | Implementado |
+| GET | `/consumo?mes=` | Admin | Consumo propio del mes frente al cupo del plan; el tenant sale de la sesión (HU-39) | Implementado |
+| GET | `/superadmin/consumo?mes=` | Superadmin | Reporte global por establecimiento, plan, mes y canal (HU-39) | Implementado |
+| GET | `/superadmin/consumo/:establecimientoId?mes=` | Superadmin | Detalle e historial de una sede (HU-39) | Implementado |
+| GET | `/superadmin/planes` | Superadmin | Catálogo de planes y cupos vigentes (HU-39) | Implementado |
+| PUT | `/superadmin/planes/:nombre` | Superadmin | Ajustar los cupos de un plan sin reescribir el historial (HU-39) | Implementado |
 
 Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle la historia correspondiente.
 
@@ -353,8 +370,9 @@ Los endpoints pendientes responden `501 Not Implemented` hasta que se desarrolle
 |---|---|---|---|---|---|
 | ZARU-22 | HU-33 Reintento y canal alterno ante fallas de envío | 8 | Should | `AvisosFallidos.jsx` (dashboard) · `lib/avisosFallidos.js` | `shared/notificaciones.js` · `shared/confirmacionEntrega.js` · `webhooks.controller.js` · migración `hu33_reintento_canal_alterno` |
 | ZARU-19 | HU-30 Autorización y revocación del tratamiento de datos para notificaciones | 5 | Must | `CasillasNotificaciones.jsx` · `AutorizacionesCliente.jsx` · `BajaNotificaciones.jsx` · `PoliticaDatos.jsx` | `shared/autorizaciones.js` · `shared/bajaPublica.js` · `baja.controller.js` · migración `hu30_autorizacion_notificaciones` |
-| ZARU-20 | HU-31 Configuración de los estados que generan notificación | 3 | Should | `Notificaciones.jsx` | `configuracion.routes.js` · `shared/configNotificaciones.js` · migración `hu31_configuracion_notificaciones` |
+| ZARU-20 | HU-31 Configuración de los estados que generan notificación | 3 | Should | `Notificaciones.jsx` · `ConfiguracionCanales.jsx` · `services/canales.js` | `configuracion.routes.js` · `shared/configNotificaciones.js` · `shared/preferenciasCanales.js` · migraciones `hu31_configuracion_notificaciones` y `hu31_preferencias_canales` |
 | ZARU-24 | HU-35 Envío de promociones a clientes del establecimiento | 8 | Could | `CampanaPromociones.jsx` (dentro de Promociones) · `lib/campanas.js` | `campanas.routes.js` · `shared/campanas.js` · `shared/notificaciones.js` · migración `hu35_campanas` |
+| ZARU-28 | HU-39 Control de consumo de notificaciones por plan | 5 | Could | `ConsumoPorPlan.jsx` (Superadmin) · `ConfiguracionCanales.jsx` · `lib/consumo.js` · `services/consumo.js` | `consumo.routes.js` · `shared/consumo.js` · `shared/pruebaCanales.js` · hooks en `shared/notificaciones.js` · `shared/workerNotificaciones.js` · migraciones `hu39_consumo_por_plan` y `hu31_preferencias_canales` |
 
 Épica 4 — Arquitectura y Backend (`ZARU-48`), historias del Sprint 1.
 

@@ -23,7 +23,12 @@ establecimientos ◀── perfiles (auth.users)
    │
    ├── notificaciones ── clientes, ordenes, campanas
    ├── campanas ── promociones (segmento de clientes)
-   └── config_notificaciones (un interruptor por estado del flujo)
+   ├── config_notificaciones (un interruptor por estado del flujo)
+   ├── config_canales (preferencia de SMS, correo y push; no bloquea avisos)
+   ├── consumo_mensual ── establecimientos, por mes de Bogotá y canal
+   │      ├── consumo_reservas (idempotencia por notificación)
+   │      └── consumo_alertas (entrega del 80 % por destinatario)
+   └── planes (cupos globales; no pertenece a un establecimiento)
 ```
 
 | Entidad | Tabla | Pertenencia al establecimiento |
@@ -38,6 +43,11 @@ establecimientos ◀── perfiles (auth.users)
 | Notificaciones | `notificaciones` | `establecimiento_id`; cliente y orden del mismo establecimiento |
 | Campañas de promociones | `campanas` | `establecimiento_id`; promoción del mismo establecimiento; cada campaña se materializa como notificaciones comerciales (`notificaciones.campana_id`) |
 | Configuración de notificaciones | `config_notificaciones` | `establecimiento_id`; una fila por estado del flujo, con `listo` siempre activo |
+| Preferencia de canales | `config_canales` | `establecimiento_id` + canal (`sms`, `correo`, `push`); una fila por canal y sede para la prueba de envío, sin bloquear avisos operativos |
+| Cupos de los planes | `planes` | Tabla global: no pertenece a un establecimiento; `establecimientos.plan` apunta a su `nombre` |
+| Consumo mensual | `consumo_mensual` | `establecimiento_id` + mes (primer día, `America/Bogota`) + canal; el historial nunca se borra |
+| Reservas de consumo | `consumo_reservas` | `establecimiento_id` + mes + canal + referencia de la notificación (idempotencia) |
+| Alertas del 80 % | `consumo_alertas` | `establecimiento_id` + mes + destinatario (sede o plataforma); una entrega por periodo |
 | Política de datos y autorizaciones | `politicas_datos` (versiones inmutables), `consentimientos` (solo inserción) | `consentimientos.establecimiento_id` + cliente del mismo establecimiento; la política es global |
 | Auditoría | `auditoria` (solo inserción) | `establecimiento_id` sin llave foránea, para conservar el registro aunque se elimine el establecimiento |
 
@@ -54,7 +64,11 @@ La tabla `notificaciones` sigue el patrón *outbox* (ADR-03). La lógica de env�
 
 La tabla `config_notificaciones` guarda un interruptor por cada estado del flujo (`recibido`, `en_lavado`, `secado`, `listo`, `entregado`) y por establecimiento (HU-31). Un trigger siembra los cinco estados activos al crear una sede y una restricción `check` impide desactivar `listo`. La función `guardar_config_notificaciones` guarda varios interruptores en una sola transacción y vuelve a validar el estado obligatorio.
 
+La tabla `config_canales` (migración `20261119110000_hu31_preferencias_canales.sql`) guarda una preferencia por sede y canal (`sms`, `correo`, `push`) para la prueba de envío y los avisos no críticos. Un canal sin fila se considera activo; la disponibilidad real del proveedor se consulta en el backend y se muestra junto a la preferencia. La RPC `guardar_preferencias_canales(uuid, jsonb)` es `SECURITY DEFINER`, valida canales y duplicados, guarda todos los cambios en una sola transacción y solo la ejecuta `service_role`: el tenant nunca se toma del cuerpo de la petición. La política RLS de lectura se crea solo si falta y se valida su definición si ya existe; no se deshabilita RLS ni se borran políticas ajenas. Estas preferencias **no** alteran el fallback push → SMS → correo de HU-33 ni la regla de HU-39 de que correo y push nunca bloquean un aviso operativo.
+
 La tabla `campanas` (HU-35) guarda la promoción elegida (con una copia `promocion_snapshot` para que el mensaje no cambie si la promoción se edita), el `segmento` (días sin visita, servicios usados y tipos de vehículo), la hora pedida (`programada_solicitada`) y la ya ajustada al horario de Bogotá (`programada_para`), además de los conteos de destinatarios y exclusiones. La función `segmento_campana` calcula el segmento y devuelve un `motivo` por cliente (`sin_autorizacion`, `limite_semanal`, `sin_correo` o nulo); el backend solo envía a los de motivo nulo. Al materializar, cada destinatario entra en `notificaciones` con `tipo = 'comercial'`, `prioridad = 2` y `campana_id`, y la función `reclamar_comercial` vuelve a validar autorización y límite semanal antes de cada envío.
+
+HU-39 agrega `planes` (catálogo global con los cupos propuestos por DA-12, pendientes de confirmación del PO), `consumo_mensual`, `consumo_reservas` y `consumo_alertas`. El periodo es el primer día del mes en `America/Bogota`. `hu39_reservar_consumo` aparta una unidad antes de llamar al proveedor y es idempotente por `(establecimiento, mes, canal, referencia)`; `hu39_confirmar_consumo` la convierte en envío aceptado y devuelve una sola vez el cruce del 80 % de SMS; `hu39_liberar_consumo` revierte la reserva si el proveedor falló. Las tres RPC bloquean la fila del contador para que varios workers no dupliquen el conteo ni la alerta. `consumo_alertas` guarda una fila por destinatario y mes: si el correo falla, el worker reintenta esa misma fila (máximo 3 intentos) sin crear una alerta nueva. Solo el SMS tiene cupo limitante; correo y push se contabilizan pero no bloquean avisos operativos. `planes` es la única tabla global: `establecimientos.plan` sigue siendo la columna que decide qué cupo aplica. Las FK de las tres tablas de consumo usan `ON DELETE RESTRICT` para conservar el historial si se elimina una sede; las políticas RLS se crean solo si no existen y se valida su definición antes de reemplazarlas, sin deshabilitar RLS ni borrar políticas ajenas. Las RPC son `SECURITY DEFINER` con `search_path = public, pg_temp` y solo las ejecuta `service_role`.
 
 ## 2. Migraciones versionadas (CA2)
 
@@ -85,6 +99,8 @@ La tabla `campanas` (HU-35) guarda la promoción elegida (con una copia `promoci
 | `20261110231500` | `hu31_configuracion_notificaciones` | Tabla `config_notificaciones`, valores por defecto, RLS y función `guardar_config_notificaciones` |
 | `20261117120000` | `hu32_plantillas_notificacion` | Tabla `plantillas_notificacion` por sede, estado de la orden y canal (push, SMS, correo) con RLS de lectura por sede; 15 plantillas de la plataforma (`establecimiento_id` nulo) y funciones `plantillas_notificacion_de` y `guardar_plantilla_notificacion` |
 | `20261118090000` | `hu35_campanas` | Tabla `campanas` con RLS; `notificaciones.prioridad` y `campana_id`; segmentador `segmento_campana` (privado y público) y revalidación atómica `reclamar_comercial` |
+| `20261119100000` | `hu39_consumo_por_plan` | Tablas `planes`, `consumo_mensual`, `consumo_reservas` y `consumo_alertas` con RLS; RPC atómicas e idempotentes `hu39_reservar_consumo`, `hu39_confirmar_consumo` y `hu39_liberar_consumo`; cupos sembrados desde DA-12 |
+| `20261119110000` | `hu31_preferencias_canales` | Tabla `config_canales` con RLS de lectura por sede y RPC `guardar_preferencias_canales(uuid, jsonb)` para la prueba de envío; **aplicada en Supabase**, integración 4/4 |
 
 **Reglas:**
 
@@ -93,6 +109,7 @@ La tabla `campanas` (HU-35) guarda la promoción elegida (con una copia `promoci
    - Supabase: `supabase db push`, o la herramienta de migraciones del panel o del MCP.
    - Local o CI: `database/pruebas/aplicar-migraciones.sh`.
 3. `database/schema.sql` se regenera desde las migraciones y solo sirve de referencia legible.
+   > **Pendiente tras HU-39:** ambas migraciones están aplicadas en el proyecto Supabase de pruebas. `backend/tests/integration/hu39-consumo.test.js` pasa 4/4 (CA1/CA2/CA3) y `backend/tests/integration/hu31-canales.test.js` pasa 4/4 (preferencias, fallback y consumo de la prueba). Falta regenerar `database/schema.sql` con `pg_dump`; no se edita a mano (ADR-02). No hay `psql`/`pg_dump`/Docker en el entorno de desarrollo, por lo que el esquema de referencia todavía no incluye `planes`, `consumo_mensual`, `consumo_reservas`, `consumo_alertas` ni `config_canales`.
 
 **Verificación en un PostgreSQL vacío** (PostgreSQL 16, sin Supabase):
 

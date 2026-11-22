@@ -12,9 +12,11 @@ Migración `<ts>_comunicacion_avanzada.sql`:
 | `campanas` | Nueva | RF-F7-06 a 10 |
 | `recordatorios` | Nueva; índice único parcial `(vehiculo_id) where estado = 'programado'` | RF-F7-11 a 14 |
 | `novedades` | Nueva | RF-F7-15 a 18 |
-| `consumo_mensual` | Nueva; función `privado.registrar_consumo(est, canal)` con `insert … on conflict do update` | RF-F7-19 a 23 |
+| `consumo_mensual` | Nueva; contador por `(establecimiento_id, mes, canal)` con `cantidad` (aceptadas), `reservada` (en curso) y `alerta_80_enviada`. RPC `hu39_reservar_consumo`, `hu39_confirmar_consumo` y `hu39_liberar_consumo` (bloqueo de fila, idempotentes) | RF-F7-19 a 23 |
+| `consumo_reservas`, `consumo_alertas` | Nuevas; idempotencia por notificación y registro de cada entrega de la alerta del 80 % con reintento del worker | RF-F7-20, 21 |
 | `notificaciones` | `prioridad smallint default 1` (0 = novedad, 1 = operativa, 2 = comercial); `tomar_notificaciones` ordena por `prioridad, created_at` | RNF-F7-02 |
 | `planes` | Cupos definidos (seed): básico 200 SMS / 1 000 correos; intermedio 600 / 3 000; empresarial 2 000 / 10 000 — **valores a confirmar por el PO** | RF-F7-19 |
+| `config_canales` | Nueva (HU-31/HU-39, migración `20261119110000_hu31_preferencias_canales.sql`): una fila por `(establecimiento_id, canal)` con `activo`; RPC `guardar_preferencias_canales(uuid, jsonb)` y RLS de lectura por sede. Solo decide la prueba y los avisos no críticos | RF-F7-23 |
 | Storage | Bucket privado `evidencias`, ruta `{establecimiento_id}/{orden_id}/{novedad_id}/…` | RF-F7-16 |
 | Vista `privado.segmento_campana(...)` | Función SQL que recibe filtros y devuelve clientes elegibles con motivo de exclusión | RF-F7-06 a 08 |
 
@@ -32,9 +34,14 @@ Migración `<ts>_comunicacion_avanzada.sql`:
 | POST | `/ordenes/{id}/novedades` | admin, operario | `Idempotency-Key` · `{ tipo, mensaje?, minutosExtra? }` | `201 Novedad` | RF-F7-15, 17, 18 |
 | POST | `/ordenes/{id}/novedades/{nid}/fotos` | admin, operario | `multipart` (hasta 3) | `{ fotos: [url firmada] }` | RF-F7-16 |
 | GET | `/publico/recordatorios/{token}/desactivar` | — | — | Página de confirmación | RF-F7-13 |
-| GET | `/consumo` | admin | `?mes` | `{ sms: { usados, cupo }, correo: { usados, cupo } }` | RF-F7-23 |
-| GET | `/plataforma/consumo` | plataforma | `?mes` | `[{ establecimiento, plan, sms, correo }]` | RF-F7-22 |
-| GET / PUT | `/plataforma/planes` | plataforma | cupos | `Plan[]` | RF-F7-19 |
+| GET | `/consumo` | admin | `?mes=YYYY-MM` | `{ mes, establecimientoId, plan, sms, correo, push }` (el tenant sale de la sesión; push se contabiliza sin cupo) | RF-F7-23 |
+| GET | `/configuracion/canales` | admin | — | `PreferenciaCanal[]` con `activo`, `disponible` y `proveedor` reales; no bloquean avisos | RF-F7-23 |
+| PUT | `/configuracion/canales` | admin | `{ canales: [{ canal, activo }] }` | `PreferenciaCanal[]`; una sola RPC, sin `establecimiento_id` en el cuerpo | RF-F7-23 |
+| POST | `/notificaciones/prueba` | admin | `{ canal? }` | Resultado por canal con `estado`, `destino` enmascarado, proveedor y consumo HU-39 | RF-F7-23 |
+| GET | `/superadmin/consumo` | superadmin | `?mes=YYYY-MM` | `{ mes, resumen, establecimientos[] }` | RF-F7-22 |
+| GET | `/superadmin/consumo/{establecimientoId}` | superadmin | `?mes=YYYY-MM` | Detalle de la sede con `historial[]` de hasta 36 periodos | RF-F7-22 |
+| GET | `/superadmin/planes` | superadmin | — | `Plan[]` con cupos vigentes | RF-F7-19 |
+| PUT | `/superadmin/planes/{nombre}` | superadmin | `{ cupoSmsMes?, cupoCorreoMes? }` | `Plan` actualizado; el historial no se reescribe | RF-F7-19 |
 
 `GET /ordenes/{id}` incluye `novedades`; el seguimiento público incluye la `entregaEstimadaAt` actualizada.
 
@@ -46,7 +53,11 @@ Migración `<ts>_comunicacion_avanzada.sql`:
 | `modules/campanas` | Estimar, crear (ajuste nocturno con `America/Bogota`), y un paso del worker que materializa las campañas vencidas en notificaciones `comercial` |
 | `modules/recordatorios` | El despachador, al procesar `orden.entregada`, cancela el recordatorio vigente del vehículo y, si hay ≥ 3 servicios, calcula el promedio de días entre visitas y programa uno nuevo. El worker convierte los vencidos en notificaciones `recordatorio`. |
 | `modules/novedades` | Crea la novedad, actualiza `entrega_estimada_at` si es demora, genera notificación `novedad` con prioridad 0 y `programada_para = now()` |
-| `notificaciones/consumo.js` | Antes de enviar SMS o correo: verifica cupo; si está agotado aplica RF-F7-21; tras enviar, registra consumo y dispara la alerta del 80 % una vez por mes |
+| `shared/consumo.js` | Antes de enviar SMS reserva el cupo; si está agotado aplica RF-F7-21; tras aceptar el mensaje confirma el consumo y dispara la alerta del 80 % una vez por mes. Reportes globales/propios y catálogo de planes |
+| `controllers/consumo.controller.js` · `routes/consumo.routes.js` · `routes/superadmin.routes.js` | Exponen `/consumo` (solo admin con tenant, sin id de sede en la petición) y los reportes/planes bajo `/superadmin` (solo plataforma) |
+| `frontend/src/components/ConsumoPorPlan.jsx` | Panel CA3 en el Superadmin: filtro por mes, tabla por sede/plan y ajuste de cupos; ancla `#consumo-por-plan` con enlace visible desde el panel |
+| `shared/preferenciasCanales.js` · `shared/pruebaCanales.js` · `controllers/canales.controller.js` | Preferencias con disponibilidad real de proveedores y prueba real con fallback push → SMS → correo, reserva/confirmación/liberación HU-39 y auditoría sin destinos completos |
+| `frontend/src/components/ConfiguracionCanales.jsx` | Panel de sede: interruptores de canales, alertas y tabla de consumo propio, y resultado de la prueba por canal |
 
 ### 4.1 Uso de `armarMensaje` en el envío (HU-46 / HU-28)
 

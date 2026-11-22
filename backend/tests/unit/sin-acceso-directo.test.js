@@ -35,6 +35,10 @@ function archivos(dir) {
 //   lee las promociones vigentes con el acceso del tenant de esa sede.
 // - workerNotificaciones.js (HU-34): cola global de envíos en segundo plano, sin petición ni sesión;
 //   cada notificación se procesa con el acceso del tenant de su establecimiento.
+// - consumo.js (HU-39): el reporte global, el catálogo de planes y las alertas a la plataforma no
+//   tienen tenant; el consumo propio y las reservas SÍ pasan por tenant.rpc / tenant.listar.
+// - notificaciones.controller.js (HU-31/HU-39): la prueba real lee el correo/celular del
+//   administrador desde Supabase Auth; el envío y el consumo usan tenant.rpc / tenant.listar.
 const PERMITIDOS = new Set([
   'config/supabase.js',
   'shared/tenant.js',
@@ -46,11 +50,13 @@ const PERMITIDOS = new Set([
   'shared/paseCliente.js',
   'shared/promocionesPublicas.js',
   'shared/workerNotificaciones.js',
+  'shared/consumo.js',
   // HU-33 CA4: el webhook no tiene sesión; el establecimiento sale de la notificación misma.
   'controllers/webhooks.controller.js',
   'middlewares/auth.js',
   'controllers/superadmin.controller.js',
   'controllers/usuarios.controller.js',
+  'controllers/notificaciones.controller.js',
 ]);
 
 describe('acceso a datos', () => {

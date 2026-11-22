@@ -16,6 +16,7 @@ import reportesRoutes from './reportes.routes.js';
 import notificacionesRoutes from './notificaciones.routes.js';
 import plantillasRoutes from './plantillas.routes.js';
 import configuracionRoutes from './configuracion.routes.js';
+import consumoRoutes from './consumo.routes.js';
 import * as me from '../controllers/me.controller.js';
 import * as politicas from '../controllers/politicas.controller.js';
 import * as seguimiento from '../controllers/seguimiento.controller.js';
@@ -48,6 +49,8 @@ export const MODULOS = [
   ['/plantillas', plantillasRoutes],
   // HU-31: configuración de los estados que generan notificación.
   ['/configuracion', configuracionRoutes],
+  // HU-39: consumo propio de la sede; las rutas exigen además el rol admin.
+  ['/consumo', consumoRoutes],
 ];
 
 export const MODULO_DE_PREFIJO = {
@@ -61,6 +64,8 @@ export const MODULO_DE_PREFIJO = {
   '/usuarios': 'usuarios',
   '/reportes': 'reportes',
   '/notificaciones': 'notificaciones',
+  // HU-39: el consumo es información de costos de la sede; solo el administrador.
+  '/consumo': 'notificaciones',
   // HU-32: las plantillas son parte de las notificaciones; solo el administrador.
   '/plantillas': 'notificaciones',
   // HU-31: la configuración de avisos también vive en el módulo de notificaciones.

@@ -7,9 +7,12 @@
 // La respuesta distingue:
 //   - "aceptada": el proveedor recibió el mensaje (estado enviada).
 //   - "entregada": el proveedor confirmó la entrega (estado entregada o contenido.entregaConfirmada).
+import { supabase } from '../config/supabase.js';
+import { registrarAuditoria } from '../shared/auditoria.js';
 import { enmascararDestino } from '../shared/mascaras.js';
 import { AppError } from '../shared/errores.js';
 import { finDiaBogotaExclusivo, inicioDiaBogota } from '../shared/reportes.js';
+import { enviarPruebaCanales } from '../shared/pruebaCanales.js';
 
 const COLUMNAS = [
   'id, created_at, tipo, evento, canal, estado, intentos, error, destino, contenido,',
@@ -102,6 +105,48 @@ export async function listar(req, res, next) {
       notificaciones: (data ?? []).map(filaPublica),
       paginacion: { pagina, porPagina, total, totalPaginas: Math.ceil(total / porPagina) },
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /notificaciones/prueba — envío real al administrador de la sede.
+ * El mensaje se registra en la auditoría con destinos enmascarados y cada intento queda contado
+ * por HU-39. Un proveedor que falla no es un error de la API: el cuerpo informa el resultado por
+ * canal para que el panel pueda mostrar el fallback.
+ */
+export async function enviarPrueba(req, res, next) {
+  try {
+    const resultado = await enviarPruebaCanales({
+      tenant: req.tenant,
+      db: supabase,
+      usuarioId: req.ctx?.usuarioId,
+      canal: req.body?.canal,
+    });
+    await registrarAuditoria(req, {
+      accion: 'notificacion.prueba.enviada',
+      recurso: 'notificaciones',
+      recursoId: resultado.id,
+      resultado: 'permitido',
+      motivo: resultado.estado === 'entregado' ? null : `Prueba ${resultado.estado}`,
+      detalle: {
+        id: resultado.id,
+        estado: resultado.estado,
+        canalInicial: resultado.canalInicial,
+        canalEntregado: resultado.canalEntregado,
+        orden: resultado.orden,
+        resultados: resultado.resultados.map(({ canal, estado, motivo, consumo, proveedor }) => ({
+          canal,
+          estado,
+          motivo,
+          proveedor,
+          contado: consumo.contado,
+        })),
+      },
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json(resultado);
   } catch (err) {
     next(err);
   }

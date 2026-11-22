@@ -89,6 +89,8 @@ El criterio CA3 de HU-39 (ZARU-28) está cortado en Jira: *"…entonces el siste
 
 **Propuesta:** CA3 = *"…mostrará por establecimiento el plan, el cupo y el consumo del mes de SMS y correos, y el porcentaje usado"*. Cupos iniciales: básico 200 SMS / 1 000 correos; intermedio 600 / 3 000; empresarial 2 000 / 10 000.
 
+**Implementación mientras se confirma:** los valores propuestos quedan como semilla de `public.planes` en la migración `20261119100000_hu39_consumo_por_plan.sql` y se ajustan desde `PUT /superadmin/planes/:nombre`; ningún cupo está hardcodeado en el backend. CA3 quedó cubierto por `GET /superadmin/consumo` (plan, cupo, consumo y porcentaje por establecimiento y canal) y por el panel `ConsumoPorPlan.jsx`, al que el superadmin accede desde «Ver reporte de consumo». La sede ve sus propias alertas, cupos y porcentajes en `GET /consumo` dentro del panel de notificaciones, junto a la preferencia de canales y la prueba real de envío. Sigue pendiente la confirmación formal del PO sobre la redacción y las cifras; tampoco se puede verificar la entrega push de extremo a extremo hasta que HU-40 conecte el proveedor (el fallo es visible en el resultado de la prueba y el respaldo productivo es correo).
+
 ## DA-13 — Historial y detalle duplicados en la Épica 2
 **Bloquea:** F5 · **Estado:** Abierta
 
