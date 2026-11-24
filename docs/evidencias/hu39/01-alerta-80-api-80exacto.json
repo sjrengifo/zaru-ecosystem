@@ -1,0 +1,212 @@
+{
+  "consumo": {
+    "mes": "2026-11",
+    "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+    "nombre": "Lavadero Demo Zaru",
+    "plan": "intermedio",
+    "etiquetaPlan": "Intermedio",
+    "sms": {
+      "usados": 4,
+      "cupo": 5,
+      "restantes": 1,
+      "porcentaje": 80,
+      "alerta80": true,
+      "agotado": false
+    },
+    "correo": {
+      "usados": 5,
+      "cupo": 3000,
+      "restantes": 2995,
+      "porcentaje": 0.17,
+      "alerta80": false,
+      "agotado": false
+    },
+    "estado": "advertencia",
+    "push": {
+      "usados": 0,
+      "cupo": null,
+      "restantes": null,
+      "porcentaje": null,
+      "alerta80": false,
+      "agotado": false
+    }
+  },
+  "alertasSede": {
+    "mes": "2026-11",
+    "alertas": [
+      {
+        "id": "5ed5a035-7074-44f6-8a65-ec8b5e6e612e",
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "mes": "2026-11",
+        "destinatarioTipo": "sede",
+        "estado": "enviada",
+        "intentos": 1,
+        "detalle": {
+          "canal": "sms",
+          "consumo": 4,
+          "cupo": 5,
+          "porcentaje": 80,
+          "restantes": 1
+        },
+        "error": null,
+        "enviadaAt": "2026-11-24T16:55:02.12+00:00",
+        "creadaAt": "2026-11-24T16:55:01.307122+00:00"
+      },
+      {
+        "id": "58121c8f-bcca-47d6-8fc9-c5045a23edff",
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "mes": "2026-11",
+        "destinatarioTipo": "sede",
+        "estado": "enviada",
+        "intentos": 1,
+        "detalle": {
+          "canal": "sms",
+          "consumo": 4,
+          "cupo": 5,
+          "porcentaje": 80,
+          "restantes": 1
+        },
+        "error": null,
+        "enviadaAt": "2026-11-24T16:55:02.306+00:00",
+        "creadaAt": "2026-11-24T16:55:01.307122+00:00"
+      },
+      {
+        "id": "7d52090a-1537-42c9-9a53-4b8e7a93c8ce",
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "mes": "2026-11",
+        "destinatarioTipo": "plataforma",
+        "estado": "enviada",
+        "intentos": 1,
+        "detalle": {
+          "canal": "sms",
+          "consumo": 4,
+          "cupo": 5,
+          "porcentaje": 80,
+          "restantes": 1
+        },
+        "error": null,
+        "enviadaAt": "2026-11-24T16:55:02.444+00:00",
+        "creadaAt": "2026-11-24T16:55:01.307122+00:00"
+      },
+      {
+        "id": "8969ed64-a271-4bdd-84b7-fe30603fd7d8",
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "mes": "2026-11",
+        "destinatarioTipo": "plataforma",
+        "estado": "enviada",
+        "intentos": 1,
+        "detalle": {
+          "canal": "sms",
+          "consumo": 4,
+          "cupo": 5,
+          "porcentaje": 80,
+          "restantes": 1
+        },
+        "error": null,
+        "enviadaAt": "2026-11-24T16:55:02.642+00:00",
+        "creadaAt": "2026-11-24T16:55:01.307122+00:00"
+      }
+    ]
+  },
+  "alertasPlataforma": {
+    "mes": "2026-11",
+    "alertas": [
+      {
+        "id": "5ed5a035-7074-44f6-8a65-ec8b5e6e612e",
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "mes": "2026-11",
+        "destinatarioTipo": "sede",
+        "estado": "enviada",
+        "intentos": 1,
+        "detalle": {
+          "canal": "sms",
+          "consumo": 4,
+          "cupo": 5,
+          "porcentaje": 80,
+          "restantes": 1
+        },
+        "error": null,
+        "enviadaAt": "2026-11-24T16:55:02.12+00:00",
+        "creadaAt": "2026-11-24T16:55:01.307122+00:00"
+      },
+      {
+        "id": "58121c8f-bcca-47d6-8fc9-c5045a23edff",
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "mes": "2026-11",
+        "destinatarioTipo": "sede",
+        "estado": "enviada",
+        "intentos": 1,
+        "detalle": {
+          "canal": "sms",
+          "consumo": 4,
+          "cupo": 5,
+          "porcentaje": 80,
+          "restantes": 1
+        },
+        "error": null,
+        "enviadaAt": "2026-11-24T16:55:02.306+00:00",
+        "creadaAt": "2026-11-24T16:55:01.307122+00:00"
+      },
+      {
+        "id": "7d52090a-1537-42c9-9a53-4b8e7a93c8ce",
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "mes": "2026-11",
+        "destinatarioTipo": "plataforma",
+        "estado": "enviada",
+        "intentos": 1,
+        "detalle": {
+          "canal": "sms",
+          "consumo": 4,
+          "cupo": 5,
+          "porcentaje": 80,
+          "restantes": 1
+        },
+        "error": null,
+        "enviadaAt": "2026-11-24T16:55:02.444+00:00",
+        "creadaAt": "2026-11-24T16:55:01.307122+00:00"
+      },
+      {
+        "id": "8969ed64-a271-4bdd-84b7-fe30603fd7d8",
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "mes": "2026-11",
+        "destinatarioTipo": "plataforma",
+        "estado": "enviada",
+        "intentos": 1,
+        "detalle": {
+          "canal": "sms",
+          "consumo": 4,
+          "cupo": 5,
+          "porcentaje": 80,
+          "restantes": 1
+        },
+        "error": null,
+        "enviadaAt": "2026-11-24T16:55:02.642+00:00",
+        "creadaAt": "2026-11-24T16:55:01.307122+00:00"
+      }
+    ]
+  },
+  "filaReporte": {
+    "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+    "nombre": "Lavadero Demo Zaru",
+    "plan": "intermedio",
+    "etiquetaPlan": "Intermedio",
+    "estadoEstablecimiento": "activo",
+    "sms": {
+      "usados": 4,
+      "cupo": 5,
+      "restantes": 1,
+      "porcentaje": 80,
+      "alerta80": true,
+      "agotado": false
+    },
+    "correo": {
+      "usados": 5,
+      "cupo": 3000,
+      "restantes": 2995,
+      "porcentaje": 0.17,
+      "alerta80": false,
+      "agotado": false
+    },
+    "estado": "advertencia"
+  }
+}

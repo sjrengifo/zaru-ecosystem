@@ -9,6 +9,7 @@
 import { supabase } from '../config/supabase.js';
 import { procesarCola } from './notificaciones.js';
 import { escalaMinutosPruebas, materializarCampanas } from './campanas.js';
+import { reenviarAlertasPendientes } from './consumo.js';
 
 export const INTERVALO_WORKER_MS = 15_000;
 
@@ -39,6 +40,14 @@ export function iniciarWorkerNotificaciones({ intervaloMs = INTERVALO_WORKER_MS,
       const procesadas = await procesarCola(db, { limite });
       if (procesadas.length) {
         console.log(`[HU-34] Cola de notificaciones: ${procesadas.length} procesada(s)`);
+      }
+      // HU-39 CA1: reintenta las alertas del 80 % que no se pudieron entregar. Nunca regenera la
+      // alerta: solo reenvía las filas ya creadas, con un máximo de intentos.
+      try {
+        const alertas = await reenviarAlertasPendientes({ db });
+        if (alertas.enviadas) console.log(`[HU-39] Alertas de cupo entregadas: ${alertas.enviadas}`);
+      } catch (err) {
+        console.error('[HU-39] No se pudieron reintentar las alertas de cupo:', err?.message ?? err);
       }
     } catch (err) {
       // Un fallo del worker nunca tumba la API.

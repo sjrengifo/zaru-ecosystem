@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 import Cargando from '../components/Cargando.jsx';
 import Notificacion from '../components/Notificacion.jsx';
+import ConfiguracionCanales from '../components/ConfiguracionCanales.jsx';
 
 const DESCRIPCIONES = {
   recibido: 'Cuando registras el ingreso del vehículo.',
@@ -150,6 +151,8 @@ export default function Notificaciones() {
           </div>
         )
       )}
+
+      <ConfiguracionCanales />
     </section>
   );
 }

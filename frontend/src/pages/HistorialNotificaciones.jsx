@@ -20,6 +20,7 @@ import {
   fechaYHora,
   hayFiltros,
   horaBogota,
+  motivoIntento,
   textoEntrega,
 } from '../lib/notificaciones.js';
 import { listarNotificaciones, obtenerNotificacion } from '../services/notificaciones.js';
@@ -117,25 +118,36 @@ function DetalleNotificacion({ id, onCerrar }) {
               <p className="texto-suave">Todavía no se ha intentado enviar esta notificación.</p>
             ) : (
               <ol className="envio-intentos">
-                {datos.intentos.map((intento) => (
-                  <li key={`${intento.intento}-${intento.canal}-${intento.fecha}`} className={`envio-intento envio-intento-${intento.resultado}`}>
-                    <div className="envio-intento-cabecera">
-                      <strong>Intento {intento.intento} · {ETIQUETAS_CANAL[intento.canal] ?? intento.canal}</strong>
-                      <span className={`estado-etiqueta ${intento.resultado === 'enviado' ? 'estado-envio-enviada' : 'estado-envio-fallida'}`}>
-                        {intento.resultado === 'enviado' ? 'Aceptado por el proveedor' : 'Fallido'}
-                      </span>
-                    </div>
-                    <p className="envio-intento-meta">
-                      {fechaYHora(intento.fecha)}
-                      {intento.proveedor ? ` · ${intento.proveedor}` : ''}
-                      {intento.recuperable === true ? ' · error recuperable' : ''}
-                      {intento.recuperable === false ? ' · error permanente (no se reintenta)' : ''}
-                      {intento.entregado ? ' · entrega confirmada' : ''}
-                    </p>
-                    {intento.error && <p className="envio-intento-error">{intento.error}</p>}
-                  </li>
-                ))}
+                {datos.intentos.map((intento) => {
+                  const motivo = motivoIntento(intento);
+                  return (
+                    <li key={`${intento.intento}-${intento.canal}-${intento.fecha}`} className={`envio-intento envio-intento-${intento.resultado}`}>
+                      <div className="envio-intento-cabecera">
+                        <strong>Intento {intento.intento} · {ETIQUETAS_CANAL[intento.canal] ?? intento.canal}</strong>
+                        <span className={`estado-etiqueta ${motivo.codigo === 'sin_cupo_sms' ? 'estado-envio-cancelada' : intento.resultado === 'enviado' ? 'estado-envio-enviada' : 'estado-envio-fallida'}`}>
+                          {motivo.texto}
+                        </span>
+                      </div>
+                      <p className="envio-intento-meta">
+                        {fechaYHora(intento.fecha)}
+                        {intento.proveedor ? ` · ${intento.proveedor}` : ''}
+                        {motivo.codigo === 'sin_cupo_sms' ? ' · no se contabilizó como SMS enviado' : ''}
+                        {intento.recuperable === true ? ' · error recuperable' : ''}
+                        {intento.recuperable === false ? ' · error permanente (no se reintenta)' : ''}
+                        {intento.entregado ? ' · entrega confirmada' : ''}
+                      </p>
+                      {intento.error && <p className="envio-intento-error">{intento.error}</p>}
+                    </li>
+                  );
+                })}
               </ol>
+            )}
+
+            {datos.alterno && (
+              <p className="aviso aviso-exito" role="status">
+                Canal alternativo de esta cadena: <strong>{ETIQUETAS_CANAL[datos.alterno.canal] ?? datos.alterno.canal}</strong>
+                {' '}· estado: {estadoNotificacion(datos.alterno.estado).texto}. El aviso operativo continuó sin enviar un SMS adicional.
+              </p>
             )}
           </>
         )}

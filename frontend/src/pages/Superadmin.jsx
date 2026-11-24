@@ -11,6 +11,7 @@ import Notificacion from '../components/Notificacion.jsx';
 import FormularioEstablecimiento from '../components/FormularioEstablecimiento.jsx';
 import MarcaZaru from '../components/MarcaZaru.jsx';
 import Cargando from '../components/Cargando.jsx';
+import ConsumoPorPlan from '../components/ConsumoPorPlan.jsx';
 import {
   PLANES, ESTADOS, FILTROS, DIAS_AVISO_VENCIMIENTO,
   accionesPara, contarPorEstado, filtrarEstablecimientos, formatoFechaCorta,
@@ -137,7 +138,10 @@ export default function Superadmin() {
             <h2>Establecimientos afiliados</h2>
             <p className="texto-suave">Registra nuevos car wash, controla su periodo de prueba y su acceso.</p>
           </div>
-          <button className="boton" type="button" onClick={() => setRegistroAbierto(true)}>+ Registrar establecimiento</button>
+          <div className="acciones-fila">
+            <a className="boton secundario" href="#consumo-por-plan">Ver reporte de consumo</a>
+            <button className="boton" type="button" onClick={() => setRegistroAbierto(true)}>+ Registrar establecimiento</button>
+          </div>
         </div>
 
         <div className="resumen-estados" role="group" aria-label="Filtrar por estado">
@@ -221,6 +225,7 @@ export default function Superadmin() {
             </div>
           )}
         </div>
+        <ConsumoPorPlan />
       </section>
 
       {registroAbierto && (

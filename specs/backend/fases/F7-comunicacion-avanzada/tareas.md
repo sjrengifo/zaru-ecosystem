@@ -37,6 +37,10 @@ Rama sugerida: `feature/ZARU-21-comunicacion-avanzada` (o una rama por HU). **Pr
 1. Pruebas de ESC-F7-10 y ESC-F7-11.
 2. `consumo.js` integrado en el enviador; endpoints de consumo y planes.
 
+**Estado:** implementado con la migración `20261119100000_hu39_consumo_por_plan.sql`, `shared/consumo.js`, los hooks de reserva/confirmación/liberación en `shared/notificaciones.js` y el panel de la F7 en el Superadmin. Pruebas: `tests/unit/consumo.test.js`, `tests/integration/hu39-consumo.test.js` y `frontend/tests/consumo.test.jsx`. La suite de integración exige que la migración esté aplicada en el proyecto Supabase de pruebas; mientras no lo esté, falla con un mensaje explícito en lugar de omitirse. Con la migración ya aplicada, `npx vitest run tests/integration/hu39-consumo.test.js` pasa 4/4 (CA1, CA2 y CA3).
+
+**Extensión de preferencias y prueba real (HU-31/HU-39):** migración `20261119110000_hu31_preferencias_canales.sql` (aplicada en Supabase, integración 4/4), `shared/preferenciasCanales.js`, `shared/pruebaCanales.js`, `controllers/canales.controller.js`, `enviarPrueba` en `notificaciones.controller.js`, las rutas `GET|PUT /configuracion/canales` y `POST /notificaciones/prueba`, y los paneles `ConfiguracionCanales.jsx` (sede) y el ancla del reporte en `Superadmin.jsx`. Pruebas: `tests/unit/canales.test.js` (5), `tests/unit/prueba-canales.test.js` (6), `tests/integration/hu31-canales.test.js` (4), `frontend/tests/notificaciones.test.jsx` (10) y `frontend/tests/superadmin.test.jsx`. La prueba real usa el correo/celular del administrador desde Auth; los fallos de proveedor se informan por canal con su consumo y nunca se ocultan. Push no se puede verificar de extremo a extremo hasta HU-40.
+
 ### T7.8 — Aislamiento y prioridad
 1. Agregar los endpoints a la suite de aislamiento.
 2. Prueba: con una campaña de 1 000 mensajes en cola, una notificación operativa nueva se envía antes que los comerciales pendientes.

@@ -1,0 +1,64 @@
+{
+  "escenario": "ESC-F7-11 / HU-39 CA2: cupo de SMS agotado, cliente con SMS y correo activos, orden nueva real",
+  "ejecutadoEn": "2026-11-24T18:19:23.598Z",
+  "fuente": "API real del backend local (http://localhost:4000/api/v1) contra Supabase de pruebas, sesión magiclink del ADMIN oficial",
+  "cuentas": {
+    "administrador": "ADMIN oficial (cuartassilvaguias@gmail.com)",
+    "cliente": "Adri, id 52e1ac31-5862-47cd-bf22-a18ad25ebb95, celular verificado y canal_correo=true"
+  },
+  "ventana": {
+    "plan": "intermedio",
+    "cupoSmsDuranteLaPrueba": 5,
+    "aviso": "El cupo quedó en 5 desde la ejecución anterior; esto afectó a todas las sedes con plan intermedio durante la ventana.",
+    "restauracion": "PUT /superadmin/planes/intermedio con la sesión SUPERADMIN oficial devolvió 200 y cupos 600/3000 el 2026-11-24T18:27:04.256Z; verificación posterior confirmó los tres planes."
+  },
+  "consumoAntes": {
+    "usados": 5,
+    "cupo": 5,
+    "restantes": 0,
+    "porcentaje": 100,
+    "agotado": true
+  },
+  "orden": {
+    "id": "e0c3e1a4-4f4d-4045-8cb2-d2c8b44ed51f",
+    "codigoSeguimiento": "EVRP2CVSZZ",
+    "estadoGenerado": "orden.recibida"
+  },
+  "notificacionesObservadas": [
+    {
+      "id": "d188edac-b1bb-4b5c-93f8-b0cb2f6b90f1",
+      "canal": "correo",
+      "estado": "enviada",
+      "proveedor": "consola",
+      "error": null,
+      "aceptadaPorProveedor": true
+    },
+    {
+      "id": "d4ba6c8b-d611-4dda-87a9-fa771f9675f6",
+      "canal": "sms",
+      "estado": "cancelada",
+      "error": "Cupo mensual de SMS agotado (5/5)",
+      "motivoFallo": "sin_cupo_sms",
+      "proveedor": null,
+      "aceptadaPorProveedor": false
+    }
+  ],
+  "consumoDespues": {
+    "usados": 5,
+    "cupo": 5,
+    "restantes": 0,
+    "porcentaje": 100,
+    "agotado": true
+  },
+  "resultado": "El aviso operativo salió por correo; el SMS nació cancelada por cupo, por lo que ningún worker pudo reclamarlo ni enviarlo. El contador de SMS no se movió (5 -> 5).",
+  "limitaciones": [
+    "CORREO_PROVEEDOR no está configurado en el ambiente local: el correo quedó aceptado por el proveedor de consola, no se afirma entrega real en buzón.",
+    "El proveedor de correo del ambiente desplegado no fue verificado desde este repositorio.",
+    "Push no se ejecutó: el cliente de prueba no tiene dispositivo registrado (canal_push=false)."
+  ],
+  "capturasUi": [
+    "09-admin-ca2-cupo-agotado.png",
+    "10-admin-ca2-detalle-alterno.png"
+  ],
+  "regresionAutomatizada": "backend/tests/unit/hu29-preferencias-canal.test.js: 'HU-39 CA2: con el cupo de SMS agotado cancela el SMS al prepararlo y deja el correo operativo'"
+}

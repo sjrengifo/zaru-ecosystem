@@ -35,3 +35,13 @@ services:
         sync: false
       - key: CORREO_REMITENTE
         sync: false
+      # HU-39/HU-40: Web Push. La llave privada se carga en el panel de Render, nunca aquí.
+      # Ver docs/despliegue/configurar-web-push.md.
+      - key: PUSH_PROVEEDOR
+        value: "webpush"
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
