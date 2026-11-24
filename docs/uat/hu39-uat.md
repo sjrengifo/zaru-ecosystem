@@ -4,7 +4,7 @@
 |---|---|
 | Historias | HU-39 (ZARU-28) y HU-40 (ZARU-70), con HU-31/HU-29 como contexto |
 | Fecha del documento | 2026-11-24 |
-| Estado | **DA-12 aprobada**; CA1/CA2/CA3 ejecutados funcionalmente contra Supabase real con las cuentas oficiales. Siguen pendientes la UAT en ambiente desplegado y la prueba push con dispositivo real |
+| Estado | **DA-12 aprobada**; CA1/CA2/CA3 ejecutados funcionalmente contra Supabase real con las cuentas oficiales. CA2 verificado además con entrega real por push (Chrome de escritorio) y correo SMTP. Siguen pendientes la UAT en ambiente desplegado y la prueba push en un celular |
 | Rama | `feature/ZARU-20-configuracion-notificaciones` |
 
 > Este documento distingue tres cosas que no son equivalentes: (1) funcionalidad **implementada** en el
@@ -200,9 +200,24 @@ Auth).
   [`../evidencias/hu39/04-admin-sms-cancelado-alterno.png`](../evidencias/hu39/04-admin-sms-cancelado-alterno.png),
   [`../evidencias/hu39/00-resumen-ejecucion.json`](../evidencias/hu39/00-resumen-ejecucion.json).
 
-**No verificado aquí:** entrega por push (sin dispositivo) ni entrega externa de correo/SMS (sin
-proveedores reales configurados en el ambiente local: el correo quedó aceptado por el proveedor de
-consola, no se afirma llegada a buzón).
+**Segunda ejecución (2026-11-24, 4:04 p. m.): entrega real por push y correo.** Backend y panel locales
+contra el Supabase de pruebas, con Web Push (VAPID real) y correo real por SMTP (Gmail). El cliente Adri
+entró por la placa `RCA228` con código SMS, activó push en Chrome (Windows) y dejó el correo activo. Se bajó
+temporalmente el plan `intermedio` a 6 SMS (consumo 6/6) y el ADMIN pasó la orden `EVRP2CVSZZ` a
+`en_lavado`.
+
+- SMS `cancelada` con `Cupo mensual de SMS agotado (6/6)` y `motivoFallo: sin_cupo_sms`; no se envió ni contó
+  (SMS 6 → 6).
+- El aviso operativo llegó por **push** (notificación de Chrome en Windows) y por **correo** (recibido en el
+  buzón del cliente); solo esos canales sumaron consumo (correo 18, push 1).
+- El cupo del plan intermedio se restauró a 600/3000 y se verificó en la base.
+
+Evidencia: [`../evidencias/hu39/11-ca2-push-y-correo-reales.json`](../evidencias/hu39/11-ca2-push-y-correo-reales.json),
+[`../evidencias/hu39/12-cliente-ca2-push-recibido.png`](../evidencias/hu39/12-cliente-ca2-push-recibido.png) y
+[`../evidencias/hu39/13-admin-ca2-sms-cancelado-real.png`](../evidencias/hu39/13-admin-ca2-sms-cancelado-real.png).
+
+**No verificado aquí:** push en un celular (requiere el ambiente desplegado con HTTPS) y envío real de SMS
+(el proveedor sigue en consola; en este escenario el SMS no debía salir).
 
 ### CA-UAT-6 — Alerta automática al 80 % (HU-39 CA1)
 
@@ -252,6 +267,7 @@ entrega de extremo a extremo.
 | Migraciones aplicadas en Supabase | Sí, verificado el 2026-11-22 | P1: tablas y RLS activa |
 | Pruebas automatizadas | Sí, en verde el 2026-11-24 | Tabla anterior |
 | Verificación real contra Supabase con roles oficiales | Sí, 2026-11-24 | CA1/CA2/CA3 en ambiente local; cupo restaurado y verificado después de las suites |
+| Entrega real de CA2 por push y correo | Sí, 2026-11-24 | CA-UAT-5, segunda ejecución: push en Chrome de escritorio y correo SMTP recibidos con el SMS sin cupo |
 | Validación en ambiente desplegado y con dispositivo real | **No, pendiente** | CA-UAT-2, CA-UAT-3, CA-UAT-4 y el cambio de mes en CA-UAT-1; sin capturas ni grabación no se marcan como ejecutados |
 
 ### 3.2 Observaciones del ambiente

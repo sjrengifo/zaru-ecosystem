@@ -1,0 +1,31 @@
+{
+  "escenario": "HU-39 CA2: cupo de SMS agotado, cliente con push y correo activos, entrega real por ambos canales",
+  "ejecutadoEn": "2026-11-24T21:04:41Z",
+  "fuente": "Backend y panel locales (http://localhost:4000 / http://localhost:5173) contra Supabase de pruebas; Web Push con VAPID real en Chrome de Windows y correo real por SMTP (Gmail)",
+  "cuentas": {
+    "superadmin": "SUPERADMIN oficial (ajuste temporal del cupo del plan intermedio)",
+    "administrador": "ADMIN de Lavadero Demo Zaru (cambio de estado de la orden)",
+    "cliente": "Adri, id 52e1ac31-5862-47cd-bf22-a18ad25ebb95, acceso por placa RCA228 + código SMS, push activado en Chrome y correo activo"
+  },
+  "ventana": {
+    "plan": "intermedio",
+    "cupoSmsDuranteLaPrueba": 6,
+    "aviso": "Bajar el cupo afecta a todas las sedes con plan intermedio mientras dure la prueba; se restaura a 600/3000 al terminar."
+  },
+  "consumoAntes": { "sms": 6, "cupoSms": 6, "agotado": true },
+  "orden": {
+    "id": "e0c3e1a4-4f4d-4045-8cb2-d2c8b44ed51f",
+    "eventoGenerado": "orden.en_lavado"
+  },
+  "notificacionesObservadas": [
+    { "canal": "correo", "estado": "enviada", "creadaEn": "2026-11-24T21:04:41.678Z", "entregaVerificada": "correo recibido en el buzón del cliente" },
+    { "canal": "sms", "estado": "cancelada", "creadaEn": "2026-11-24T21:04:42.525Z", "error": "Cupo mensual de SMS agotado (6/6)", "motivoFallo": "sin_cupo_sms", "aceptadaPorProveedor": false },
+    { "canal": "push", "estado": "enviada", "creadaEn": "2026-11-24T21:04:43.255Z", "entregaVerificada": "notificación mostrada por Windows desde Chrome" }
+  ],
+  "consumoDespues": { "sms": 6, "correo": 18, "push": 1 },
+  "resultado": "Con el cupo de SMS agotado, el SMS nació cancelado y no se envió ni contó (6 -> 6). El aviso operativo llegó al cliente por push y por correo reales, sin interrumpirse.",
+  "limitaciones": [
+    "Push verificado en Chrome de escritorio (localhost). La entrega en un celular requiere el ambiente desplegado con HTTPS.",
+    "El SMS sigue con proveedor de consola; en este escenario no se debía enviar."
+  ]
+}
