@@ -26,6 +26,7 @@ const filaBase = {
   contenido: { asunto: 'Tu vehículo está listo', proveedor: 'smtp', idProveedor: 'p-1', aceptadaAt: '2026-11-10T19:05:01Z', entregaConfirmada: false },
   programada_para: '2026-11-10T19:05:00Z',
   proximo_intento_at: null,
+  orden_id: ORDEN,
   cliente: { nombre: 'Yeliani' },
   orden: { id: ORDEN, codigo_seguimiento: 'ABC12345', vehiculo: { placa: 'XYZ987' } },
 };
@@ -168,6 +169,50 @@ describe('GET /notificaciones/:id · detalle e intentos', () => {
 
     const { error } = await ejecutar(obtener, { tenant, params: { id: ID } });
     expect(error).toMatchObject({ codigo: 'NO_ENCONTRADO', status: 404 });
+  });
+
+  it('HU-39 CA2: marca el cupo agotado y muestra el canal alterno de la misma orden', async () => {
+    const tenant = crearTenantFalso({
+      notificacion_intentos: [{
+        data: [{
+          intento: 1,
+          canal: 'sms',
+          resultado: 'fallido',
+          proveedor: 'consola',
+          id_proveedor: null,
+          entregado: false,
+          recuperable: false,
+          error: 'Cupo mensual de SMS agotado (5/5)',
+          created_at: '2026-11-10T19:05:02Z',
+        }],
+        error: null,
+      }],
+      notificaciones: [{
+        data: [{ id: 'alterno-1', canal: 'correo', estado: 'enviada', notificacion_origen_id: ID }],
+        error: null,
+      }],
+    });
+    tenant.obtener.mockResolvedValue({
+      ...filaBase,
+      canal: 'sms',
+      estado: 'fallida',
+      error: 'Cupo mensual de SMS agotado (5/5)',
+      contenido: { ...filaBase.contenido, asunto: 'Tu vehículo está listo' },
+    });
+
+    const { res, error } = await ejecutar(obtener, { tenant, params: { id: ID } });
+
+    expect(error).toBeUndefined();
+    expect(res.body.motivoFallo).toBe('sin_cupo_sms');
+    expect(res.body.intentos[0].motivoFallo).toBe('sin_cupo_sms');
+    expect(res.body.alterno).toEqual({ id: 'alterno-1', canal: 'correo', estado: 'enviada' });
+    // Sin orden_id en COLUMNAS, cadenaDe cae al fallback por id y no encuentra el correo alterno.
+    expect(tenant.obtener.mock.calls[0][2]).toContain('orden_id');
+    const cadena = tenant.consultas.find((c) => c.tabla === 'notificaciones');
+    expect(cadena.filtros).toEqual(expect.arrayContaining([
+      ['eq', 'orden_id', ORDEN],
+      ['eq', 'evento', 'orden.lista'],
+    ]));
   });
 });
 

@@ -74,6 +74,8 @@ tags:
     description: HU-32 (texto, variables y vista previa de push, SMS y correo con la marca de la sede; solo administrador)
   - name: Webhooks
     description: HU-33 CA4 (confirmación de entrega de los proveedores, protegida con su firma)
+  - name: Consumo por plan
+    description: HU-39 (cupos y consumo mensual de SMS y correo por establecimiento; solo administradores y plataforma)
 security:
   - bearerPanel: []
 
@@ -1700,6 +1702,109 @@ paths:
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
 
+  /notificaciones/push:
+    post:
+      tags: [Notificaciones]
+      operationId: registrarPushAdministrador
+      summary: Registrar el dispositivo push del administrador (solo administrador)
+      description: >-
+        HU-39/HU-40. Guarda la suscripción Web Push del navegador del administrador autenticado para
+        que la prueba de envío pueda verificar el canal push. El usuario y la sede salen de la sesión:
+        el cuerpo solo trae la suscripción de PushSubscription.toJSON(). Requiere
+        PUSH_PROVEEDOR=webpush y llaves VAPID configuradas en el backend.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, keys]
+              properties:
+                endpoint: { type: string, format: uri, maxLength: 1000 }
+                keys:
+                  type: object
+                  required: [p256dh, auth]
+                  properties:
+                    p256dh: { type: string, minLength: 20, maxLength: 200 }
+                    auth: { type: string, minLength: 10, maxLength: 100 }
+      responses:
+        '200':
+          description: Dispositivo registrado (o actualizado) para este administrador.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [registrado, dispositivo]
+                properties:
+                  registrado: { type: boolean, example: true }
+                  dispositivo: { type: string, example: 'Chrome en Android' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '503':
+          description: Web Push no está configurado en este ambiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /notificaciones/push/baja:
+    post:
+      tags: [Notificaciones]
+      operationId: quitarPushAdministrador
+      summary: Quitar el dispositivo push del administrador (solo administrador)
+      description: HU-39/HU-40. El administrador deja de recibir por push la prueba de envío de esta sede.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: { type: string, format: uri, maxLength: 1000 }
+      responses:
+        '200':
+          description: Dispositivo quitado (o inexistente).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [registrado]
+                properties:
+                  registrado: { type: boolean, example: false }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /notificaciones/prueba:
+    post:
+      tags: [Notificaciones]
+      operationId: enviarPruebaNotificacion
+      summary: Enviar una prueba real por canal con respaldo automático (solo administrador)
+      description: >-
+        HU-31/HU-39. Envía un mensaje real al correo o celular del administrador autenticado: el
+        destino nunca se recibe del frontend. Prueba los canales en el orden push → SMS → correo,
+        se detiene en el primero que el proveedor acepta y devuelve el resultado de cada intento.
+        Cada envío aparta y confirma (o libera) consumo HU-39; si el SMS alcanza el 80 %, se dispara
+        la alerta correspondiente. Con HU-40 y Web Push configurado, push se prueba si el administrador
+        registró su dispositivo (POST /notificaciones/push); si no, se reporta sin destino y continúa
+        por SMS o correo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PruebaNotificacionEntrada' }
+            example: { canal: sms }
+      responses:
+        '200':
+          description: Resultado de la prueba por canal, con el canal entregado si hubo uno.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResultadoPruebaNotificacion' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
   /notificaciones/{id}:
     get:
       tags: [Notificaciones]
@@ -1933,6 +2038,54 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/EstadoNotificacion' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /configuracion/canales:
+    get:
+      tags: [Notificaciones]
+      operationId: obtenerPreferenciasCanales
+      summary: Preferencias de SMS, correo y push de la sede (solo administrador)
+      description: >-
+        HU-31/HU-39. Devuelve los tres canales con su preferencia activa/inactiva y si el proveedor
+        está disponible en este ambiente. Un canal sin fila guardada se considera activo. Estas
+        preferencias NO bloquean los avisos operativos ni el fallback push → SMS → correo.
+      responses:
+        '200':
+          description: Preferencias de la sede.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PreferenciaCanal' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+    put:
+      tags: [Notificaciones]
+      operationId: actualizarPreferenciasCanales
+      summary: Guardar las preferencias de canales de la sede (solo administrador)
+      description: >-
+        Guarda los canales indicados en una sola operación. Los omitidos conservan su valor. El
+        establecimiento se toma de la sesión; un `establecimiento_id` en el cuerpo se ignora.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PreferenciasCanalesEntrada' }
+            example:
+              canales:
+                - { canal: sms, activo: true }
+                - { canal: correo, activo: true }
+                - { canal: push, activo: false }
+      responses:
+        '200':
+          description: Preferencias guardadas, con los tres canales.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PreferenciaCanal' }
         '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
@@ -2199,6 +2352,47 @@ paths:
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
 
+  /consumo:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/MesConsumo'
+      tags: [Consumo por plan]
+      operationId: obtenerConsumoPropio
+      summary: Consultar el consumo mensual del establecimiento de la sesión
+      description: >-
+        HU-39 RF-F7-23. El establecimiento se toma del perfil autenticado; un parámetro con otro id se ignora.
+        El periodo por defecto es el mes actual en America/Bogota.
+      responses:
+        '200':
+          description: Consumo de SMS y correo de la sede en el periodo solicitado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsumoPropio' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /consumo/alertas:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/MesConsumo'
+      tags: [Consumo por plan]
+      operationId: obtenerAlertasConsumoPropias
+      summary: Consultar las alertas del 80 % registradas para la sede de la sesión
+      description: >-
+        HU-39 CA1. Devuelve las filas persistidas en `consumo_alertas` para el establecimiento de la
+        sesión. El tenant sale del perfil autenticado, nunca de la petición.
+      responses:
+        '200':
+          description: Alertas del mes, con estado real de entrega y motivos de fallo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertasConsumo' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
   /superadmin/establecimientos:
     get:
       parameters:
@@ -2312,6 +2506,120 @@ paths:
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /superadmin/consumo:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/MesConsumo'
+      tags: [Consumo por plan]
+      operationId: reporteConsumoGlobal
+      summary: Reporte global de consumo por establecimiento, plan y canal
+      description: >-
+        HU-39 CA3. Solo superadministrador. Devuelve el resumen de la plataforma, el consumo real de SMS y
+        correo de cada sede en el mes solicitado (America/Bogota) y su estado: normal, advertencia (80 %) o agotado.
+      responses:
+        '200':
+          description: Reporte mensual agregado por establecimiento.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReporteConsumo' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /superadmin/consumo/alertas:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/MesConsumo'
+        - in: query
+          name: establecimientoId
+          description: Filtro opcional por sede; sin él se devuelven todas las alertas de la plataforma.
+          schema: { type: string, format: uuid }
+      tags: [Consumo por plan]
+      operationId: obtenerAlertasConsumoGlobales
+      summary: Consultar el registro de alertas del 80 % de todas las sedes
+      description: HU-39 CA1. Solo superadministrador. Las filas salen de `consumo_alertas`, no de un cálculo de pantalla.
+      responses:
+        '200':
+          description: Alertas del mes con su establecimiento y estado de entrega.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertasConsumo' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /superadmin/consumo/{establecimientoId}:
+    parameters:
+      - name: establecimientoId
+        in: path
+        required: true
+        description: Identificador UUID de la sede.
+        schema: { type: string, format: uuid }
+      - $ref: '#/components/parameters/MesConsumo'
+    get:
+      tags: [Consumo por plan]
+      operationId: detalleConsumoEstablecimiento
+      summary: Detalle de consumo e historial mensual de una sede
+      description: HU-39 CA3. Solo superadministrador. El historial conserva los periodos anteriores.
+      responses:
+        '200':
+          description: Detalle de la sede y sus periodos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DetalleConsumo' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /superadmin/planes:
+    get:
+      tags: [Consumo por plan]
+      operationId: listarPlanesCupo
+      summary: Consultar los cupos mensuales configurados por plan
+      description: HU-39 / DA-12. Catálogo global ajustable por la plataforma; no modifica el consumo histórico.
+      responses:
+        '200':
+          description: Planes y cupos vigentes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PlanCupo' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /superadmin/planes/{nombre}:
+    parameters:
+      - name: nombre
+        in: path
+        required: true
+        description: Nombre técnico del plan.
+        schema: { type: string, enum: [basico, intermedio, empresarial] }
+    put:
+      tags: [Consumo por plan]
+      operationId: actualizarPlanCupo
+      summary: Ajustar el cupo mensual de un plan
+      description: >-
+        HU-39 / DA-12. Actualiza el cupo para futuros envíos. Los periodos ya registrados conservan sus valores.
+        El SMS no admite cupo nulo: siempre tiene un límite. El correo admite `null` como "sin límite configurado".
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActualizarPlanCupo' }
+            example: { cupoSmsMes: 800, cupoCorreoMes: 4000 }
+      responses:
+        '200':
+          description: Plan con los cupos actualizados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanCupo' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
 components:
   securitySchemes:
     bearerPanel:
@@ -2375,6 +2683,13 @@ components:
         ya creada en lugar de duplicarla.
       schema: { type: string, minLength: 1, maxLength: 200 }
       example: campana-2026-11-20-motor-60
+    MesConsumo:
+      name: mes
+      in: query
+      required: false
+      description: Periodo comercial en America/Bogota. Por defecto, el mes actual.
+      schema: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' }
+      example: '2026-11'
 
   responses:
     LimiteExcedido:
@@ -3336,6 +3651,84 @@ components:
           estado: { type: string, enum: [recibido, en_lavado, secado, listo, entregado] }
           activo: { type: boolean }
 
+    PreferenciaCanal:
+      type: object
+      description: >-
+        Preferencia de un canal para la prueba de envío. `disponible` refleja el proveedor real del
+        ambiente; una preferencia activa en un canal no disponible no envía por ese canal.
+      required: [canal, etiqueta, activo, disponible, proveedor, motivo]
+      properties:
+        canal: { type: string, enum: [sms, correo, push] }
+        etiqueta: { type: string, example: SMS }
+        activo: { type: boolean }
+        disponible: { type: boolean }
+        proveedor: { type: [string, 'null'], example: consola }
+        motivo: { type: [string, 'null'], example: 'El canal push no está configurado en este ambiente (PUSH_PROVEEDOR y llaves VAPID)' }
+
+    PreferenciasCanalesEntrada:
+      type: object
+      required: [canales]
+      additionalProperties: false
+      properties:
+        canales:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            type: object
+            required: [canal, activo]
+            additionalProperties: false
+            properties:
+              canal: { type: string, enum: [sms, correo, push] }
+              activo: { type: boolean }
+
+    PruebaNotificacionEntrada:
+      type: object
+      additionalProperties: false
+      description: Si se omite `canal`, se prueba el primer canal activo y disponible.
+      properties:
+        canal: { type: string, enum: [sms, correo, push] }
+
+    ConsumoIntentoPrueba:
+      type: object
+      required: [reservado, contado, liberado]
+      properties:
+        reservado: { type: boolean }
+        contado: { type: boolean, description: true solo si la RPC confirmó el consumo. }
+        liberado: { type: boolean, description: true si el proveedor falló y la reserva se revirtió. }
+
+    ResultadoCanalPrueba:
+      type: object
+      required: [canal, estado, aceptado, proveedor, destino, motivo, advertencia, idProveedor, consumo]
+      properties:
+        canal: { type: string, enum: [sms, correo, push] }
+        estado:
+          type: string
+          enum: [enviado, fallido, sin_cupo, sin_destino, inactivo, no_disponible]
+        aceptado: { type: boolean }
+        proveedor: { type: [string, 'null'] }
+        destino: { type: [string, 'null'], description: Destino enmascarado; nunca el dato completo. }
+        motivo: { type: [string, 'null'] }
+        advertencia: { type: [string, 'null'] }
+        idProveedor: { type: [string, 'null'] }
+        consumo: { $ref: '#/components/schemas/ConsumoIntentoPrueba' }
+
+    ResultadoPruebaNotificacion:
+      type: object
+      required: [id, mes, canalInicial, orden, estado, canalEntregado, resultados]
+      properties:
+        id: { type: string, format: uuid }
+        mes: { type: string, example: '2026-11' }
+        canalInicial: { type: string, enum: [sms, correo, push] }
+        orden:
+          type: array
+          items: { type: string, enum: [sms, correo, push] }
+        estado: { type: string, enum: [entregado, fallido, sin_canales] }
+        canalEntregado: { type: [string, 'null'], enum: [sms, correo, push, null] }
+        resultados:
+          type: array
+          items: { $ref: '#/components/schemas/ResultadoCanalPrueba' }
+
     Establecimiento:
       type: object
       description: >-
@@ -3704,6 +4097,11 @@ components:
         entregadaAt: { type: [string, 'null'], format: date-time }
         totalIntentos: { type: integer, minimum: 0 }
         error: { type: [string, 'null'], description: Motivo real del último fallo del proveedor. }
+        motivoFallo:
+          type: [string, 'null']
+          enum: [sin_cupo_sms, null]
+          description: HU-39 CA2. Presente cuando el SMS se canceló por agotamiento del cupo.
+        notificacionOrigenId: { type: [string, 'null'], format: uuid }
         programadaPara: { type: [string, 'null'], format: date-time }
         proximoIntentoAt: { type: [string, 'null'], format: date-time }
 
@@ -3719,6 +4117,7 @@ components:
         entregado: { type: boolean }
         recuperable: { type: [boolean, 'null'], description: Si el error se podía reintentar. }
         error: { type: [string, 'null'] }
+        motivoFallo: { type: [string, 'null'], enum: [sin_cupo_sms, null], description: HU-39 CA2. }
         fecha: { type: string, format: date-time }
 
     AlertaNotificacion:
@@ -3759,6 +4158,13 @@ components:
             detalleIntentos:
               type: boolean
               description: false si la tabla de auditoría todavía no está aplicada en el ambiente.
+            alterno:
+              type: [object, 'null']
+              description: HU-39 CA2. Aviso de la misma cadena que continuó por otro canal tras la cancelación del SMS.
+              properties:
+                id: { type: string, format: uuid }
+                canal: { type: string, enum: [push, sms, correo] }
+                estado: { type: string }
 
     BitacoraNotificaciones:
       type: object
@@ -3775,3 +4181,137 @@ components:
             porPagina: { type: integer, minimum: 1 }
             total: { type: integer, minimum: 0 }
             totalPaginas: { type: integer, minimum: 0 }
+
+    NombrePlanCupo:
+      type: string
+      enum: [basico, intermedio, empresarial]
+    EstadoConsumo:
+      type: string
+      enum: [normal, advertencia, agotado]
+      description: 'normal: por debajo del 80 %; advertencia: 80 % o más; agotado: cupo de SMS agotado.'
+    CanalConsumo:
+      type: object
+      description: Consumo de un canal en el mes consultado (HU-39).
+      required: [usados, cupo, restantes, porcentaje, alerta80, agotado]
+      properties:
+        usados: { type: integer, minimum: 0, description: Envíos aceptados por el proveedor. }
+        cupo: { type: [integer, 'null'], minimum: 0, description: null cuando el plan no define límite. }
+        restantes: { type: [integer, 'null'], minimum: 0 }
+        porcentaje: { type: [number, 'null'], minimum: 0, description: Porcentaje con dos decimales. }
+        alerta80: { type: boolean }
+        agotado: { type: boolean }
+    ConsumoBase:
+      type: object
+      required: [mes, sms, correo, estado]
+      properties:
+        mes: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$', example: '2026-11' }
+        sms: { $ref: '#/components/schemas/CanalConsumo' }
+        correo: { $ref: '#/components/schemas/CanalConsumo' }
+        estado: { $ref: '#/components/schemas/EstadoConsumo' }
+    ConsumoPropio:
+      allOf:
+        - $ref: '#/components/schemas/ConsumoBase'
+        - type: object
+          required: [establecimientoId, nombre, plan, etiquetaPlan]
+          properties:
+            establecimientoId: { type: string, format: uuid }
+            nombre: { type: string }
+            plan: { $ref: '#/components/schemas/NombrePlanCupo' }
+            etiquetaPlan: { type: string, example: Intermedio }
+            push:
+              allOf:
+                - $ref: '#/components/schemas/CanalConsumo'
+              description: Consumo de push se contabiliza, pero no tiene cupo limitante.
+    FilaConsumoEstablecimiento:
+      allOf:
+        - $ref: '#/components/schemas/ConsumoBase'
+        - type: object
+          required: [establecimientoId, nombre, plan, etiquetaPlan]
+          properties:
+            establecimientoId: { type: string, format: uuid }
+            nombre: { type: string }
+            plan: { $ref: '#/components/schemas/NombrePlanCupo' }
+            etiquetaPlan: { type: string, example: Básico }
+            estadoEstablecimiento: { type: [string, 'null'], example: activo }
+    ResumenConsumo:
+      type: object
+      required: [establecimientos, smsConsumidos, correosConsumidos, cercanosAlLimite, cupoAgotado]
+      properties:
+        establecimientos: { type: integer, minimum: 0 }
+        smsConsumidos: { type: integer, minimum: 0 }
+        correosConsumidos: { type: integer, minimum: 0 }
+        cercanosAlLimite: { type: integer, minimum: 0, description: Sedes que alcanzaron o superaron el 80 % del SMS. }
+        cupoAgotado: { type: integer, minimum: 0 }
+    ReporteConsumo:
+      type: object
+      required: [mes, resumen, establecimientos]
+      properties:
+        mes: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' }
+        resumen: { $ref: '#/components/schemas/ResumenConsumo' }
+        establecimientos:
+          type: array
+          items: { $ref: '#/components/schemas/FilaConsumoEstablecimiento' }
+    HistorialConsumoMes:
+      type: object
+      required: [mes, sms, correo, push]
+      properties:
+        mes: { type: string, example: '2026-10' }
+        sms: { type: integer, minimum: 0 }
+        correo: { type: integer, minimum: 0 }
+        push: { type: integer, minimum: 0 }
+    DetalleConsumo:
+      allOf:
+        - $ref: '#/components/schemas/ConsumoPropio'
+        - type: object
+          required: [historial]
+          properties:
+            historial:
+              type: array
+              items: { $ref: '#/components/schemas/HistorialConsumoMes' }
+    AlertaConsumo80:
+      type: object
+      description: Registro persistente de una entrega de la alerta del 80 % (HU-39 CA1).
+      required: [id, establecimientoId, mes, destinatarioTipo, estado, intentos]
+      properties:
+        id: { type: string, format: uuid }
+        establecimientoId: { type: string, format: uuid }
+        mes: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$', example: '2026-11' }
+        destinatarioTipo: { type: string, enum: [sede, plataforma] }
+        estado: { type: string, enum: [pendiente, enviada, fallida] }
+        intentos: { type: integer, minimum: 0 }
+        detalle:
+          type: object
+          description: Cifras del cupo al cruzar el umbral; nunca incluye correos.
+          properties:
+            canal: { type: string, example: sms }
+            consumo: { type: [integer, 'null'] }
+            cupo: { type: [integer, 'null'] }
+            porcentaje: { type: [number, 'null'] }
+            restantes: { type: [integer, 'null'] }
+        error: { type: [string, 'null'] }
+        enviadaAt: { type: [string, 'null'], format: date-time }
+        creadaAt: { type: string, format: date-time }
+    AlertasConsumo:
+      type: object
+      required: [mes, alertas]
+      properties:
+        mes: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' }
+        alertas:
+          type: array
+          items: { $ref: '#/components/schemas/AlertaConsumo80' }
+    PlanCupo:
+      type: object
+      required: [nombre, etiqueta, cupo_sms_mes, cupo_correo_mes]
+      properties:
+        nombre: { $ref: '#/components/schemas/NombrePlanCupo' }
+        etiqueta: { type: string, example: Empresarial }
+        cupo_sms_mes: { type: integer, minimum: 0 }
+        cupo_correo_mes: { type: [integer, 'null'], minimum: 0 }
+        actualizado_at: { type: [string, 'null'], format: date-time }
+    ActualizarPlanCupo:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        cupoSmsMes: { type: integer, minimum: 0 }
+        cupoCorreoMes: { type: [integer, 'null'], minimum: 0 }

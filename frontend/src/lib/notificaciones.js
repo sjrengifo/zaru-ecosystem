@@ -32,6 +32,15 @@ const CLASE_ESTADO = {
   cancelada: 'estado-envio-cancelada',
 };
 
+/** HU-39 CA2: el motivo viaja del backend; el texto anterior se mantiene por compatibilidad. */
+export function motivoIntento(intent) {
+  const error = String(intent?.error ?? '');
+  if (intent?.motivoFallo === 'sin_cupo_sms' || error.startsWith('Cupo mensual de SMS agotado')) {
+    return { codigo: 'sin_cupo_sms', texto: 'Cancelado: cupo de SMS agotado' };
+  }
+  return { codigo: null, texto: intent?.resultado === 'enviado' ? 'Aceptado por el proveedor' : 'Fallido' };
+}
+
 export const estadoNotificacion = (estado) => ({
   texto: ETIQUETAS_ESTADO[estado] ?? estado ?? '—',
   clase: CLASE_ESTADO[estado] ?? 'estado-envio-cancelada',

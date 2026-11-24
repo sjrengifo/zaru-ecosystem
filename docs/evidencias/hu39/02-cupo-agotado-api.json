@@ -1,0 +1,238 @@
+{
+  "consumo": {
+    "mes": "2026-11",
+    "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+    "nombre": "Lavadero Demo Zaru",
+    "plan": "intermedio",
+    "etiquetaPlan": "Intermedio",
+    "sms": {
+      "usados": 5,
+      "cupo": 5,
+      "restantes": 0,
+      "porcentaje": 100,
+      "alerta80": true,
+      "agotado": true
+    },
+    "correo": {
+      "usados": 12,
+      "cupo": 3000,
+      "restantes": 2988,
+      "porcentaje": 0.4,
+      "alerta80": false,
+      "agotado": false
+    },
+    "estado": "agotado",
+    "push": {
+      "usados": 0,
+      "cupo": null,
+      "restantes": null,
+      "porcentaje": null,
+      "alerta80": false,
+      "agotado": false
+    }
+  },
+  "reporte": {
+    "mes": "2026-11",
+    "resumen": {
+      "establecimientos": 8,
+      "smsConsumidos": 5,
+      "correosConsumidos": 12,
+      "cercanosAlLimite": 0,
+      "cupoAgotado": 1
+    },
+    "establecimientos": [
+      {
+        "establecimientoId": "00000000-0000-0000-0000-00000000a058",
+        "nombre": "[Spike HU-58] Lavadero A",
+        "plan": "intermedio",
+        "etiquetaPlan": "Intermedio",
+        "estadoEstablecimiento": "activo",
+        "sms": {
+          "usados": 0,
+          "cupo": 5,
+          "restantes": 5,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "correo": {
+          "usados": 0,
+          "cupo": 3000,
+          "restantes": 3000,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "estado": "normal"
+      },
+      {
+        "establecimientoId": "00000000-0000-0000-0000-00000000b058",
+        "nombre": "[Spike HU-58] Lavadero B",
+        "plan": "intermedio",
+        "etiquetaPlan": "Intermedio",
+        "estadoEstablecimiento": "activo",
+        "sms": {
+          "usados": 0,
+          "cupo": 5,
+          "restantes": 5,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "correo": {
+          "usados": 0,
+          "cupo": 3000,
+          "restantes": 3000,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "estado": "normal"
+      },
+      {
+        "establecimientoId": "93463c43-d31e-4bcc-8856-6d8e7a56c400",
+        "nombre": "Car Wash Bochalema",
+        "plan": "basico",
+        "etiquetaPlan": "Básico",
+        "estadoEstablecimiento": "pendiente_activacion",
+        "sms": {
+          "usados": 0,
+          "cupo": 200,
+          "restantes": 200,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "correo": {
+          "usados": 0,
+          "cupo": 1000,
+          "restantes": 1000,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "estado": "normal"
+      },
+      {
+        "establecimientoId": "00000000-0000-0000-0000-000000000001",
+        "nombre": "Car Wash Demo Cali",
+        "plan": "intermedio",
+        "etiquetaPlan": "Intermedio",
+        "estadoEstablecimiento": "activo",
+        "sms": {
+          "usados": 0,
+          "cupo": 5,
+          "restantes": 5,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "correo": {
+          "usados": 0,
+          "cupo": 3000,
+          "restantes": 3000,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "estado": "normal"
+      },
+      {
+        "establecimientoId": "493e436f-d38e-48d1-a779-473ac6ddbfce",
+        "nombre": "Car Wash Nikol (desarrollo)",
+        "plan": "intermedio",
+        "etiquetaPlan": "Intermedio",
+        "estadoEstablecimiento": "suspendido",
+        "sms": {
+          "usados": 0,
+          "cupo": 5,
+          "restantes": 5,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "correo": {
+          "usados": 0,
+          "cupo": 3000,
+          "restantes": 3000,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "estado": "normal"
+      },
+      {
+        "establecimientoId": "b1ff2fcf-b53e-41f0-93c4-fb2c3992b93c",
+        "nombre": "Carwash El Poblado",
+        "plan": "basico",
+        "etiquetaPlan": "Básico",
+        "estadoEstablecimiento": "suspendido",
+        "sms": {
+          "usados": 0,
+          "cupo": 200,
+          "restantes": 200,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "correo": {
+          "usados": 0,
+          "cupo": 1000,
+          "restantes": 1000,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "estado": "normal"
+      },
+      {
+        "establecimientoId": "d4f3e810-3314-47d0-94c9-659b1222c828",
+        "nombre": "El Poster",
+        "plan": "empresarial",
+        "etiquetaPlan": "Empresarial",
+        "estadoEstablecimiento": "activo",
+        "sms": {
+          "usados": 0,
+          "cupo": 2000,
+          "restantes": 2000,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "correo": {
+          "usados": 0,
+          "cupo": 10000,
+          "restantes": 10000,
+          "porcentaje": 0,
+          "alerta80": false,
+          "agotado": false
+        },
+        "estado": "normal"
+      },
+      {
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "nombre": "Lavadero Demo Zaru",
+        "plan": "intermedio",
+        "etiquetaPlan": "Intermedio",
+        "estadoEstablecimiento": "activo",
+        "sms": {
+          "usados": 5,
+          "cupo": 5,
+          "restantes": 0,
+          "porcentaje": 100,
+          "alerta80": true,
+          "agotado": true
+        },
+        "correo": {
+          "usados": 12,
+          "cupo": 3000,
+          "restantes": 2988,
+          "porcentaje": 0.4,
+          "alerta80": false,
+          "agotado": false
+        },
+        "estado": "agotado"
+      }
+    ]
+  }
+}

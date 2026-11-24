@@ -41,7 +41,7 @@ function simularApi(manejadores = {}) {
     ...manejadores,
   };
   const fetchFalso = vi.fn((url, opciones = {}) => {
-    const ruta = new URL(url).pathname.replace('/api/v1', '');
+    const ruta = new URL(url).pathname.replace(/^\/api(?:\/v1)?/, '');
     const clave = `${opciones.method ?? 'GET'} ${ruta}`;
     if (base[clave]) return base[clave](opciones);
     return respuesta(200, SEDE); // GET de la sede
@@ -51,7 +51,7 @@ function simularApi(manejadores = {}) {
 }
 
 const llamadas = (api, clave) =>
-  api.mock.calls.filter(([url, o = {}]) => `${o.method ?? 'GET'} ${new URL(url).pathname.replace('/api/v1', '')}` === clave);
+  api.mock.calls.filter(([url, o = {}]) => `${o.method ?? 'GET'} ${new URL(url).pathname.replace(/^\/api(?:\/v1)?/, '')}` === clave);
 
 function abrir() {
   return render(

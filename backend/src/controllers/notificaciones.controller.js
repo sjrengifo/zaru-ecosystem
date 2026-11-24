@@ -7,13 +7,22 @@
 // La respuesta distingue:
 //   - "aceptada": el proveedor recibió el mensaje (estado enviada).
 //   - "entregada": el proveedor confirmó la entrega (estado entregada o contenido.entregaConfirmada).
+import { supabase } from '../config/supabase.js';
+import { registrarAuditoria } from '../shared/auditoria.js';
 import { enmascararDestino } from '../shared/mascaras.js';
 import { AppError } from '../shared/errores.js';
 import { finDiaBogotaExclusivo, inicioDiaBogota } from '../shared/reportes.js';
+import { enviarPruebaCanales } from '../shared/pruebaCanales.js';
+import { eliminarDispositivoAdmin, registrarDispositivoAdmin } from '../shared/suscripcionesPushAdmin.js';
+import { cadenaDe } from '../shared/notificaciones.js';
+
+// HU-39 CA2: el error de la RPC es la fuente de verdad; el prefijo establece el motivo sin migrar el enum.
+const MOTIVO_CUPO = 'Cupo mensual de SMS agotado';
 
 const COLUMNAS = [
   'id, created_at, tipo, evento, canal, estado, intentos, error, destino, contenido,',
-  'programada_para, proximo_intento_at,',
+  // HU-39 CA2: `cadenaDe` necesita orden_id para mostrar el canal alterno del mismo aviso.
+  'programada_para, proximo_intento_at, notificacion_origen_id, orden_id,',
   'cliente:clientes(nombre),',
   'orden:ordenes(id, codigo_seguimiento, vehiculo:vehiculos(placa))',
 ].join(' ');
@@ -59,6 +68,8 @@ function filaPublica(fila) {
     entregadaAt: contenido.entregadaAt ?? null,
     totalIntentos: numero(fila.intentos),
     error: fila.error ?? null,
+    motivoFallo: String(fila.error ?? '').startsWith(MOTIVO_CUPO) ? 'sin_cupo_sms' : null,
+    notificacionOrigenId: fila.notificacion_origen_id ?? null,
     programadaPara: fila.programada_para ?? null,
     proximoIntentoAt: fila.proximo_intento_at ?? null,
   };
@@ -107,6 +118,90 @@ export async function listar(req, res, next) {
   }
 }
 
+/**
+ * POST /notificaciones/push — registra el dispositivo del administrador autenticado.
+ * El usuario y la sede salen de la sesión; el cuerpo solo trae la suscripción del navegador.
+ */
+export async function registrarPushAdmin(req, res, next) {
+  try {
+    const datos = await registrarDispositivoAdmin(
+      req.tenant,
+      req.ctx?.usuarioId,
+      req.body,
+      { userAgent: req.get('user-agent') },
+    );
+    await registrarAuditoria(req, {
+      accion: 'notificacion.push_admin.registrada',
+      recurso: 'notificaciones',
+      recursoId: req.ctx?.usuarioId ?? null,
+      resultado: 'permitido',
+      detalle: { dispositivo: datos.dispositivo },
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** POST /notificaciones/push/baja — quita el dispositivo push del administrador. */
+export async function eliminarPushAdmin(req, res, next) {
+  try {
+    const datos = await eliminarDispositivoAdmin(req.tenant, req.ctx?.usuarioId, req.body?.endpoint);
+    await registrarAuditoria(req, {
+      accion: 'notificacion.push_admin.eliminada',
+      recurso: 'notificaciones',
+      recursoId: req.ctx?.usuarioId ?? null,
+      resultado: 'permitido',
+    });
+    res.json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /notificaciones/prueba — envío real al administrador de la sede.
+ * El mensaje se registra en la auditoría con destinos enmascarados y cada intento queda contado
+ * por HU-39. Un proveedor que falla no es un error de la API: el cuerpo informa el resultado por
+ * canal para que el panel pueda mostrar el fallback.
+ */
+export async function enviarPrueba(req, res, next) {
+  try {
+    const resultado = await enviarPruebaCanales({
+      tenant: req.tenant,
+      db: supabase,
+      usuarioId: req.ctx?.usuarioId,
+      canal: req.body?.canal,
+    });
+    await registrarAuditoria(req, {
+      accion: 'notificacion.prueba.enviada',
+      recurso: 'notificaciones',
+      recursoId: resultado.id,
+      resultado: 'permitido',
+      motivo: resultado.estado === 'entregado' ? null : `Prueba ${resultado.estado}`,
+      detalle: {
+        id: resultado.id,
+        estado: resultado.estado,
+        canalInicial: resultado.canalInicial,
+        canalEntregado: resultado.canalEntregado,
+        orden: resultado.orden,
+        resultados: resultado.resultados.map(({ canal, estado, motivo, consumo, proveedor }) => ({
+          canal,
+          estado,
+          motivo,
+          proveedor,
+          contado: consumo.contado,
+        })),
+      },
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json(resultado);
+  } catch (err) {
+    next(err);
+  }
+}
+
 /** GET /notificaciones/:id — detalle con cada intento y el motivo real del proveedor. */
 export async function obtener(req, res, next) {
   try {
@@ -131,6 +226,7 @@ export async function obtener(req, res, next) {
         entregado: bool(i.entregado),
         recuperable: i.recuperable,
         error: i.error,
+        motivoFallo: String(i.error ?? '').startsWith(MOTIVO_CUPO) ? 'sin_cupo_sms' : null,
         fecha: i.created_at,
       }));
     } catch (err) {
@@ -138,7 +234,17 @@ export async function obtener(req, res, next) {
       console.warn('[HU-34] Detalle de intentos no disponible:', err?.message ?? err);
     }
 
-    res.json({ ...filaPublica(fila), intentos, detalleIntentos });
+    // HU-39 CA2: el intento cancelado por cupo y el aviso que siguió por otro canal comparten cadena.
+    let alterno = null;
+    try {
+      const cadena = await cadenaDe(req.tenant, fila);
+      const otra = cadena.find((f) => f.id !== fila.id);
+      if (otra) alterno = { id: otra.id, canal: otra.canal, estado: otra.estado };
+    } catch (err) {
+      console.warn('[HU-39] No se pudo consultar el canal alterno:', err?.message ?? err);
+    }
+
+    res.json({ ...filaPublica(fila), intentos, detalleIntentos, alterno });
   } catch (err) {
     next(err);
   }

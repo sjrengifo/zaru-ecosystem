@@ -1,0 +1,294 @@
+{
+  "marca": "79b670d6",
+  "ejecutadoEn": "2026-11-24T17:09:38.369Z",
+  "plan": "intermedio",
+  "cupoOriginal": 600,
+  "cupoPrueba": 5,
+  "avisos": "El cambio de cupo afecta a todos los establecimientos con plan intermedio durante la ventana.",
+  "fases": [
+    {
+      "nombre": "00-plan-inicial",
+      "en": "2026-11-24T17:09:38.898Z",
+      "plan": {
+        "nombre": "intermedio",
+        "cupo_sms_mes": 600,
+        "cupo_correo_mes": 3000,
+        "actualizado_at": "2026-11-24T17:08:57.043+00:00",
+        "etiqueta": "Intermedio"
+      }
+    },
+    {
+      "nombre": "01-cupo-temporal",
+      "en": "2026-11-24T17:09:40.128Z",
+      "respuesta": {
+        "nombre": "intermedio",
+        "cupo_sms_mes": 5,
+        "cupo_correo_mes": 3000,
+        "created_at": "2026-11-19T23:02:38.437886+00:00",
+        "actualizado_at": "2026-11-24T17:09:39.201+00:00",
+        "etiqueta": "Intermedio"
+      },
+      "verificado": {
+        "nombre": "intermedio",
+        "cupo_sms_mes": 5,
+        "cupo_correo_mes": 3000,
+        "actualizado_at": "2026-11-24T17:09:39.201+00:00",
+        "etiqueta": "Intermedio"
+      }
+    },
+    {
+      "nombre": "02-consumo-inicial",
+      "en": "2026-11-24T17:09:40.763Z",
+      "sms": {
+        "usados": 5,
+        "cupo": 5,
+        "restantes": 0,
+        "porcentaje": 100,
+        "alerta80": true,
+        "agotado": true
+      },
+      "correo": {
+        "usados": 11,
+        "cupo": 3000,
+        "restantes": 2989,
+        "porcentaje": 0.37,
+        "alerta80": false,
+        "agotado": false
+      },
+      "estado": "agotado"
+    },
+    {
+      "nombre": "03-orden-creada",
+      "en": "2026-11-24T17:09:45.514Z",
+      "id": "55f61b03-4d04-4785-b38d-ef368fb14086",
+      "estado": "recibido",
+      "codigoSeguimiento": "F54DKA24YP",
+      "vehiculoId": "d9746c01-3f71-4eb9-8253-b313dd641d61"
+    },
+    {
+      "nombre": "04-primer-sms",
+      "en": "2026-11-24T17:09:48.270Z",
+      "sms": {
+        "usados": 5,
+        "cupo": 5,
+        "restantes": 0,
+        "porcentaje": 100,
+        "alerta80": true,
+        "agotado": true
+      },
+      "consumoInicial": 5,
+      "objetivoAlerta": 5,
+      "objetivoAgotado": 5
+    },
+    {
+      "nombre": "06-alerta-80",
+      "en": "2026-11-24T17:09:50.555Z",
+      "sms": {
+        "usados": 5,
+        "cupo": 5,
+        "restantes": 0,
+        "porcentaje": 100,
+        "alerta80": true,
+        "agotado": true
+      },
+      "estado": "agotado",
+      "alertasSede": 4,
+      "alertasPlataforma": 4,
+      "destinatarios": [
+        {
+          "tipo": "sede",
+          "estado": "enviada",
+          "intentos": 1,
+          "detalle": {
+            "canal": "sms",
+            "consumo": 4,
+            "cupo": 5,
+            "porcentaje": 80,
+            "restantes": 1
+          }
+        },
+        {
+          "tipo": "sede",
+          "estado": "enviada",
+          "intentos": 1,
+          "detalle": {
+            "canal": "sms",
+            "consumo": 4,
+            "cupo": 5,
+            "porcentaje": 80,
+            "restantes": 1
+          }
+        },
+        {
+          "tipo": "plataforma",
+          "estado": "enviada",
+          "intentos": 1,
+          "detalle": {
+            "canal": "sms",
+            "consumo": 4,
+            "cupo": 5,
+            "porcentaje": 80,
+            "restantes": 1
+          }
+        },
+        {
+          "tipo": "plataforma",
+          "estado": "enviada",
+          "intentos": 1,
+          "detalle": {
+            "canal": "sms",
+            "consumo": 4,
+            "cupo": 5,
+            "porcentaje": 80,
+            "restantes": 1
+          }
+        }
+      ],
+      "reporte": {
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "nombre": "Lavadero Demo Zaru",
+        "plan": "intermedio",
+        "etiquetaPlan": "Intermedio",
+        "estadoEstablecimiento": "activo",
+        "sms": {
+          "usados": 5,
+          "cupo": 5,
+          "restantes": 0,
+          "porcentaje": 100,
+          "alerta80": true,
+          "agotado": true
+        },
+        "correo": {
+          "usados": 12,
+          "cupo": 3000,
+          "restantes": 2988,
+          "porcentaje": 0.4,
+          "alerta80": false,
+          "agotado": false
+        },
+        "estado": "agotado"
+      }
+    },
+    {
+      "nombre": "07-cupo-agotado",
+      "en": "2026-11-24T17:09:58.240Z",
+      "sms": {
+        "usados": 5,
+        "cupo": 5,
+        "restantes": 0,
+        "porcentaje": 100,
+        "alerta80": true,
+        "agotado": true
+      },
+      "estado": "agotado",
+      "filaReporte": {
+        "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+        "nombre": "Lavadero Demo Zaru",
+        "plan": "intermedio",
+        "etiquetaPlan": "Intermedio",
+        "estadoEstablecimiento": "activo",
+        "sms": {
+          "usados": 5,
+          "cupo": 5,
+          "restantes": 0,
+          "porcentaje": 100,
+          "alerta80": true,
+          "agotado": true
+        },
+        "correo": {
+          "usados": 12,
+          "cupo": 3000,
+          "restantes": 2988,
+          "porcentaje": 0.4,
+          "alerta80": false,
+          "agotado": false
+        },
+        "estado": "agotado"
+      }
+    },
+    {
+      "nombre": "08-sms-cancelado-y-alterno",
+      "en": "2026-11-24T17:10:12.594Z",
+      "estadoExtra": "en_lavado",
+      "smsAntes": 5,
+      "smsDespues": 5,
+      "sms": {
+        "id": "f837f52e-4343-4123-9693-419058229e40",
+        "fecha": "2026-11-24T17:10:03.485812+00:00",
+        "tipo": "operativa",
+        "evento": "orden.en_lavado",
+        "canal": "sms",
+        "estado": "fallida",
+        "cliente": "Adri",
+        "placa": "QZZ401",
+        "codigoSeguimiento": "F54DKA24YP",
+        "destino": "305****264",
+        "asunto": "Tu vehículo ya inició el lavado: QZZ401",
+        "proveedor": null,
+        "aceptadaPorProveedor": false,
+        "entregada": false,
+        "entregadaAt": null,
+        "totalIntentos": 1,
+        "error": "Cupo mensual de SMS agotado (5/5)",
+        "motivoFallo": "sin_cupo_sms",
+        "notificacionOrigenId": null,
+        "programadaPara": "2026-11-24T17:10:03.485812+00:00",
+        "proximoIntentoAt": null,
+        "intentos": [
+          {
+            "intento": 1,
+            "canal": "sms",
+            "resultado": "fallido",
+            "proveedor": null,
+            "idProveedor": null,
+            "entregado": false,
+            "recuperable": false,
+            "error": "Cupo mensual de SMS agotado (5/5)",
+            "motivoFallo": "sin_cupo_sms",
+            "fecha": "2026-11-24T17:10:05.229613+00:00"
+          }
+        ],
+        "detalleIntentos": true,
+        "alterno": {
+          "id": "b09406fb-7108-4c98-81b7-e8d0e24b16e9",
+          "canal": "correo",
+          "estado": "enviada"
+        }
+      },
+      "canalAlterno": {
+        "id": "b09406fb-7108-4c98-81b7-e8d0e24b16e9",
+        "canal": "correo",
+        "estado": "enviada"
+      }
+    },
+    {
+      "nombre": "99-error",
+      "en": "2026-11-24T17:11:00.550Z",
+      "mensaje": "No apareció el texto \"Historial de notificaciones\" en la interfaz",
+      "pila": [
+        "Error: No apareció el texto \"Historial de notificaciones\" en la interfaz",
+        "    at esperarTexto (file:///C:/Users/choco/AppData/Local/Temp/opencode/cdp.mjs:68:9)",
+        "    at async Module.abrir (file:///C:/Users/choco/AppData/Local/Temp/opencode/cdp.mjs:142:3)",
+        "    at async file:///C:/Users/choco/AppData/Local/Temp/opencode/hu39-funcional.mjs:294:5"
+      ]
+    }
+  ],
+  "restauracion": {
+    "respuesta": {
+      "nombre": "intermedio",
+      "cupo_sms_mes": 600,
+      "cupo_correo_mes": 3000,
+      "created_at": "2026-11-19T23:02:38.437886+00:00",
+      "actualizado_at": "2026-11-24T17:11:01.212+00:00",
+      "etiqueta": "Intermedio"
+    },
+    "verificado": {
+      "nombre": "intermedio",
+      "cupo_sms_mes": 600,
+      "cupo_correo_mes": 3000,
+      "actualizado_at": "2026-11-24T17:11:01.212+00:00",
+      "etiqueta": "Intermedio"
+    },
+    "en": "2026-11-24T17:11:02.155Z"
+  }
+}

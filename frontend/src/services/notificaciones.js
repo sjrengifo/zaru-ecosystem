@@ -16,3 +16,7 @@ export function queryNotificaciones(filtros = {}) {
 export const listarNotificaciones = (filtros) => api.get(`/notificaciones${queryNotificaciones(filtros)}`);
 
 export const obtenerNotificacion = (id) => api.get(`/notificaciones/${encodeURIComponent(id)}`);
+
+/** HU-31/HU-39: envío real de prueba; el destino se obtiene en el backend desde la sesión. */
+export const enviarPruebaNotificacion = (canal) =>
+  api.post('/notificaciones/prueba', canal ? { canal } : {});

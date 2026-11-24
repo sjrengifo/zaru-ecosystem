@@ -176,6 +176,33 @@ describe('HU-46 · enviar el correo', () => {
     expect(ultimo[2]).toMatchObject({ estado: 'enviada', error: null, contenido: { proveedor: 'falso', idProveedor: 'p-1' } });
   });
 
+  it('HU-39: reserva y confirma el correo aceptado usando el id como referencia', async () => {
+    const tenant = crearTenantFalso();
+    tenant.rpc.mockImplementation(async (funcion, args) => ({ estado: 'ok', funcion, args }));
+    const proveedor = proveedorOk();
+
+    await expect(enviarCorreo(tenant, { id: ID, para: 'a@b.co', mensaje }, { proveedor })).resolves.toMatchObject({ estado: 'enviada' });
+
+    const funciones = tenant.rpc.mock.calls.map((c) => c[0]);
+    expect(funciones).toEqual(['hu39_reservar_consumo', 'hu39_confirmar_consumo']);
+    for (const [, args] of tenant.rpc.mock.calls) {
+      expect(args).toMatchObject({ p_canal: 'correo', p_referencia: ID });
+    }
+  });
+
+  it('HU-39: un correo rechazado libera la reserva y no cuenta el intento', async () => {
+    const tenant = crearTenantFalso();
+    tenant.rpc.mockImplementation(async (funcion, args) => ({ estado: 'ok', funcion, args }));
+    const proveedor = { nombre: 'falso', enviar: vi.fn().mockRejectedValue(new Error('SMTP rechazado')) };
+
+    await expect(enviarCorreo(tenant, { id: ID, para: 'a@b.co', mensaje }, { proveedor, esperasMs: [0, 0] })).resolves.toMatchObject({ estado: 'fallida' });
+
+    const funciones = tenant.rpc.mock.calls.map((c) => c[0]);
+    expect(funciones).toContain('hu39_reservar_consumo');
+    expect(funciones).not.toContain('hu39_confirmar_consumo');
+    expect(funciones.filter((f) => f === 'hu39_liberar_consumo')).toHaveLength(MAX_INTENTOS);
+  });
+
   it('reintenta ante un fallo temporal del proveedor', async () => {
     const tenant = crearTenantFalso();
     const proveedor = { nombre: 'falso', enviar: vi.fn().mockRejectedValueOnce(new Error('503')).mockResolvedValue({ idProveedor: 'p-2' }) };
