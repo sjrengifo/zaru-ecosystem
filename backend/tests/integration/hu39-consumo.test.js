@@ -204,8 +204,11 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-39 · consumo por plan${hayEntornoIn
     expect(propio.body).toMatchObject({ establecimientoId: EST_A, mes: MES, plan: planSede });
     expect(propio.body.sms.usados).toBe(42);
 
-    // El id de otra sede ni se acepta: el esquema es estricto y el tenant sale de la sesión.
-    expect((await con(tokenA)(request(app).get(ruta(`/consumo?mes=${MES}&establecimientoId=${EST_B}`)))).status).toBe(400);
+    // El filtro por establecimiento existe para el reporte global; en la ruta de sede se ignora
+    // porque el tenant siempre sale de la sesión.
+    const conIdAjeno = await con(tokenA)(request(app).get(ruta(`/consumo?mes=${MES}&establecimientoId=${EST_B}`)));
+    expect(conIdAjeno.status).toBe(200);
+    expect(conIdAjeno.body.establecimientoId).toBe(EST_A);
     const ajeno = await con(tokenB)(request(app).get(ruta(`/consumo?mes=${MES}`)));
     expect(ajeno.body.establecimientoId).toBe(EST_B);
 
@@ -230,5 +233,36 @@ describe.skipIf(!hayEntornoIntegracion)(`HU-39 · consumo por plan${hayEntornoIn
     expect(ajuste.body.cupo_sms_mes).toBe(cupoInicial + 1);
     // El histórico no se reescribe: la fila del mes sigue con el consumo ya registrado.
     expect((await con(tokenSuper)(request(app).get(ruta(`/superadmin/consumo/${EST_A}?mes=${MES}`)))).body.sms.usados).toBe(42);
+  }, 60000);
+
+  it('CA1/CA3: las alertas persistidas se consultan por sede y por plataforma con roles separados', async () => {
+    const propias = await con(tokenA)(request(app).get(ruta(`/consumo/alertas?mes=${MES}`)));
+    expect(propias.status).toBe(200);
+    expect(propias.body.mes).toBe(MES);
+    expect(propias.body.alertas).toEqual(expect.any(Array));
+
+    const { data: filasA } = await admin.from('consumo_alertas')
+      .select('id').eq('establecimiento_id', EST_A).eq('mes', FECHA_MES);
+    expect(propias.body.alertas).toHaveLength(filasA?.length ?? 0);
+    for (const alerta of propias.body.alertas) {
+      expect(alerta).toMatchObject({
+        establecimientoId: EST_A,
+        mes: MES,
+        destinatarioTipo: expect.any(String),
+        estado: expect.any(String),
+        detalle: expect.objectContaining({ consumo: expect.any(Number), cupo: expect.any(Number), porcentaje: expect.any(Number) }),
+      });
+    }
+
+    const globales = await con(tokenSuper)(request(app).get(ruta(`/superadmin/consumo/alertas?mes=${MES}`)));
+    expect(globales.status).toBe(200);
+    expect(globales.body.alertas.length).toBeGreaterThanOrEqual(propias.body.alertas.length);
+
+    const filtradas = await con(tokenSuper)(request(app).get(ruta(`/superadmin/consumo/alertas?mes=${MES}&establecimientoId=${EST_B}`)));
+    expect(filtradas.status).toBe(200);
+    expect(filtradas.body.alertas.every((a) => a.establecimientoId === EST_B)).toBe(true);
+
+    expect((await con(tokenA)(request(app).get(ruta(`/superadmin/consumo/alertas?mes=${MES}`)))).status).toBe(403);
+    expect((await con(tokenSuper)(request(app).get(ruta(`/consumo/alertas?mes=${MES}`)))).status).toBe(403);
   }, 60000);
 });

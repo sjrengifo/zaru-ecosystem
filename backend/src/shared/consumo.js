@@ -330,6 +330,55 @@ export async function reenviarAlertasPendientes({ db = supabase, proveedor } = {
   return { pendientes: (pendientes ?? []).length, enviadas };
 }
 
+const COLUMNAS_ALERTA = [
+  'id, establecimiento_id, mes, destinatario_tipo, estado, intentos,',
+  'detalle, error, enviada_at, created_at, actualizado_at',
+].join(' ');
+
+/** La tabla `detalle` es de auditoría: solo se exponen cifras, nunca el correo del destinatario. */
+function alertaPublica(fila) {
+  const detalle = fila.detalle && typeof fila.detalle === 'object' ? fila.detalle : {};
+  return {
+    id: fila.id,
+    establecimientoId: fila.establecimiento_id,
+    mes: String(fila.mes ?? '').slice(0, 7),
+    destinatarioTipo: fila.destinatario_tipo,
+    estado: fila.estado,
+    intentos: Number(fila.intentos ?? 0),
+    detalle: {
+      canal: detalle.canal ?? 'sms',
+      consumo: detalle.consumo ?? null,
+      cupo: detalle.cupo ?? null,
+      porcentaje: detalle.porcentaje ?? null,
+      restantes: detalle.restantes ?? null,
+    },
+    error: fila.error ?? null,
+    enviadaAt: fila.enviada_at ?? null,
+    creadaAt: fila.created_at ?? null,
+  };
+}
+
+/** CA1: el registro persistente de la alerta se consulta, no solo se escribe. */
+export async function consultarAlertasPropias(tenant, { mes, db = supabase } = {}) {
+  const periodo = validarMes(mes ?? mesBogota());
+  const { data, error } = await tenant.listar('consumo_alertas', COLUMNAS_ALERTA)
+    .eq('mes', fechaMes(periodo))
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return { mes: periodo, alertas: (data ?? []).map(alertaPublica) };
+}
+
+/** CA1/CA3: la plataforma consulta las alertas de todas las sedes; el filtro sigue siendo del backend. */
+export async function consultarAlertasGlobales({ mes, establecimientoId, db = supabase } = {}) {
+  const periodo = validarMes(mes ?? mesBogota());
+  if (establecimientoId !== undefined && !esUuid(establecimientoId)) throw noEncontrado('Establecimiento');
+  let consulta = db.from('consumo_alertas').select(COLUMNAS_ALERTA).eq('mes', fechaMes(periodo));
+  if (establecimientoId) consulta = consulta.eq('establecimiento_id', establecimientoId);
+  const { data, error } = await consulta.order('created_at', { ascending: false });
+  if (error) throw error;
+  return { mes: periodo, alertas: (data ?? []).map(alertaPublica) };
+}
+
 function filaConsumo(plan, consumoPorCanal) {
   const sms = informacionCanal(plan?.cupo_sms_mes, consumoPorCanal?.sms ?? 0);
   const correo = informacionCanal(plan?.cupo_correo_mes, consumoPorCanal?.correo ?? 0);
@@ -405,6 +454,27 @@ export async function consultarConsumoPropio(tenant, { mes, db = supabase } = {}
     // Push se contabiliza pero no tiene cupo: se muestra para que la sede vea su consumo real.
     push: informacionCanal(null, usados.push ?? 0),
   };
+}
+
+/**
+ * HU-39 CA2: ¿el SMS de la sede ya agotó el cupo antes de encolar un aviso?
+ * Solo consulta; no aparta ni cuenta consumo. Si la consulta falla, se continúa con la reserva
+ * atómica del envío (que sí es la fuente de verdad) para no interrumpir una notificación operativa.
+ */
+export async function smsSinCupo(tenant, { ahora = new Date(), db = supabase } = {}) {
+  // Sin conexión configurada no hay cupo consultable; se deja que la reserva atómica decida al enviar.
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { sinCupo: false, detalle: null };
+  }
+  try {
+    const consumo = await consultarConsumoPropio(tenant, { mes: mesBogota(ahora), db });
+    return { sinCupo: Boolean(consumo.sms?.agotado), detalle: consumo.sms };
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn('[HU-39] No se pudo consultar el cupo de SMS al preparar el aviso:', err?.message ?? err);
+    }
+    return { sinCupo: false, detalle: null };
+  }
 }
 
 /** Detalle de una sede para el panel global, con historial de periodos anteriores. */

@@ -360,6 +360,25 @@ describe('HU-29 CA4 · el envío usa solo los canales activos', () => {
       expect(sms.contenido.texto).toContain('recibimos tu vehículo XYZ987');
     });
 
+    it('HU-39 CA2: con el cupo de SMS agotado cancela el SMS al prepararlo y deja el correo operativo', async () => {
+      const tenant = tenantDeEnvio(filaConSms());
+      const cupoSms = { sinCupo: true, detalle: { usados: 5, cupo: 5, agotado: true } };
+      const resumen = await programarNotificacion(tenant, ORDEN_ID, 'listo', { cupoSms });
+
+      const filas = tenant.crear.mock.calls
+        .filter(([tabla]) => tabla === 'notificaciones')
+        .map(([, valores]) => valores);
+      expect(filas.map((f) => f.canal)).toEqual(['correo', 'sms']);
+      const correo = filas.find((f) => f.canal === 'correo');
+      const sms = filas.find((f) => f.canal === 'sms');
+      expect(correo.estado).toBe('pendiente');
+      expect(sms.estado).toBe('cancelada');
+      expect(sms.error).toBe('Cupo mensual de SMS agotado (5/5)');
+      expect(sms.contenido.motivoFallo).toBe('sin_cupo_sms');
+      expect(sms.proximo_intento_at).toBeNull();
+      expect(resumen).toMatchObject({ canal: 'correo', estado: 'pendiente' });
+    });
+
     it('con todos los canales desactivados no se envía nada y se informa el motivo', async () => {
       const tenant = tenantDeEnvio(fila({ canal_correo: false }));
       const resumen = await programarNotificacion(tenant, ORDEN_ID, 'listo');

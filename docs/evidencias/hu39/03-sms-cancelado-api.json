@@ -1,0 +1,100 @@
+{
+  "consumoDespues": {
+    "mes": "2026-11",
+    "establecimientoId": "bcbae27d-ee89-4f0b-8931-f79ff82b612a",
+    "nombre": "Lavadero Demo Zaru",
+    "plan": "intermedio",
+    "etiquetaPlan": "Intermedio",
+    "sms": {
+      "usados": 5,
+      "cupo": 5,
+      "restantes": 0,
+      "porcentaje": 100,
+      "alerta80": true,
+      "agotado": true
+    },
+    "correo": {
+      "usados": 13,
+      "cupo": 3000,
+      "restantes": 2987,
+      "porcentaje": 0.43,
+      "alerta80": false,
+      "agotado": false
+    },
+    "estado": "agotado",
+    "push": {
+      "usados": 0,
+      "cupo": null,
+      "restantes": null,
+      "porcentaje": null,
+      "alerta80": false,
+      "agotado": false
+    }
+  },
+  "notificacionSms": {
+    "id": "f837f52e-4343-4123-9693-419058229e40",
+    "fecha": "2026-11-24T17:10:03.485812+00:00",
+    "tipo": "operativa",
+    "evento": "orden.en_lavado",
+    "canal": "sms",
+    "estado": "fallida",
+    "cliente": "Adri",
+    "placa": "QZZ401",
+    "codigoSeguimiento": "F54DKA24YP",
+    "destino": "305****264",
+    "asunto": "Tu vehículo ya inició el lavado: QZZ401",
+    "proveedor": null,
+    "aceptadaPorProveedor": false,
+    "entregada": false,
+    "entregadaAt": null,
+    "totalIntentos": 1,
+    "error": "Cupo mensual de SMS agotado (5/5)",
+    "motivoFallo": "sin_cupo_sms",
+    "notificacionOrigenId": null,
+    "programadaPara": "2026-11-24T17:10:03.485812+00:00",
+    "proximoIntentoAt": null,
+    "intentos": [
+      {
+        "intento": 1,
+        "canal": "sms",
+        "resultado": "fallido",
+        "proveedor": null,
+        "idProveedor": null,
+        "entregado": false,
+        "recuperable": false,
+        "error": "Cupo mensual de SMS agotado (5/5)",
+        "motivoFallo": "sin_cupo_sms",
+        "fecha": "2026-11-24T17:10:05.229613+00:00"
+      }
+    ],
+    "detalleIntentos": true,
+    "alterno": {
+      "id": "b09406fb-7108-4c98-81b7-e8d0e24b16e9",
+      "canal": "correo",
+      "estado": "enviada"
+    }
+  },
+  "notificacionCorreo": {
+    "id": "b09406fb-7108-4c98-81b7-e8d0e24b16e9",
+    "fecha": "2026-11-24T17:10:02.908637+00:00",
+    "tipo": "operativa",
+    "evento": "orden.en_lavado",
+    "canal": "correo",
+    "estado": "enviada",
+    "cliente": "Adri",
+    "placa": "QZZ401",
+    "codigoSeguimiento": "F54DKA24YP",
+    "destino": "adr****@gmail.com",
+    "asunto": "Tu vehículo ya inició el lavado: QZZ401",
+    "proveedor": "consola",
+    "aceptadaPorProveedor": true,
+    "entregada": false,
+    "entregadaAt": null,
+    "totalIntentos": 1,
+    "error": null,
+    "motivoFallo": null,
+    "notificacionOrigenId": null,
+    "programadaPara": "2026-11-24T17:10:02.908637+00:00",
+    "proximoIntentoAt": null
+  }
+}

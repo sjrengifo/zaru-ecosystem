@@ -5,11 +5,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   actualizarPlanConsumo,
+  listarAlertasConsumoGlobales,
   listarPlanesConsumo,
   obtenerDetalleConsumo,
   obtenerReporteConsumo,
 } from '../services/consumo.js';
 import {
+  ETIQUETAS_DESTINATARIO_ALERTA,
+  ETIQUETAS_ESTADO_ALERTA,
   ETIQUETAS_ESTADO_CONSUMO,
   FILTROS_CONSUMO,
   anchoBarra,
@@ -25,6 +28,7 @@ import {
   ultimosPeriodos,
 } from '../lib/consumo.js';
 import { PLANES } from '../lib/establecimientos.js';
+import { fechaYHora } from '../lib/notificaciones.js';
 import Cargando from './Cargando.jsx';
 import MensajeError from './MensajeError.jsx';
 import Modal from './Modal.jsx';
@@ -224,6 +228,7 @@ export default function ConsumoPorPlan() {
   const [mes, setMes] = useState(() => mesBogota());
   const [reporte, setReporte] = useState(null);
   const [planes, setPlanes] = useState([]);
+  const [alertas, setAlertas] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [buscar, setBuscar] = useState('');
@@ -237,9 +242,14 @@ export default function ConsumoPorPlan() {
     setError('');
     try {
       // Si falla el catálogo de planes, el reporte tampoco puede calcular cupos: se informa el error.
-      const [datos, catalogo] = await Promise.all([obtenerReporteConsumo(mes), listarPlanesConsumo()]);
+      const [datos, catalogo, registroAlertas] = await Promise.all([
+        obtenerReporteConsumo(mes),
+        listarPlanesConsumo(),
+        listarAlertasConsumoGlobales(mes),
+      ]);
       setReporte(datos);
       setPlanes(catalogo);
+      setAlertas(registroAlertas);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -266,6 +276,16 @@ export default function ConsumoPorPlan() {
       setCargandoDetalle(false);
     }
   }
+
+  const nombresSedes = useMemo(() => new Map(
+    (reporte?.establecimientos ?? []).map((sede) => [sede.establecimientoId, sede.nombre]),
+  ), [reporte]);
+
+  const alertasVisibles = useMemo(() => {
+    const texto = buscar.trim().toLocaleLowerCase('es-CO');
+    return (alertas?.alertas ?? []).filter((alerta) =>
+      !texto || String(nombresSedes.get(alerta.establecimientoId) ?? '').toLocaleLowerCase('es-CO').includes(texto));
+  }, [alertas, buscar, nombresSedes]);
 
   const hayConsumo = (reporte?.resumen?.smsConsumidos ?? 0) + (reporte?.resumen?.correosConsumidos ?? 0) > 0;
   const meses = useMemo(() => opcionesMes(), []);
@@ -376,6 +396,49 @@ export default function ConsumoPorPlan() {
               </div>
             )}
           </div>
+
+          <section className="tarjeta consumo-alertas" id="alertas-consumo" aria-labelledby="titulo-alertas-consumo">
+            <div className="consumo-encabezado">
+              <div>
+                <h3 id="titulo-alertas-consumo">Alertas del 80 % registradas</h3>
+                <p className="texto-suave">
+                  Entregas persistidas por establecimiento y destinatario, con el estado real del correo.
+                </p>
+              </div>
+            </div>
+            {alertas?.alertas?.length ? (
+              <div className="tabla-contenedor">
+                <table className="tabla tabla-consumo">
+                  <thead>
+                    <tr>
+                      <th>Establecimiento</th><th>Periodo</th><th>Destinatario</th>
+                      <th>Estado</th><th>Intentos</th><th>Fecha</th><th>Consumo al alertar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alertasVisibles.map((alerta) => (
+                      <tr key={alerta.id}>
+                        <td data-etiqueta="Establecimiento">{nombresSedes.get(alerta.establecimientoId) ?? alerta.establecimientoId}</td>
+                        <td data-etiqueta="Periodo">{etiquetaMes(alerta.mes)}</td>
+                        <td data-etiqueta="Destinatario">{ETIQUETAS_DESTINATARIO_ALERTA[alerta.destinatarioTipo] ?? alerta.destinatarioTipo}</td>
+                        <td data-etiqueta="Estado">
+                          <span className={`insignia-consumo insignia-${alerta.estado === 'enviada' ? 'normal' : 'advertencia'}`}>
+                            {ETIQUETAS_ESTADO_ALERTA[alerta.estado] ?? alerta.estado}
+                          </span>
+                        </td>
+                        <td data-etiqueta="Intentos">{alerta.intentos}</td>
+                        <td data-etiqueta="Fecha">{fechaYHora(alerta.enviadaAt ?? alerta.creadaAt)}</td>
+                        <td data-etiqueta="Consumo al alertar">
+                          {textoNumero(alerta.detalle?.consumo)} / {textoNumero(alerta.detalle?.cupo)} · {textoPorcentaje(alerta.detalle?.porcentaje)}
+                          {alerta.error ? <div className="texto-suave">{alerta.error}</div> : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="texto-suave">No hay alertas registradas en el periodo consultado.</p>}
+          </section>
 
           {planes.length > 0 && <CatalogoPlanes planes={planes} onGuardado={cargar} />}
         </>

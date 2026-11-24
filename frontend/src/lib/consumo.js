@@ -13,6 +13,17 @@ export const ETIQUETAS_ESTADO_CONSUMO = {
   agotado: 'Cupo agotado',
 };
 
+export const ETIQUETAS_ESTADO_ALERTA = {
+  pendiente: 'Pendiente de envío',
+  enviada: 'Correo enviado',
+  fallida: 'Falló el envío',
+};
+
+export const ETIQUETAS_DESTINATARIO_ALERTA = {
+  sede: 'Administrador de la sede',
+  plataforma: 'Superadministrador',
+};
+
 export function pluralizar(cantidad, singular, plural) {
   return cantidad === 1 ? singular : plural;
 }

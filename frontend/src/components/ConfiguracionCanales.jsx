@@ -2,10 +2,13 @@
 // Los datos vienen siempre del backend: el front no calcula cupos ni simula entregas.
 import { useCallback, useEffect, useState } from 'react';
 import { guardarCanales, listarCanales } from '../services/canales.js';
-import { obtenerConsumoPropio } from '../services/consumo.js';
+import { listarAlertasConsumoPropias, obtenerConsumoPropio } from '../services/consumo.js';
 import { enviarPruebaNotificacion } from '../services/notificaciones.js';
+import { fechaYHora } from '../lib/notificaciones.js';
 import { activarPushAdministrador, desactivarPushAdministrador } from '../lib/pushAdmin.js';
 import {
+  ETIQUETAS_DESTINATARIO_ALERTA,
+  ETIQUETAS_ESTADO_ALERTA,
   ETIQUETAS_ESTADO_CONSUMO,
   anchoBarra,
   claseBarra,
@@ -149,6 +152,54 @@ function PanelConsumo({ consumo, error, onReintentar }) {
   );
 }
 
+function PanelAlertas({ alertas, error, onReintentar }) {
+  return (
+    <section className="tarjeta canales-seccion" id="alertas-consumo-sede" aria-labelledby="titulo-alertas-consumo-sede">
+      <div className="canales-encabezado">
+        <div>
+          <h3 id="titulo-alertas-consumo-sede">Alertas del 80 % registradas</h3>
+          <p className="texto-suave">
+            Persistencia real de la alerta, con destinatario y resultado del correo; no se calcula desde la pantalla.
+          </p>
+        </div>
+        <button type="button" className="boton secundario boton-pequeno" onClick={onReintentar}>Actualizar alertas</button>
+      </div>
+      {error && <p className="aviso aviso-error" role="alert">No se pudo cargar el registro de alertas: {error}</p>}
+      {!error && !alertas && <Cargando texto="Cargando las alertas registradas…" className="cargando-bloque" />}
+      {!error && alertas && (
+        alertas.alertas?.length ? (
+          <div className="tabla-contenedor">
+            <table className="tabla tabla-canales-consumo">
+              <thead>
+                <tr><th>Periodo</th><th>Destinatario</th><th>Estado</th><th>Intentos</th><th>Fecha</th><th>Consumo al alertar</th></tr>
+              </thead>
+              <tbody>
+                {(alertas.alertas ?? []).map((alerta) => (
+                  <tr key={alerta.id}>
+                    <td data-etiqueta="Periodo">{etiquetaMes(alerta.mes)}</td>
+                    <td data-etiqueta="Destinatario">{ETIQUETAS_DESTINATARIO_ALERTA[alerta.destinatarioTipo] ?? alerta.destinatarioTipo}</td>
+                    <td data-etiqueta="Estado">
+                      <span className={alerta.estado === 'enviada' ? 'aviso aviso-exito' : 'aviso aviso-advertencia'}>
+                        {ETIQUETAS_ESTADO_ALERTA[alerta.estado] ?? alerta.estado}
+                      </span>
+                    </td>
+                    <td data-etiqueta="Intentos">{alerta.intentos}</td>
+                    <td data-etiqueta="Fecha">{fechaYHora(alerta.enviadaAt ?? alerta.creadaAt)}</td>
+                    <td data-etiqueta="Consumo al alertar">
+                      {textoNumero(alerta.detalle?.consumo)} / {textoNumero(alerta.detalle?.cupo)} SMS · {textoPorcentaje(alerta.detalle?.porcentaje)}
+                      {alerta.error ? <div className="texto-suave">{alerta.error}</div> : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="texto-suave">Todavía no hay alertas registradas para este mes.</p>
+      )}
+    </section>
+  );
+}
+
 function PanelPrueba({ canales, enviando, resultado, error, onEnviar }) {
   const [canal, setCanal] = useState('');
   const opciones = canales.length
@@ -231,20 +282,23 @@ function PanelPrueba({ canales, enviando, resultado, error, onEnviar }) {
 export default function ConfiguracionCanales() {
   const [canales, setCanales] = useState([]);
   const [consumo, setConsumo] = useState(null);
+  const [alertas, setAlertas] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [errorCanales, setErrorCanales] = useState('');
   const [errorConsumo, setErrorConsumo] = useState('');
+  const [errorAlertas, setErrorAlertas] = useState('');
   const [errorPrueba, setErrorPrueba] = useState('');
   const [resultado, setResultado] = useState(null);
   const [pushAdmin, setPushAdmin] = useState({ ocupado: false, mensaje: '', error: false });
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    const [respuestaCanales, respuestaConsumo] = await Promise.allSettled([
+    const [respuestaCanales, respuestaConsumo, respuestaAlertas] = await Promise.allSettled([
       listarCanales(),
       obtenerConsumoPropio(),
+      listarAlertasConsumoPropias(),
     ]);
     if (respuestaCanales.status === 'fulfilled') {
       setCanales(respuestaCanales.value);
@@ -257,6 +311,12 @@ export default function ConfiguracionCanales() {
       setErrorConsumo('');
     } else {
       setErrorConsumo(respuestaConsumo.reason?.message ?? 'Error desconocido');
+    }
+    if (respuestaAlertas.status === 'fulfilled') {
+      setAlertas(respuestaAlertas.value);
+      setErrorAlertas('');
+    } else {
+      setErrorAlertas(respuestaAlertas.reason?.message ?? 'Error desconocido');
     }
     setCargando(false);
   }, []);
@@ -378,6 +438,7 @@ export default function ConfiguracionCanales() {
         onDesactivar={desactivarPush}
       />
       <PanelConsumo consumo={consumo} error={errorConsumo} onReintentar={cargar} />
+      <PanelAlertas alertas={alertas} error={errorAlertas} onReintentar={cargar} />
       <PanelPrueba canales={canales} enviando={enviando} resultado={resultado} error={errorPrueba} onEnviar={enviar} />
     </div>
   );

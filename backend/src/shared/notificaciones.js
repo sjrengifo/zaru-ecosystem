@@ -43,7 +43,7 @@ import { NOMBRE_ESTADO, PLANTILLAS, enlaceSeguimiento, plantillaPromocion } from
 import { olvidarSuscripcionVencida, suscripcionComoDestino, suscripcionVigente } from './suscripcionesPush.js';
 import { enlaceBaja, puedeRecibir, TIPOS } from './autorizaciones.js';
 import { crearAccesoTenant } from './tenant.js';
-import { reservarConsumo, confirmarConsumo, liberarConsumo, notificarAlerta80 } from './consumo.js';
+import { reservarConsumo, confirmarConsumo, liberarConsumo, notificarAlerta80, smsSinCupo } from './consumo.js';
 import { enlaceRecordatorio } from './tokenRecordatorio.js';
 
 export const EVENTOS = {
@@ -272,6 +272,15 @@ export async function prepararSms(tenant, { evento, ordenId }, opciones = {}) {
       servicios: (orden.orden_servicios ?? []).map((s) => ({ nombre: s.servicios?.nombre ?? 'Servicio', precio: s.precio })),
     });
 
+    // HU-39 CA2: si el cupo ya estaba agotado cuando se generó el aviso, la fila se deja cancelada
+    // y nunca queda en la cola: ningún worker (ni uno desplegado con código anterior) puede enviar
+    // ese SMS. El aviso operativo sigue por correo o push, que se preparan en paralelo.
+    const sinCupo = opciones.sinCupo === true;
+    const detalleCupo = opciones.consumo?.sms ?? {};
+    const errorCupo = sinCupo
+      ? `Cupo mensual de SMS agotado (${detalleCupo.usados ?? 0}/${detalleCupo.cupo ?? 0})`
+      : null;
+
     let fila;
     try {
       fila = await tenant.crear('notificaciones', {
@@ -284,14 +293,28 @@ export async function prepararSms(tenant, { evento, ordenId }, opciones = {}) {
         contenido: {
           asunto: plantilla.asunto,
           texto: textoAvisoSms(evento, { establecimiento, placa: vehiculo.placa, total: orden.total, hora: horaCambio }),
+          ...(sinCupo ? { motivoFallo: 'sin_cupo_sms' } : {}),
         },
-        estado: 'pendiente',
+        estado: sinCupo ? 'cancelada' : 'pendiente',
         clave_dedupe: claveDedupe(orden.id, evento, 'sms'),
+        ...(sinCupo ? { error: errorCupo, intentos: 0, proximo_intento_at: null } : {}),
       }, '*');
     } catch (err) {
       // RNF-F6-04: el mismo evento de la misma orden nunca genera un segundo SMS.
       if (err.codigo === 'CONFLICTO') return { resumen: resumenSms('duplicada'), enviar: sinEnvio };
       throw err;
+    }
+
+    if (sinCupo) {
+      return {
+        resumen: resumenSms('cancelada', {
+          motivo: 'sin_cupo_sms',
+          error: errorCupo,
+          id: fila.id,
+          destino: enmascararCelular(preferencias.telefonoSms),
+        }),
+        enviar: sinEnvio,
+      };
     }
 
     return {
@@ -421,8 +444,26 @@ export async function enviarCorreo(tenant, { id, para, mensaje }, opciones = {})
 
   for (let intento = 1; intento <= MAX_INTENTOS; intento += 1) {
     await marcar(tenant, id, { estado: 'enviando', intentos: intento });
+
+    // HU-39: este camino también contabiliza lo que el proveedor acepta. La reserva usa el id de la
+    // notificación como referencia, la misma que usa el worker: si ambos caminos se cruzan, la RPC
+    // es idempotente y el envío no se cuenta dos veces. El correo nunca se bloquea por cupo.
+    try {
+      await reservarConsumo(tenant, { canal: 'correo', referencia: id });
+    } catch (err) {
+      console.error('[HU-39] No se pudo apartar el consumo del correo:', err?.message ?? err);
+    }
+
     try {
       const { idProveedor } = await conTiempoMaximo(proveedor.enviar({ para, ...mensaje, referencia: id }), tiempoMaximo);
+
+      try {
+        const confirmacion = await confirmarConsumo(tenant, { canal: 'correo', referencia: id });
+        if (confirmacion?.alerta_80) await notificarAlerta80(confirmacion.alerta_80);
+      } catch (err) {
+        console.error('[HU-39] No se pudo contabilizar el correo aceptado:', err?.message ?? err);
+      }
+
       await marcar(tenant, id, {
         estado: 'enviada',
         error: null,
@@ -449,6 +490,12 @@ export async function enviarCorreo(tenant, { id, para, mensaje }, opciones = {})
     } catch (err) {
       const { recuperable, motivo } = clasificarError(err);
       ultimoError = motivo;
+      // El proveedor no aceptó el mensaje: la reserva no cuenta ni ocupa el cupo (CA2).
+      try {
+        await liberarConsumo(tenant, { canal: 'correo', referencia: id });
+      } catch (liberacion) {
+        console.error('[HU-39] No se pudo liberar el consumo del correo:', liberacion?.message ?? liberacion);
+      }
       await registrarIntento(tenant, {
         notificacionId: id,
         intento,
@@ -1160,7 +1207,7 @@ export async function alRevertirEstado(tenant, ordenId, estadoRevertido, { ahora
  * Con el worker activo (producción/desarrollo) el envío queda solo en la cola, para que no haya dos
  * envíos del mismo mensaje. En pruebas o con NOTIFICACIONES_WORKER=off se envía en segundo plano.
  */
-export async function programarNotificacion(tenant, ordenId, tipo) {
+export async function programarNotificacion(tenant, ordenId, tipo, opciones = {}) {
   // `ingreso` se conserva por compatibilidad; el resto son estados del flujo (HU-31).
   const evento = tipo === 'ingreso' ? EVENTOS.RECIBIDA : eventoDeEstado(tipo) ?? EVENTOS.LISTA;
   const workerActivo = process.env.NODE_ENV !== 'test' && String(process.env.NOTIFICACIONES_WORKER ?? 'on') !== 'off';
@@ -1177,11 +1224,25 @@ export async function programarNotificacion(tenant, ordenId, tipo) {
     orden = undefined;
   }
 
+  // HU-39 CA2: consultar el cupo ANTES de encolar evita que un worker con código anterior envíe un SMS
+  // que ya no tiene cupo. La reserva atómica al enviar sigue siendo la fuente de verdad para la
+  // carrera entre workers; aquí solo se decide si la fila nace cancelada.
+  const cupoSms = orden && preferencias?.sms && !opciones.cupoSms
+    ? await smsSinCupo(tenant, { ahora: opciones.ahora, db: opciones.db })
+    : opciones.cupoSms ?? { sinCupo: false, detalle: null };
+
   // CA4: el correo solo sale si el cliente lo dejó activo (sin preferencias guardadas, sale como siempre).
   const correo = preferencias && !preferencias.correo
     ? { resumen: resumen('omitida', { motivo: 'canal_inactivo' }), enviar: async () => null }
     : await prepararCorreo(tenant, { evento, ordenId }, { orden });
-  const sms = orden && preferencias?.sms ? await prepararSms(tenant, { evento, ordenId }, { orden, preferencias }) : null;
+  const sms = orden && preferencias?.sms
+    ? await prepararSms(tenant, { evento, ordenId }, {
+      orden,
+      preferencias,
+      sinCupo: cupoSms.sinCupo,
+      consumo: { sms: cupoSms.detalle },
+    })
+    : null;
   // HU-40: push solo si el cliente lo activó y tiene un dispositivo registrado (canalesActivos lo verifica).
   const push = orden && preferencias?.push ? await prepararPush(tenant, { evento, ordenId }, { orden }) : null;
 

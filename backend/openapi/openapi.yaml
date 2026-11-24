@@ -2373,6 +2373,26 @@ paths:
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
 
+  /consumo/alertas:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/MesConsumo'
+      tags: [Consumo por plan]
+      operationId: obtenerAlertasConsumoPropias
+      summary: Consultar las alertas del 80 % registradas para la sede de la sesión
+      description: >-
+        HU-39 CA1. Devuelve las filas persistidas en `consumo_alertas` para el establecimiento de la
+        sesión. El tenant sale del perfil autenticado, nunca de la petición.
+      responses:
+        '200':
+          description: Alertas del mes, con estado real de entrega y motivos de fallo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertasConsumo' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
   /superadmin/establecimientos:
     get:
       parameters:
@@ -2502,6 +2522,28 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ReporteConsumo' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /superadmin/consumo/alertas:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/MesConsumo'
+        - in: query
+          name: establecimientoId
+          description: Filtro opcional por sede; sin él se devuelven todas las alertas de la plataforma.
+          schema: { type: string, format: uuid }
+      tags: [Consumo por plan]
+      operationId: obtenerAlertasConsumoGlobales
+      summary: Consultar el registro de alertas del 80 % de todas las sedes
+      description: HU-39 CA1. Solo superadministrador. Las filas salen de `consumo_alertas`, no de un cálculo de pantalla.
+      responses:
+        '200':
+          description: Alertas del mes con su establecimiento y estado de entrega.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertasConsumo' }
         '400': { $ref: '#/components/responses/Validacion' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
@@ -4055,6 +4097,11 @@ components:
         entregadaAt: { type: [string, 'null'], format: date-time }
         totalIntentos: { type: integer, minimum: 0 }
         error: { type: [string, 'null'], description: Motivo real del último fallo del proveedor. }
+        motivoFallo:
+          type: [string, 'null']
+          enum: [sin_cupo_sms, null]
+          description: HU-39 CA2. Presente cuando el SMS se canceló por agotamiento del cupo.
+        notificacionOrigenId: { type: [string, 'null'], format: uuid }
         programadaPara: { type: [string, 'null'], format: date-time }
         proximoIntentoAt: { type: [string, 'null'], format: date-time }
 
@@ -4070,6 +4117,7 @@ components:
         entregado: { type: boolean }
         recuperable: { type: [boolean, 'null'], description: Si el error se podía reintentar. }
         error: { type: [string, 'null'] }
+        motivoFallo: { type: [string, 'null'], enum: [sin_cupo_sms, null], description: HU-39 CA2. }
         fecha: { type: string, format: date-time }
 
     AlertaNotificacion:
@@ -4110,6 +4158,13 @@ components:
             detalleIntentos:
               type: boolean
               description: false si la tabla de auditoría todavía no está aplicada en el ambiente.
+            alterno:
+              type: [object, 'null']
+              description: HU-39 CA2. Aviso de la misma cadena que continuó por otro canal tras la cancelación del SMS.
+              properties:
+                id: { type: string, format: uuid }
+                canal: { type: string, enum: [push, sms, correo] }
+                estado: { type: string }
 
     BitacoraNotificaciones:
       type: object
@@ -4213,6 +4268,37 @@ components:
             historial:
               type: array
               items: { $ref: '#/components/schemas/HistorialConsumoMes' }
+    AlertaConsumo80:
+      type: object
+      description: Registro persistente de una entrega de la alerta del 80 % (HU-39 CA1).
+      required: [id, establecimientoId, mes, destinatarioTipo, estado, intentos]
+      properties:
+        id: { type: string, format: uuid }
+        establecimientoId: { type: string, format: uuid }
+        mes: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$', example: '2026-11' }
+        destinatarioTipo: { type: string, enum: [sede, plataforma] }
+        estado: { type: string, enum: [pendiente, enviada, fallida] }
+        intentos: { type: integer, minimum: 0 }
+        detalle:
+          type: object
+          description: Cifras del cupo al cruzar el umbral; nunca incluye correos.
+          properties:
+            canal: { type: string, example: sms }
+            consumo: { type: [integer, 'null'] }
+            cupo: { type: [integer, 'null'] }
+            porcentaje: { type: [number, 'null'] }
+            restantes: { type: [integer, 'null'] }
+        error: { type: [string, 'null'] }
+        enviadaAt: { type: [string, 'null'], format: date-time }
+        creadaAt: { type: string, format: date-time }
+    AlertasConsumo:
+      type: object
+      required: [mes, alertas]
+      properties:
+        mes: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' }
+        alertas:
+          type: array
+          items: { $ref: '#/components/schemas/AlertaConsumo80' }
     PlanCupo:
       type: object
       required: [nombre, etiqueta, cupo_sms_mes, cupo_correo_mes]

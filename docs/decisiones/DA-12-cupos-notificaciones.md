@@ -44,6 +44,11 @@ SMS agota el cupo y provoca el respaldo a otro canal; el correo también se cont
   cupos sembrados ni el historial real.
 - No se edita la migración ya aplicada. Si en el futuro el PO cambia las cifras, se actualizan en
   `public.planes` con la API de superadministrador.
+- El encabezado de `20261119100000_hu39_consumo_por_plan.sql` conserva el texto original («propuesta
+  sujeta a confirmación formal») porque una migración aplicada nunca se reescribe
+  ([`../base-de-datos.md`](../base-de-datos.md), regla 1). Ese texto es un artefacto histórico: este
+  documento y [`../../specs/backend/06-decisiones-abiertas.md`](../../specs/backend/06-decisiones-abiertas.md)
+  son la fuente autoritativa del estado aprobado.
 
 ## Verificación posterior a la aprobación
 
@@ -54,6 +59,12 @@ order by nombre;
 ```
 
 Debe devolver exactamente las tres filas y los seis valores de la tabla anterior.
+
+**Estado de esta verificación:** se confirmó en Supabase el 2026-11-22 la existencia de `planes`,
+`config_canales`, `suscripciones_push` y `notificaciones_push_admin`, con `rls_activa = true`. La consulta
+de los seis valores de cupo de esta sección **no ha sido ejecutada ni adjuntada como evidencia**, por lo
+que no se reporta como verificada en campo; los valores de la tabla son la decisión aprobada, no un
+resultado observado.
 
 ## Registro de decisión
 

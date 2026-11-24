@@ -8,7 +8,11 @@ export const mesConsumo = z
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Use YYYY-MM (por ejemplo, 2026-11)');
 
 export const filtroConsumo = z
-  .object({ mes: mesConsumo.optional() })
+  .object({
+    mes: mesConsumo.optional(),
+    // Solo filtra el reporte global; las rutas de sede lo ignoran porque el tenant sale de la sesión.
+    establecimientoId: z.string().uuid('El establecimiento debe ser un UUID válido').optional(),
+  })
   .strict();
 
 export const idEstablecimientoConsumo = z.object({

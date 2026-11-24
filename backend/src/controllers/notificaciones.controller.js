@@ -14,10 +14,15 @@ import { AppError } from '../shared/errores.js';
 import { finDiaBogotaExclusivo, inicioDiaBogota } from '../shared/reportes.js';
 import { enviarPruebaCanales } from '../shared/pruebaCanales.js';
 import { eliminarDispositivoAdmin, registrarDispositivoAdmin } from '../shared/suscripcionesPushAdmin.js';
+import { cadenaDe } from '../shared/notificaciones.js';
+
+// HU-39 CA2: el error de la RPC es la fuente de verdad; el prefijo establece el motivo sin migrar el enum.
+const MOTIVO_CUPO = 'Cupo mensual de SMS agotado';
 
 const COLUMNAS = [
   'id, created_at, tipo, evento, canal, estado, intentos, error, destino, contenido,',
-  'programada_para, proximo_intento_at,',
+  // HU-39 CA2: `cadenaDe` necesita orden_id para mostrar el canal alterno del mismo aviso.
+  'programada_para, proximo_intento_at, notificacion_origen_id, orden_id,',
   'cliente:clientes(nombre),',
   'orden:ordenes(id, codigo_seguimiento, vehiculo:vehiculos(placa))',
 ].join(' ');
@@ -63,6 +68,8 @@ function filaPublica(fila) {
     entregadaAt: contenido.entregadaAt ?? null,
     totalIntentos: numero(fila.intentos),
     error: fila.error ?? null,
+    motivoFallo: String(fila.error ?? '').startsWith(MOTIVO_CUPO) ? 'sin_cupo_sms' : null,
+    notificacionOrigenId: fila.notificacion_origen_id ?? null,
     programadaPara: fila.programada_para ?? null,
     proximoIntentoAt: fila.proximo_intento_at ?? null,
   };
@@ -219,6 +226,7 @@ export async function obtener(req, res, next) {
         entregado: bool(i.entregado),
         recuperable: i.recuperable,
         error: i.error,
+        motivoFallo: String(i.error ?? '').startsWith(MOTIVO_CUPO) ? 'sin_cupo_sms' : null,
         fecha: i.created_at,
       }));
     } catch (err) {
@@ -226,7 +234,17 @@ export async function obtener(req, res, next) {
       console.warn('[HU-34] Detalle de intentos no disponible:', err?.message ?? err);
     }
 
-    res.json({ ...filaPublica(fila), intentos, detalleIntentos });
+    // HU-39 CA2: el intento cancelado por cupo y el aviso que siguió por otro canal comparten cadena.
+    let alterno = null;
+    try {
+      const cadena = await cadenaDe(req.tenant, fila);
+      const otra = cadena.find((f) => f.id !== fila.id);
+      if (otra) alterno = { id: otra.id, canal: otra.canal, estado: otra.estado };
+    } catch (err) {
+      console.warn('[HU-39] No se pudo consultar el canal alterno:', err?.message ?? err);
+    }
+
+    res.json({ ...filaPublica(fila), intentos, detalleIntentos, alterno });
   } catch (err) {
     next(err);
   }

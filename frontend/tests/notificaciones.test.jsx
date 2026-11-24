@@ -43,11 +43,12 @@ const consumo = () => ({
   estado: 'normal',
 });
 
-/** Los tres endpoints tienen formas distintas: responder por URL evita mocks que se contaminen. */
-const responder = (url) => {
+/** Los endpoints tienen formas distintas: responder por URL evita mocks que se contaminen. */
+const responder = (url, consumoPersonalizado = consumo()) => {
   if (url === '/configuracion/notificaciones') return configuracion();
   if (url === '/configuracion/canales') return canales();
-  if (url.startsWith('/consumo')) return consumo();
+  if (url === '/consumo/alertas') return { mes: '2026-11', alertas: [] };
+  if (url.startsWith('/consumo')) return consumoPersonalizado;
   throw new Error(`URL inesperada: ${url}`);
 };
 
@@ -177,9 +178,8 @@ describe('HU-39 · canales, consumo y prueba real en la sede', () => {
   });
 
   it('muestra la alerta al 80 % sin inventar cifras: salen del consumo del backend', async () => {
-    api.get.mockImplementation((url) => Promise.resolve(url.startsWith('/consumo')
-      ? consumoCon({ usados: 160, porcentaje: 80, restantes: 40, alerta80: true }, { estado: 'advertencia' })
-      : responder(url)));
+    api.get.mockImplementation((url) => Promise.resolve(responder(url,
+      consumoCon({ usados: 160, porcentaje: 80, restantes: 40, alerta80: true }, { estado: 'advertencia' }))));
     abrir();
 
     expect(await screen.findByRole('alert')).toHaveTextContent('alcanzaste el 80 % del cupo mensual de SMS');
@@ -190,9 +190,8 @@ describe('HU-39 · canales, consumo y prueba real en la sede', () => {
   });
 
   it('muestra el cupo agotado y explica que los avisos operativos siguen saliendo', async () => {
-    api.get.mockImplementation((url) => Promise.resolve(url.startsWith('/consumo')
-      ? consumoCon({ usados: 200, porcentaje: 100, restantes: 0, alerta80: true, agotado: true }, { estado: 'agotado' })
-      : responder(url)));
+    api.get.mockImplementation((url) => Promise.resolve(responder(url,
+      consumoCon({ usados: 200, porcentaje: 100, restantes: 0, alerta80: true, agotado: true }, { estado: 'agotado' }))));
     abrir();
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Cupo de SMS agotado');

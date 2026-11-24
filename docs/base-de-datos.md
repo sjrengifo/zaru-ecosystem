@@ -72,7 +72,7 @@ La tabla `config_canales` (migración `20261119110000_hu31_preferencias_canales.
 
 La tabla `campanas` (HU-35) guarda la promoción elegida (con una copia `promocion_snapshot` para que el mensaje no cambie si la promoción se edita), el `segmento` (días sin visita, servicios usados y tipos de vehículo), la hora pedida (`programada_solicitada`) y la ya ajustada al horario de Bogotá (`programada_para`), además de los conteos de destinatarios y exclusiones. La función `segmento_campana` calcula el segmento y devuelve un `motivo` por cliente (`sin_autorizacion`, `limite_semanal`, `sin_correo` o nulo); el backend solo envía a los de motivo nulo. Al materializar, cada destinatario entra en `notificaciones` con `tipo = 'comercial'`, `prioridad = 2` y `campana_id`, y la función `reclamar_comercial` vuelve a validar autorización y límite semanal antes de cada envío.
 
-HU-39 agrega `planes` (catálogo global con los cupos propuestos por DA-12, pendientes de confirmación del PO), `consumo_mensual`, `consumo_reservas` y `consumo_alertas`. El periodo es el primer día del mes en `America/Bogota`. `hu39_reservar_consumo` aparta una unidad antes de llamar al proveedor y es idempotente por `(establecimiento, mes, canal, referencia)`; `hu39_confirmar_consumo` la convierte en envío aceptado y devuelve una sola vez el cruce del 80 % de SMS; `hu39_liberar_consumo` revierte la reserva si el proveedor falló. Las tres RPC bloquean la fila del contador para que varios workers no dupliquen el conteo ni la alerta. `consumo_alertas` guarda una fila por destinatario y mes: si el correo falla, el worker reintenta esa misma fila (máximo 3 intentos) sin crear una alerta nueva. Solo el SMS tiene cupo limitante; correo y push se contabilizan pero no bloquean avisos operativos. `planes` es la única tabla global: `establecimientos.plan` sigue siendo la columna que decide qué cupo aplica. Las FK de las tres tablas de consumo usan `ON DELETE RESTRICT` para conservar el historial si se elimina una sede; las políticas RLS se crean solo si no existen y se valida su definición antes de reemplazarlas, sin deshabilitar RLS ni borrar políticas ajenas. Las RPC son `SECURITY DEFINER` con `search_path = public, pg_temp` y solo las ejecuta `service_role`.
+HU-39 agrega `planes` (catálogo global con los cupos aprobados por DA-12 el 22 nov 2026; ver [`decisiones/DA-12-cupos-notificaciones.md`](decisiones/DA-12-cupos-notificaciones.md)), `consumo_mensual`, `consumo_reservas` y `consumo_alertas`. El periodo es el primer día del mes en `America/Bogota`. `hu39_reservar_consumo` aparta una unidad antes de llamar al proveedor y es idempotente por `(establecimiento, mes, canal, referencia)`; `hu39_confirmar_consumo` la convierte en envío aceptado y devuelve una sola vez el cruce del 80 % de SMS; `hu39_liberar_consumo` revierte la reserva si el proveedor falló. Las tres RPC bloquean la fila del contador para que varios workers no dupliquen el conteo ni la alerta. `consumo_alertas` guarda una fila por destinatario y mes: si el correo falla, el worker reintenta esa misma fila (máximo 3 intentos) sin crear una alerta nueva. Solo el SMS tiene cupo limitante; correo y push se contabilizan pero no bloquean avisos operativos. `planes` es la única tabla global: `establecimientos.plan` sigue siendo la columna que decide qué cupo aplica. Las FK de las tres tablas de consumo usan `ON DELETE RESTRICT` para conservar el historial si se elimina una sede; las políticas RLS se crean solo si no existen y se valida su definición antes de reemplazarlas, sin deshabilitar RLS ni borrar políticas ajenas. Las RPC son `SECURITY DEFINER` con `search_path = public, pg_temp` y solo las ejecuta `service_role`.
 
 ## 2. Migraciones versionadas (CA2)
 
@@ -117,20 +117,25 @@ HU-39 agrega `planes` (catálogo global con los cupos propuestos por DA-12, pend
 3. `database/schema.sql` se regenera desde las migraciones y solo sirve de referencia legible.
    > **Estado tras HU-40/HU-39 (22 nov 2026):** las 37 migraciones están aplicadas en Supabase, incluida `20261122130000_hu39_push_administrador.sql` (`rls_activa = true`). `database/schema.sql` fue regenerado desde una base local con las 37 migraciones aplicadas mediante `database/pruebas/aplicar-migraciones.sh` y `pg_dump` 17.12; por eso no fue necesario el `DATABASE_URL` de producción. Para repetirlo contra Supabase: `DATABASE_URL=… database/pruebas/regenerar-esquema.sh` (o las variables `PG*`). El dump incluye `public` y `privado` con `--schema-only --no-owner --no-privileges`; no se edita a mano (ADR-02).
 
-**Verificación en un PostgreSQL vacío** (PostgreSQL 16, sin Supabase):
+**Verificación en un PostgreSQL vacío** (PostgreSQL 17.12, sin Supabase):
 
 ```bash
 PGHOST=localhost PGUSER=postgres database/pruebas/aplicar-migraciones.sh zaru_prueba
 # Aplicando 20261024025542_esquema_inicial.sql
-# Aplicando 20261024025550_funciones_seguridad_esquema_privado.sql
-# Aplicando 20261024025601_indices_llaves_foraneas.sql
-# Aplicando 20261028050419_hu42_integridad_notificaciones_indices.sql
-# OK: 4 migraciones aplicadas en la base zaru_prueba
+# ...
+# OK: 37 migraciones aplicadas en la base zaru_prueba
 psql -d zaru_prueba -f database/pruebas/01_integridad.sql
-# 23 de 23 pruebas aprobadas
+# 23 de 23 pruebas aprobadas (salida histórica del script)
 ```
 
 `00_entorno_supabase_minimo.sql` simula lo que Supabase ya trae (esquema `auth`, lo mínimo de `storage`, roles y publicación de Realtime) para poder aplicar las migraciones fuera de Supabase.
+`20261103100100_hu57_establecimientos_y_pruebas.sql` también necesita `pg_cron`: Supabase lo trae, pero
+en una instalación portátil hay que proveer un stub local de `cron.job`, `cron.schedule` y
+`cron.unschedule` antes de aplicar las migraciones.
+
+`01_integridad.sql` cubre 23 aserciones de integridad general, pero **no** verifica `planes`,
+`consumo_mensual`, `consumo_reservas` ni `consumo_alertas`. La cobertura HU-39 está en
+`backend/tests/unit/consumo.test.js` y `backend/tests/integration/hu39-consumo.test.js`.
 
 ## 3. Rendimiento con 81 establecimientos (CA3)
 

@@ -24,6 +24,7 @@ async function filaEstablecimiento(nombre) {
 
 beforeEach(() => {
   api.get.mockReset().mockImplementation((ruta) => {
+    if (ruta === '/superadmin/consumo/alertas') return Promise.resolve({ mes: '2026-11', alertas: [] });
     if (ruta.startsWith('/superadmin/consumo/')) {
       const sede = [
         { establecimientoId: 'e1', nombre: 'Lavadero Norte', plan: 'basico', etiquetaPlan: 'Básico', estado: 'normal',

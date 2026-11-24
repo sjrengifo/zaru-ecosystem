@@ -28,6 +28,7 @@ router.post('/establecimientos/:id/reenviar-invitacion', validar({ params: idEst
 
 // HU-39 CA3: reporte global, detalle por sede y catálogo de cupos de los planes.
 router.get('/consumo', validar({ query: filtroConsumo }), consumo.reporte);
+router.get('/consumo/alertas', validar({ query: filtroConsumo }), consumo.alertasGlobales);
 router.get('/consumo/:establecimientoId', validar({ params: idEstablecimientoConsumo, query: filtroConsumo }), consumo.detalle);
 router.get('/planes', consumo.planes);
 router.put('/planes/:nombre', validar({ params: nombrePlan, body: cuposPlan }), consumo.cambiarPlan);

@@ -11,6 +11,8 @@ import {
   consultarDetalle,
   listarPlanes,
   actualizarPlan,
+  consultarAlertasPropias,
+  consultarAlertasGlobales,
 } from '../shared/consumo.js';
 
 const mesDe = (req) => req.query?.mes ?? mesBogota();
@@ -19,6 +21,34 @@ const mesDe = (req) => req.query?.mes ?? mesBogota();
 export async function obtenerPropio(req, res, next) {
   try {
     const datos = await consultarConsumoPropio(req.tenant, { mes: mesDe(req) });
+    res.json(datos);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** CA1: bitácora de alertas del 80 % de la sede de la sesión. */
+export async function alertasPropias(req, res, next) {
+  try {
+    res.json(await consultarAlertasPropias(req.tenant, { mes: mesDe(req) }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** CA1: bitácora global de alertas del 80 % (solo plataforma). */
+export async function alertasGlobales(req, res, next) {
+  try {
+    const datos = await consultarAlertasGlobales({
+      mes: mesDe(req),
+      establecimientoId: req.query?.establecimientoId,
+    });
+    await registrarAuditoria(req, {
+      accion: 'hu39.consultar.alertas',
+      recurso: 'consumo_alertas',
+      resultado: 'permitido',
+      detalle: { mes: datos.mes, alertas: datos.alertas.length },
+    });
     res.json(datos);
   } catch (err) {
     next(err);

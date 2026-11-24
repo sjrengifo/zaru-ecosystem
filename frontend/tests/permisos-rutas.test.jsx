@@ -31,6 +31,7 @@ function sesionDe(rol) {
   api.get.mockImplementation(async (ruta) => {
     if (ruta === '/me') return { usuario: { id: 'u1', nombre: `Usuario ${rol}`, rol }, permisos: PERMISOS[rol] };
     if (ruta === '/establecimiento') return { nombre: 'Lavadero A' };
+    if (ruta === '/superadmin/consumo/alertas') return { mes: '2026-11', alertas: [] };
     if (ruta.startsWith('/superadmin/consumo')) return {
       mes: '2026-11',
       resumen: { establecimientos: 0, smsConsumidos: 0, correosConsumidos: 0, cercanosAlLimite: 0, cupoAgotado: 0 },

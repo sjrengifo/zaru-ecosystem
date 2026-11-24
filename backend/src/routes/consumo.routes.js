@@ -9,5 +9,6 @@ const router = Router();
 router.use(requiereRol('admin'));
 
 router.get('/', validar({ query: filtroConsumo }), ctrl.obtenerPropio);
+router.get('/alertas', validar({ query: filtroConsumo }), ctrl.alertasPropias);
 
 export default router;
